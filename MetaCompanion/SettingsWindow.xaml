@@ -1,0 +1,140 @@
+﻿<controls:MetroWindow x:Class="MetaCompanion.SettingsWindow"
+		xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+		xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+		xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+		xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+		xmlns:controls="clr-namespace:MahApps.Metro.Controls;assembly=MahApps.Metro"
+		mc:Ignorable="d"
+		BorderBrush="{DynamicResource AccentColorBrush}"
+		BorderThickness="1"
+		Title="Meta Companion 设置"
+		Width="500"
+		ResizeMode="NoResize"
+		SizeToContent="Height">
+	<Grid Margin="18">
+		<Grid.RowDefinitions>
+			<RowDefinition Height="Auto"/>
+			<RowDefinition Height="Auto"/>
+			<RowDefinition Height="Auto"/>
+			<RowDefinition Height="Auto"/>
+			<RowDefinition Height="Auto"/>
+		</Grid.RowDefinitions>
+
+		<StackPanel Grid.Row="0" Margin="0,0,0,14">
+			<TextBlock Text="Meta Companion"
+					FontSize="18"
+					FontWeight="SemiBold"/>
+			<TextBlock Text="本地 HSReplay / Premium 数据源、对手牌组预测与赛后推荐"
+					Foreground="#FF6E7B87"
+					Margin="0,3,0,0"/>
+		</StackPanel>
+
+		<Border Grid.Row="1"
+				BorderBrush="#405E6C7A"
+				BorderThickness="0,1,0,1"
+				Padding="0,12"
+				Margin="0,0,0,12">
+			<StackPanel>
+				<CheckBox IsChecked="{Binding FitDeckListToDisplay}"
+						Content="自动限制独立面板高度"
+						ToolTip="限制预测面板高度，避免遮挡 HDT 覆盖层。"/>
+				<CheckBox IsChecked="{Binding EnableLateGamePanel}"
+						Content="启用剩余卡牌预测浮窗"
+						Margin="0,8,0,0"
+						ToolTip="当原生对手牌表会显示太多预测牌时，改用独立浮窗展示最可能的未见牌，减少遮挡。"/>
+				<CheckBox IsChecked="{Binding EnableNativeHdtOpponentPredictions}"
+						Content="实验：接管 HDT 对手牌列表"
+						Margin="0,8,0,0"
+						ToolTip="默认关闭，避免影响 HDT 自带卡组匹配。开启后会把 Meta Companion 的预测牌写入 HDT 原生对手牌列表。"/>
+				<CheckBox IsChecked="{Binding LateGamePanelRightSide}"
+						Content="剩余卡牌预测默认靠右显示"
+						Margin="0,8,0,0"
+						ToolTip="未拖动过时，剩余卡牌预测浮窗默认靠右。"/>
+				<CheckBox IsChecked="{Binding EnableMatchHistory}"
+						Content="记录本地对局历史"
+						Margin="0,8,0,0"
+						ToolTip="每局结束后把最终预测、胜负和候选形态写入 match_history.tsv。"/>
+				<CheckBox IsChecked="{Binding EnablePredictionTimeline}"
+						Content="记录预测时间线"
+						Margin="0,8,0,0"
+						ToolTip="每次预测变化都写入 prediction_timeline.tsv，方便复盘误判。"/>
+				<CheckBox IsChecked="{Binding EnablePostGameMetaRefresh}"
+						Content="赛后刷新本地环境"
+						Margin="0,8,0,0"
+						ToolTip="每局结束后刷新 HDT 历史、近期对手分布和个人推荐。"/>
+				<CheckBox IsChecked="{Binding EnablePostGameDataRefresh}"
+						Content="赛后每天刷新 HSReplay 大数据和牌组库"
+						Margin="0,8,0,0"
+						ToolTip="每局结束后检查缓存，过期时刷新 HSReplay 牌组快照、大数据对阵矩阵和推荐。"/>
+				<CheckBox IsChecked="{Binding PostGameDashboardPersistent}"
+						Content="赛后浮窗常驻到下一局或手动关闭"
+						Margin="0,8,0,0"/>
+			</StackPanel>
+		</Border>
+
+		<Grid Grid.Row="2" Margin="0,0,0,14">
+			<Grid.ColumnDefinitions>
+				<ColumnDefinition Width="*"/>
+				<ColumnDefinition Width="82"/>
+			</Grid.ColumnDefinitions>
+			<Grid.RowDefinitions>
+				<RowDefinition Height="Auto"/>
+				<RowDefinition Height="Auto"/>
+				<RowDefinition Height="Auto"/>
+				<RowDefinition Height="Auto"/>
+			</Grid.RowDefinitions>
+			<TextBlock Grid.Row="0" Grid.ColumnSpan="2"
+					Text="剩余卡牌预测阈值"
+					FontWeight="SemiBold"
+					Margin="0,0,0,6"/>
+			<TextBlock Grid.Row="1" Text="已确认原始牌达到" VerticalAlignment="Center"/>
+			<TextBox Grid.Row="1" Grid.Column="1"
+					Text="{Binding LateGameEvidenceThreshold, UpdateSourceTrigger=PropertyChanged}"
+					HorizontalContentAlignment="Right"/>
+			<TextBlock Grid.Row="2" Text="对手牌库剩余不高于" VerticalAlignment="Center" Margin="0,6,0,0"/>
+			<TextBox Grid.Row="2" Grid.Column="1"
+					Text="{Binding LateGameRemainingDeckThreshold, UpdateSourceTrigger=PropertyChanged}"
+					HorizontalContentAlignment="Right"
+					Margin="0,6,0,0"/>
+			<TextBlock Grid.Row="3" Text="浮窗最多显示" VerticalAlignment="Center" Margin="0,6,0,0"/>
+			<TextBox Grid.Row="3" Grid.Column="1"
+					Text="{Binding LateGamePanelCardLimit, UpdateSourceTrigger=PropertyChanged}"
+					HorizontalContentAlignment="Right"
+					Margin="0,6,0,0"/>
+		</Grid>
+
+		<StackPanel Grid.Row="3" Margin="0,0,0,14">
+			<TextBlock Text="数据源" FontWeight="SemiBold"/>
+			<TextBlock Text="{Binding DataStatus}"
+					TextWrapping="Wrap"
+					Foreground="#FF596773"
+					Margin="0,4,0,0"/>
+			<TextBlock Text="{Binding RecommendationStatus}"
+					TextWrapping="Wrap"
+					Foreground="#FF596773"
+					Margin="0,3,0,0"/>
+			<TextBlock Text="{Binding PremiumStatus}"
+					TextWrapping="Wrap"
+					Foreground="#FF596773"
+					Margin="0,3,0,0"/>
+		</StackPanel>
+
+		<WrapPanel Grid.Row="4" HorizontalAlignment="Right">
+			<Button Margin="0,0,8,8" Padding="12,5"
+					Click="ButtonResetLayout_Click">重置浮窗位置</Button>
+			<Button Margin="0,0,8,8" Padding="12,5"
+					Click="ButtonOpenData_Click">打开数据目录</Button>
+			<Button Margin="0,0,8,8" Padding="12,5"
+					Click="ButtonOpenHistory_Click">对局历史</Button>
+			<Button Margin="0,0,8,8" Padding="12,5"
+					Click="ButtonOpenTimeline_Click">预测时间线</Button>
+			<Button Margin="0,0,8,8" Padding="12,5"
+					Click="ButtonOpenCorrections_Click">修正表</Button>
+			<Button Margin="0,0,8,8" Padding="12,5"
+					Click="ButtonOpenRecommendations_Click">推荐结果</Button>
+			<Button Margin="0,0,0,8" Padding="12,5"
+					Click="ButtonReadme_Click">项目说明</Button>
+		</WrapPanel>
+	</Grid>
+</controls:MetroWindow>
+
