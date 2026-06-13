@@ -1,13 +1,12 @@
 using System.Reflection;
-using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 
 [assembly: AssemblyTitle("MetaCompanionTests")]
 [assembly: AssemblyDescription("")]
 [assembly: AssemblyConfiguration("")]
-[assembly: AssemblyCompany("")]
+[assembly: AssemblyCompany("gkcc")]
 [assembly: AssemblyProduct("MetaCompanionTests")]
-[assembly: AssemblyCopyright("Copyright ©  2018")]
+[assembly: AssemblyCopyright("Copyright (c) 2026 gkcc")]
 [assembly: AssemblyTrademark("")]
 [assembly: AssemblyCulture("")]
 
