@@ -693,7 +693,7 @@ namespace MetaCompanionTests.Tests
 		}
 
 		[TestMethod]
-		public void ShouldUseLateGamePanel_WhenEnoughEvidenceSeen()
+		public void ShouldUseLateGamePanel_DoesNotUseEvidenceAlone()
 		{
 			var info = new PredictionInfo(
 				1, 20, 1, 1,
@@ -701,7 +701,7 @@ namespace MetaCompanionTests.Tests
 				new List<PredictionInfo.CardInfo>(),
 				evidenceCards: 10);
 
-			Assert.IsTrue(PredictionView.ShouldUseLateGamePanel(info, new PluginConfig()));
+			Assert.IsFalse(PredictionView.ShouldUseLateGamePanel(info, new PluginConfig()));
 		}
 
 		[TestMethod]
@@ -711,7 +711,7 @@ namespace MetaCompanionTests.Tests
 				1, 20, 1, 1,
 				new List<PredictionInfo.CardInfo>(),
 				new List<PredictionInfo.CardInfo>(),
-				evidenceCards: 6,
+				evidenceCards: 8,
 				remainingDeckCards: 15);
 
 			Assert.IsTrue(PredictionView.ShouldUseLateGamePanel(info, new PluginConfig()));
@@ -724,14 +724,14 @@ namespace MetaCompanionTests.Tests
 				1, 20, 1, 1,
 				new List<PredictionInfo.CardInfo>(),
 				new List<PredictionInfo.CardInfo>(),
-				evidenceCards: 1,
+				evidenceCards: 7,
 				remainingDeckCards: 15);
 
 			Assert.IsFalse(PredictionView.ShouldUseLateGamePanel(info, new PluginConfig()));
 		}
 
 		[TestMethod]
-		public void ShouldUseLateGamePanel_WhenNativePredictionListWouldBeTall()
+		public void ShouldUseLateGamePanel_DoesNotUseTallPredictionListAlone()
 		{
 			var alleycat = Database.GetCardFromName("Alleycat");
 			alleycat.Count = 18;
@@ -747,7 +747,7 @@ namespace MetaCompanionTests.Tests
 				new List<PredictionInfo.CardInfo>(),
 				evidenceCards: 6);
 
-			Assert.IsTrue(PredictionView.ShouldUseLateGamePanel(info, new PluginConfig()));
+			Assert.IsFalse(PredictionView.ShouldUseLateGamePanel(info, new PluginConfig()));
 		}
 
 		[TestMethod]
@@ -759,7 +759,7 @@ namespace MetaCompanionTests.Tests
 				new List<PredictionInfo.CardInfo>(),
 				new List<PredictionInfo.CardInfo>(),
 				evidenceCards: 10,
-				remainingDeckCards: 10);
+				remainingDeckCards: 8);
 
 			Assert.IsFalse(PredictionView.ShouldUseLateGamePanel(info, config));
 		}

@@ -89,6 +89,14 @@ namespace MetaCompanionTests.Tests
 				MetaRetriever.SelectDeckCodeFilePaths(new[] {branchPath}));
 		}
 
+		[TestMethod]
+		public void SelectDeckCodeFilePaths_ReturnsEmptyForCleanInstall()
+		{
+			var selected = MetaRetriever.SelectDeckCodeFilePaths(new string[0]);
+
+			Assert.AreEqual(0, selected.Count);
+		}
+
 		private static string DataPath(string fileName)
 		{
 			return Path.Combine(MetaCompanionPlugin.DataDirectory, fileName);

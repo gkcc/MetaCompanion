@@ -63,7 +63,7 @@ namespace MetaCompanion
 			if (!File.Exists(recommendationsPath))
 			{
 				MessageBox.Show(
-					"未找到推荐结果。请先运行 Update-MetaCompanionData.ps1 -PersonalRecommendations。",
+					"未找到推荐结果。插件会使用随包或本地已有的数据快照；高级数据同步请在源码工具中手动执行。",
 					"Meta Companion",
 					MessageBoxButton.OK,
 					MessageBoxImage.Information);
@@ -117,7 +117,7 @@ namespace MetaCompanion
 				{
 					return "未找到 HSReplay 牌组库，当前使用 " + branchStatus;
 				}
-				return "未找到 HSReplay 牌组快照。请先运行 Update-MetaCompanionData.ps1。";
+				return "未找到 HSReplay 牌组快照。当前仅显示已有本地缓存。";
 			}
 		}
 
@@ -157,11 +157,17 @@ namespace MetaCompanion
 					.Select(File.GetLastWriteTime)
 					.OrderByDescending(time => time)
 					.First();
-				var autoRefresh = _config.EnablePostGameDataRefresh
-					? "自动刷新开启，每 " + Math.Max(1, _config.PostGameDataRefreshCooldownHours) + " 小时检查"
-					: "自动刷新关闭";
-				return "对阵矩阵: 更新于 " + newest.ToString("yyyy-MM-dd HH:mm") +
-					" | " + autoRefresh;
+				return "对阵矩阵: 更新于 " + newest.ToString("yyyy-MM-dd HH:mm");
+			}
+		}
+
+		public bool EnableMetaDashboard
+		{
+			get { return _config.EnableMetaDashboard; }
+			set
+			{
+				_config.EnableMetaDashboard = value;
+				_config.Save();
 			}
 		}
 

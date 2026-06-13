@@ -2,6 +2,7 @@ using MetaCompanion;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using System;
 using System.IO;
+using System.Text.RegularExpressions;
 
 namespace MetaCompanionTests.Tests
 {
@@ -57,6 +58,7 @@ namespace MetaCompanionTests.Tests
 				@"C:\MetaCompanion Tools\Update-MetaCompanionData.ps1",
 				new PluginConfig
 				{
+					EnablePostGameDataRefresh = true,
 					PostGameDataRefreshMaxDecks = 111,
 					PostGamePremiumRefreshMaxDecks = 22,
 					PostGameDataRefreshParallelism = 3
@@ -82,14 +84,51 @@ namespace MetaCompanionTests.Tests
 		}
 
 		[TestMethod]
-		public void BuildRefreshPlan_RequestsFullDataRefreshWhenTrackedFilesAreMissing()
+		public void BuildArguments_CanRefreshPublicDeckSnapshotWithoutPremium()
+		{
+			var args = PostGameMetaRefresher.BuildArguments(
+				@"C:\MetaCompanion Tools\Update-MetaCompanionData.ps1",
+				new PluginConfig(),
+				new PostGameRefreshPlan
+				{
+					IncludeDeckSnapshotRefresh = true,
+					IncludePersonalRecommendations = false
+				});
+
+			StringAssert.Contains(args, "-LocalMeta");
+			StringAssert.Contains(args, "-RankRanges");
+			Assert.IsFalse(HasStandaloneSwitch(args, "PersonalRecommendations"), args);
+			Assert.IsFalse(HasStandaloneSwitch(args, "Premium"), args);
+			Assert.IsFalse(HasStandaloneSwitch(args, "PremiumTimeRange"), args);
+			Assert.IsFalse(HasStandaloneSwitch(args, "MetaTimeRange"), args);
+		}
+
+		[TestMethod]
+		public void BuildRefreshPlan_RequestsPublicDeckSnapshotWhenTrackedFilesAreMissingWithoutCookie()
 		{
 			var plan = PostGameMetaRefresher.BuildRefreshPlan(
-				new PluginConfig(),
+				RefreshEnabledConfig(),
 				_tempDirectory,
 				new DateTime(2026, 6, 12, 12, 0, 0));
 
+			Assert.IsTrue(plan.IncludeDeckSnapshotRefresh);
+			Assert.IsFalse(plan.IncludeFullDataRefresh);
+			Assert.IsFalse(plan.IncludePersonalRecommendations);
+		}
+
+		[TestMethod]
+		public void BuildRefreshPlan_RequestsFullDataRefreshWhenTrackedFilesAreMissingWithCookie()
+		{
+			WritePremiumCookie();
+
+			var plan = PostGameMetaRefresher.BuildRefreshPlan(
+				RefreshEnabledConfig(),
+				_tempDirectory,
+				new DateTime(2026, 6, 12, 12, 0, 0));
+
+			Assert.IsTrue(plan.IncludeDeckSnapshotRefresh);
 			Assert.IsTrue(plan.IncludeFullDataRefresh);
+			Assert.IsTrue(plan.IncludePersonalRecommendations);
 			Assert.AreEqual("CURRENT_PATCH", plan.PrimaryTimeRange);
 			Assert.AreEqual("LAST_3_DAYS", plan.MetaFallbackTimeRange);
 			Assert.AreEqual("LAST_7_DAYS", plan.PremiumFallbackTimeRange);
@@ -102,11 +141,12 @@ namespace MetaCompanionTests.Tests
 			WriteFile(PostGameMetaRefresher.GetDataRefreshAttemptPath(_tempDirectory), "attempt", now);
 
 			var plan = PostGameMetaRefresher.BuildRefreshPlan(
-				new PluginConfig(),
+				RefreshEnabledConfig(),
 				_tempDirectory,
 				now);
 
 			Assert.IsFalse(plan.IncludeFullDataRefresh);
+			Assert.IsFalse(plan.IncludePersonalRecommendations);
 		}
 
 		[TestMethod]
@@ -116,11 +156,12 @@ namespace MetaCompanionTests.Tests
 			WriteTrackedFiles(now.AddHours(-2));
 
 			var plan = PostGameMetaRefresher.BuildRefreshPlan(
-				new PluginConfig(),
+				RefreshEnabledConfig(),
 				_tempDirectory,
 				now);
 
 			Assert.IsFalse(plan.IncludeFullDataRefresh);
+			Assert.IsTrue(plan.IncludePersonalRecommendations);
 		}
 
 		[TestMethod]
@@ -133,7 +174,7 @@ namespace MetaCompanionTests.Tests
 				now.AddHours(-25));
 
 			var plan = PostGameMetaRefresher.BuildRefreshPlan(
-				new PluginConfig(),
+				RefreshEnabledConfig(),
 				_tempDirectory,
 				now);
 
@@ -144,17 +185,47 @@ namespace MetaCompanionTests.Tests
 		public void BuildRefreshPlan_RequestsFullDataRefreshWhenAnyPrimaryTrackedFileIsStale()
 		{
 			var now = new DateTime(2026, 6, 12, 12, 0, 0);
+			WritePremiumCookie();
 			WriteTrackedFiles(now.AddHours(-2));
 			File.SetLastWriteTime(
 				PostGameMetaRefresher.GetMetaMatrixPath(_tempDirectory),
 				now.AddHours(-25));
 
 			var plan = PostGameMetaRefresher.BuildRefreshPlan(
-				new PluginConfig(),
+				RefreshEnabledConfig(),
 				_tempDirectory,
 				now);
 
 			Assert.IsTrue(plan.IncludeFullDataRefresh);
+		}
+
+		[TestMethod]
+		public void BuildRefreshPlan_ReusesPremiumCacheForPersonalRecommendationsWithoutCookie()
+		{
+			var now = new DateTime(2026, 6, 12, 12, 0, 0);
+			WriteTrackedFiles(now.AddHours(-26));
+
+			var plan = PostGameMetaRefresher.BuildRefreshPlan(
+				RefreshEnabledConfig(),
+				_tempDirectory,
+				now);
+
+			Assert.IsTrue(plan.IncludeDeckSnapshotRefresh);
+			Assert.IsFalse(plan.IncludeFullDataRefresh);
+			Assert.IsTrue(plan.IncludePersonalRecommendations);
+		}
+
+		[TestMethod]
+		public void BuildRefreshPlan_DoesNotRunPersonalRecommendationsWhenDataRefreshDisabledWithoutCache()
+		{
+			var plan = PostGameMetaRefresher.BuildRefreshPlan(
+				new PluginConfig { EnablePostGameDataRefresh = false },
+				_tempDirectory,
+				new DateTime(2026, 6, 12, 12, 0, 0));
+
+			Assert.IsFalse(plan.IncludeDeckSnapshotRefresh);
+			Assert.IsFalse(plan.IncludeFullDataRefresh);
+			Assert.IsFalse(plan.IncludePersonalRecommendations);
 		}
 
 		private void WriteTrackedFiles(DateTime lastWriteTime)
@@ -165,11 +236,29 @@ namespace MetaCompanionTests.Tests
 			WriteFile(PostGameMetaRefresher.GetMetaMatrixPath(_tempDirectory), "{}", lastWriteTime);
 		}
 
+		private static PluginConfig RefreshEnabledConfig()
+		{
+			return new PluginConfig { EnablePostGameDataRefresh = true };
+		}
+
+		private void WritePremiumCookie()
+		{
+			WriteFile(
+				PostGameMetaRefresher.GetPremiumCookiePath(_tempDirectory),
+				"sessionid=test",
+				DateTime.Now);
+		}
+
 		private static void WriteFile(string path, string contents, DateTime lastWriteTime)
 		{
 			Directory.CreateDirectory(Path.GetDirectoryName(path));
 			File.WriteAllText(path, contents);
 			File.SetLastWriteTime(path, lastWriteTime);
+		}
+
+		private static bool HasStandaloneSwitch(string args, string switchName)
+		{
+			return Regex.IsMatch(args, @"(^|\s)-" + Regex.Escape(switchName) + @"(\s|$)");
 		}
 	}
 }

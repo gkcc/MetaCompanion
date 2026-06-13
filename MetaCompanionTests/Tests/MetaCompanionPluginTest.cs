@@ -1,6 +1,7 @@
 using MetaCompanion;
 using Hearthstone_Deck_Tracker.Enums;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
+using HsMode = Hearthstone_Deck_Tracker.Enums.Hearthstone.Mode;
 
 namespace MetaCompanionTests.Tests
 {
@@ -52,6 +53,36 @@ namespace MetaCompanionTests.Tests
 			Assert.AreEqual(GameStartDashboardAction.None, unsupportedMode.DashboardAction);
 			Assert.IsFalse(duplicateStart.ShouldTrack);
 			Assert.AreEqual(GameStartDashboardAction.None, duplicateStart.DashboardAction);
+		}
+
+		[TestMethod]
+		public void ShouldShowStandardRecommendations_AllowsTraditionalPlayScene()
+		{
+			Assert.IsTrue(MetaCompanionPlugin.ShouldShowStandardRecommendations(
+				Format.Standard, GameMode.Ranked, HsMode.TOURNAMENT, false, true));
+			Assert.IsTrue(MetaCompanionPlugin.ShouldShowStandardRecommendations(
+				Format.All, GameMode.None, HsMode.TOURNAMENT, false, true));
+		}
+
+		[TestMethod]
+		public void ShouldShowStandardRecommendations_RejectsGameplayAndUnsupportedContexts()
+		{
+			Assert.IsFalse(MetaCompanionPlugin.ShouldShowStandardRecommendations(
+				Format.Standard, GameMode.None, HsMode.HUB, false, true));
+			Assert.IsFalse(MetaCompanionPlugin.ShouldShowStandardRecommendations(
+				Format.Standard, GameMode.None, HsMode.GAME_MODE, false, true));
+			Assert.IsFalse(MetaCompanionPlugin.ShouldShowStandardRecommendations(
+				Format.Standard, GameMode.None, HsMode.COLLECTIONMANAGER, false, true));
+			Assert.IsFalse(MetaCompanionPlugin.ShouldShowStandardRecommendations(
+				Format.Standard, GameMode.Ranked, HsMode.GAMEPLAY, false, true));
+			Assert.IsFalse(MetaCompanionPlugin.ShouldShowStandardRecommendations(
+				Format.Wild, GameMode.Ranked, HsMode.TOURNAMENT, false, true));
+			Assert.IsFalse(MetaCompanionPlugin.ShouldShowStandardRecommendations(
+				Format.Standard, GameMode.Battlegrounds, HsMode.TOURNAMENT, false, true));
+			Assert.IsFalse(MetaCompanionPlugin.ShouldShowStandardRecommendations(
+				Format.Standard, GameMode.Ranked, HsMode.TOURNAMENT, true, true));
+			Assert.IsFalse(MetaCompanionPlugin.ShouldShowStandardRecommendations(
+				Format.Standard, GameMode.Ranked, HsMode.TOURNAMENT, false, false));
 		}
 	}
 }

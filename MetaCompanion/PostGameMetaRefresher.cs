@@ -2,6 +2,7 @@ using System;
 using System.Diagnostics;
 using System.Globalization;
 using System.IO;
+using System.Linq;
 using System.Threading.Tasks;
 
 namespace MetaCompanion
@@ -112,6 +113,11 @@ namespace MetaCompanion
 			return Path.Combine(dataDirectory, "post_game_data_refresh.last");
 		}
 
+		internal static string GetPremiumCookiePath(string dataDirectory)
+		{
+			return Path.Combine(dataDirectory, "hsreplay_cookie.txt");
+		}
+
 		internal static string BuildArguments(string scriptPath, PluginConfig config)
 		{
 			return BuildArguments(scriptPath, config, false);
@@ -124,11 +130,14 @@ namespace MetaCompanion
 			string premiumTimeRangeOverride = null,
 			string metaTimeRangeOverride = null,
 			string branchCandidateTimeRangeOverride = null,
-			bool premiumStopOnUnsupported = false)
+			bool premiumStopOnUnsupported = false,
+			bool includeDeckSnapshotRefresh = false,
+			bool includePersonalRecommendations = true)
 		{
 			config = config ?? new PluginConfig();
 			var arguments = "-NoProfile -ExecutionPolicy Bypass -File " + Quote(scriptPath) +
-				" -LocalMeta -PersonalRecommendations" +
+				" -LocalMeta" +
+				(includePersonalRecommendations ? " -PersonalRecommendations" : "") +
 				" -RecommendationTop " + Math.Max(1, config.LocalRecommendationTop)
 					.ToString(CultureInfo.InvariantCulture) +
 				" -PersonalRecommendationHistoryDays " + Math.Max(1, config.LocalRecommendationHistoryDays)
@@ -137,6 +146,17 @@ namespace MetaCompanion
 					.ToString(CultureInfo.InvariantCulture) +
 				" -LocalMetaMinConfidence " + Math.Max(0, config.LocalMetaMinConfidence)
 					.ToString(CultureInfo.InvariantCulture);
+
+			if (includeDeckSnapshotRefresh || includeFullDataRefresh)
+			{
+				arguments +=
+					" -RankRanges " + Quote(DefaultDeckRankRanges) +
+					" -LimitPerRange " + DefaultDeckLimitPerRange.ToString(CultureInfo.InvariantCulture) +
+					" -MaxDecks " + Math.Max(1, config.PostGameDataRefreshMaxDecks)
+						.ToString(CultureInfo.InvariantCulture) +
+					" -Parallelism " + Math.Max(1, config.PostGameDataRefreshParallelism)
+						.ToString(CultureInfo.InvariantCulture);
+			}
 
 			if (includeFullDataRefresh)
 			{
@@ -147,12 +167,6 @@ namespace MetaCompanion
 					metaTimeRangeOverride,
 					NormalizeValue(config.PostGamePrimaryTimeRange, "CURRENT_PATCH"));
 				arguments +=
-					" -RankRanges " + Quote(DefaultDeckRankRanges) +
-					" -LimitPerRange " + DefaultDeckLimitPerRange.ToString(CultureInfo.InvariantCulture) +
-					" -MaxDecks " + Math.Max(1, config.PostGameDataRefreshMaxDecks)
-						.ToString(CultureInfo.InvariantCulture) +
-					" -Parallelism " + Math.Max(1, config.PostGameDataRefreshParallelism)
-						.ToString(CultureInfo.InvariantCulture) +
 					" -Premium -Meta" +
 					" -PremiumTimeRange " + Quote(premiumTimeRange) +
 					" -MetaTimeRange " + Quote(metaTimeRange) +
@@ -167,6 +181,25 @@ namespace MetaCompanion
 			return arguments;
 		}
 
+		internal static string BuildArguments(
+			string scriptPath,
+			PluginConfig config,
+			PostGameRefreshPlan refreshPlan,
+			bool useFallbackRanges = false)
+		{
+			refreshPlan = refreshPlan ?? new PostGameRefreshPlan();
+			return BuildArguments(
+				scriptPath,
+				config,
+				refreshPlan.IncludeFullDataRefresh,
+				useFallbackRanges ? refreshPlan.PremiumFallbackTimeRange : refreshPlan.PrimaryTimeRange,
+				useFallbackRanges ? refreshPlan.MetaFallbackTimeRange : refreshPlan.PrimaryTimeRange,
+				useFallbackRanges ? refreshPlan.PremiumFallbackTimeRange : refreshPlan.PrimaryTimeRange,
+				refreshPlan.IncludeFullDataRefresh && !useFallbackRanges,
+				refreshPlan.IncludeDeckSnapshotRefresh,
+				refreshPlan.IncludePersonalRecommendations);
+		}
+
 		internal static PostGameRefreshPlan BuildRefreshPlan(
 			PluginConfig config,
 			string dataDirectory,
@@ -176,21 +209,39 @@ namespace MetaCompanion
 			var plan = new PostGameRefreshPlan();
 			if (!config.EnablePostGameDataRefresh)
 			{
+				plan.IncludePersonalRecommendations = HasPremiumMetaCache(dataDirectory);
 				return plan;
 			}
 
 			var maxAge = TimeSpan.FromHours(Math.Max(1, config.PostGameDataRefreshCooldownHours));
 			if (IsFresh(GetDataRefreshAttemptPath(dataDirectory), now, maxAge))
 			{
+				plan.IncludePersonalRecommendations = HasPremiumMetaCache(dataDirectory);
 				return plan;
 			}
 
-			if (!IsFullDataRefreshNeeded(dataDirectory, now, maxAge))
+			var deckSnapshotFresh = IsFresh(GetDeckSnapshotPath(dataDirectory), now, maxAge);
+			var premiumMetaFresh = IsFresh(GetMetaSummaryPath(dataDirectory), now, maxAge) &&
+				IsFresh(GetMetaMatrixPath(dataDirectory), now, maxAge);
+			var hasPremiumMetaCache = HasPremiumMetaCache(dataDirectory);
+			var hasPremiumCookie = HasPremiumCookie(dataDirectory);
+
+			if (!deckSnapshotFresh)
 			{
-				return plan;
+				plan.IncludeDeckSnapshotRefresh = true;
 			}
 
-			plan.IncludeFullDataRefresh = true;
+			if (hasPremiumCookie && (!deckSnapshotFresh || !premiumMetaFresh))
+			{
+				plan.IncludeFullDataRefresh = true;
+				plan.IncludeDeckSnapshotRefresh = true;
+				plan.IncludePersonalRecommendations = true;
+			}
+			else
+			{
+				plan.IncludePersonalRecommendations = hasPremiumMetaCache;
+			}
+
 			plan.PrimaryTimeRange = NormalizeValue(config.PostGamePrimaryTimeRange, "CURRENT_PATCH");
 			plan.MetaFallbackTimeRange = NormalizeValue(config.PostGameMetaFallbackTimeRange, "LAST_3_DAYS");
 			plan.PremiumFallbackTimeRange = NormalizeValue(config.PostGamePremiumFallbackTimeRange, "LAST_7_DAYS");
@@ -205,6 +256,24 @@ namespace MetaCompanion
 			return !IsFresh(GetDeckSnapshotPath(dataDirectory), now, maxAge) ||
 				!IsFresh(GetMetaSummaryPath(dataDirectory), now, maxAge) ||
 				!IsFresh(GetMetaMatrixPath(dataDirectory), now, maxAge);
+		}
+
+		internal static bool HasPremiumCookie(string dataDirectory)
+		{
+			var path = GetPremiumCookiePath(dataDirectory);
+			if (!File.Exists(path))
+			{
+				return false;
+			}
+
+			return File.ReadLines(path)
+				.Any(line => !string.IsNullOrWhiteSpace(line) && !line.TrimStart().StartsWith("#"));
+		}
+
+		internal static bool HasPremiumMetaCache(string dataDirectory)
+		{
+			return File.Exists(GetMetaSummaryPath(dataDirectory)) &&
+				File.Exists(GetMetaMatrixPath(dataDirectory));
 		}
 
 		private static void RunRefresh(
@@ -225,14 +294,7 @@ namespace MetaCompanion
 				Log.Info("Post-game full HSReplay data refresh is due.");
 			}
 
-			var primaryArguments = BuildArguments(
-				scriptPath,
-				config,
-				refreshPlan.IncludeFullDataRefresh,
-				refreshPlan.PrimaryTimeRange,
-				refreshPlan.PrimaryTimeRange,
-				refreshPlan.PrimaryTimeRange,
-				refreshPlan.IncludeFullDataRefresh);
+			var primaryArguments = BuildArguments(scriptPath, config, refreshPlan);
 
 			try
 			{
@@ -251,13 +313,7 @@ namespace MetaCompanion
 					logDirectory,
 					"post-game-refresh-fallback-" +
 					DateTime.Now.ToString("yyyyMMdd-HHmmss", CultureInfo.InvariantCulture) + ".log");
-				var fallbackArguments = BuildArguments(
-					scriptPath,
-					config,
-					true,
-					refreshPlan.PremiumFallbackTimeRange,
-					refreshPlan.MetaFallbackTimeRange,
-					refreshPlan.PremiumFallbackTimeRange);
+				var fallbackArguments = BuildArguments(scriptPath, config, refreshPlan, true);
 				RunRefreshProcess(scriptPath, fallbackArguments, fallbackLogPath);
 			}
 			Log.Info("Post-game local meta refresh complete.");
@@ -333,7 +389,9 @@ namespace MetaCompanion
 
 	internal class PostGameRefreshPlan
 	{
+		public bool IncludeDeckSnapshotRefresh { get; set; }
 		public bool IncludeFullDataRefresh { get; set; }
+		public bool IncludePersonalRecommendations { get; set; } = true;
 		public string PrimaryTimeRange { get; set; } = "CURRENT_PATCH";
 		public string MetaFallbackTimeRange { get; set; } = "LAST_3_DAYS";
 		public string PremiumFallbackTimeRange { get; set; } = "LAST_7_DAYS";

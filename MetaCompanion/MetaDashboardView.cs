@@ -11,6 +11,7 @@ namespace MetaCompanion
 	{
 		private const double TopRatio = .105;
 		private const double RightRatio = .025;
+		private const double MaxUsableSavedPositionY = .9;
 
 		private readonly PluginConfig _config;
 		private MetaDashboardPanel _panel;
@@ -21,17 +22,26 @@ namespace MetaCompanion
 			_config = config ?? new PluginConfig();
 		}
 
+		public bool UserDismissed { get; private set; }
+
+		public void ResetUserDismissed()
+		{
+			UserDismissed = false;
+		}
+
+		public void ShowRecommendations()
+		{
+			Show("卡组流派推荐", TimeSpan.Zero);
+		}
+
 		public void ShowStandardStart()
 		{
-			Show("标准对战环境", TimeSpan.FromSeconds(11), false);
+			ShowRecommendations();
 		}
 
 		public void ShowPostGame()
 		{
-			var duration = _config.PostGameDashboardPersistent
-				? TimeSpan.Zero
-				: TimeSpan.FromSeconds(Math.Max(0, _config.PostGameDashboardAutoHideSeconds));
-			Show("赛后环境速览", duration, true);
+			ShowRecommendations();
 		}
 
 		public void Hide()
@@ -62,7 +72,7 @@ namespace MetaCompanion
 				});
 		}
 
-		private void Show(string title, TimeSpan duration, bool persistent)
+		private void Show(string title, TimeSpan duration)
 		{
 			RunOnOverlayThread(() =>
 				{
@@ -74,14 +84,7 @@ namespace MetaCompanion
 					_panel.Update(title, MetaDashboardSnapshot.Load(MetaCompanionPlugin.DataDirectory));
 					_panel.Visibility = Visibility.Visible;
 					PositionPanel();
-					if (persistent && _config.PostGameDashboardPersistent)
-					{
-						_hideTimer?.Stop();
-					}
-					else
-					{
-						RestartTimer(duration);
-					}
+					RestartTimer(duration);
 				});
 		}
 
@@ -95,7 +98,7 @@ namespace MetaCompanion
 
 			if (_panel == null)
 			{
-				_panel = new MetaDashboardPanel(Hide);
+				_panel = new MetaDashboardPanel(HideByUser);
 				OverlayDragHelper.Enable(_panel, _panel.DragHandle, SaveDashboardPosition);
 			}
 
@@ -114,6 +117,12 @@ namespace MetaCompanion
 			return true;
 		}
 
+		private void HideByUser()
+		{
+			UserDismissed = true;
+			Hide();
+		}
+
 		private void PositionPanel()
 		{
 			var overlay = Core.OverlayWindow;
@@ -129,11 +138,20 @@ namespace MetaCompanion
 
 			if (_config.HasDashboardPanelPosition)
 			{
-				OverlayDragHelper.ApplyNormalizedPosition(
-					_panel,
-					_config.DashboardPanelPositionX,
-					_config.DashboardPanelPositionY);
-				return;
+				if (IsSavedDashboardPositionUsable())
+				{
+					OverlayDragHelper.ApplyNormalizedPosition(
+						_panel,
+						_config.DashboardPanelPositionX,
+						_config.DashboardPanelPositionY);
+					return;
+				}
+
+				Log.Info("Resetting legacy dashboard panel position.");
+				_config.HasDashboardPanelPosition = false;
+				_config.DashboardPanelPositionX = 0.75;
+				_config.DashboardPanelPositionY = 0.1;
+				_config.Save();
 			}
 
 			Canvas.SetLeft(_panel, Double.NaN);
@@ -149,6 +167,14 @@ namespace MetaCompanion
 			_config.DashboardPanelPositionX = position.X;
 			_config.DashboardPanelPositionY = position.Y;
 			_config.Save();
+		}
+
+		private bool IsSavedDashboardPositionUsable()
+		{
+			return _config.DashboardPanelPositionX >= 0 &&
+				_config.DashboardPanelPositionX <= 1 &&
+				_config.DashboardPanelPositionY >= 0 &&
+				_config.DashboardPanelPositionY <= MaxUsableSavedPositionY;
 		}
 
 		private void RestartTimer(TimeSpan duration)

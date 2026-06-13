@@ -19,23 +19,24 @@ namespace MetaCompanionTests.Tests
 		public void LateGamePanel_DefaultsAreEnabledAndConservative()
 		{
 			var config = new PluginConfig();
+			Assert.IsTrue(config.EnableMetaDashboard);
 			Assert.IsTrue(config.EnableLateGamePanel);
 			Assert.IsFalse(config.EnableNativeHdtOpponentPredictions);
-			Assert.AreEqual(10, config.LateGameEvidenceThreshold);
+			Assert.AreEqual(8, config.LateGameEvidenceThreshold);
 			Assert.AreEqual(15, config.LateGameRemainingDeckThreshold);
 			Assert.AreEqual(18, config.LateGamePredictionThreshold);
 			Assert.IsFalse(config.LateGamePanelRightSide);
-			Assert.AreEqual(12, config.LateGamePanelCardLimit);
+			Assert.AreEqual(10, config.LateGamePanelCardLimit);
 			Assert.IsTrue(config.EnableMatchHistory);
 			Assert.IsTrue(config.EnablePredictionTimeline);
 			Assert.AreEqual(3, config.LocalRecommendationHistoryDays);
 			Assert.AreEqual(0.35, config.LocalRecommendationWeight);
 			Assert.AreEqual(20, config.LocalRecommendationTop);
 			Assert.AreEqual(35, config.LocalMetaMinConfidence);
-			Assert.IsTrue(config.EnablePostGameMetaRefresh);
+			Assert.IsFalse(config.EnablePostGameMetaRefresh);
 			Assert.AreEqual(8, config.PostGameMetaRefreshDelaySeconds);
 			Assert.AreEqual(2, config.PostGameMetaRefreshCooldownMinutes);
-			Assert.IsTrue(config.EnablePostGameDataRefresh);
+			Assert.IsFalse(config.EnablePostGameDataRefresh);
 			Assert.AreEqual(24, config.PostGameDataRefreshCooldownHours);
 			Assert.AreEqual("CURRENT_PATCH", config.PostGamePrimaryTimeRange);
 			Assert.AreEqual("LAST_3_DAYS", config.PostGameMetaFallbackTimeRange);

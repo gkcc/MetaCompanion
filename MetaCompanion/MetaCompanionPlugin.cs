@@ -11,6 +11,7 @@ using System.Windows.Controls;
 using System.Windows.Forms;
 using System.Windows;
 using System;
+using HsMode = Hearthstone_Deck_Tracker.Enums.Hearthstone.Mode;
 
 namespace MetaCompanion
 {
@@ -45,9 +46,13 @@ namespace MetaCompanion
 		private PredictionView _view;
 		private MetaDashboardView _metaDashboardView;
 		private PostGameMetaRefresher _postGameMetaRefresher;
+		private QuickDashboardRefresher _quickDashboardRefresher;
 		private MatchHistoryRecorder _matchHistoryRecorder;
-		private bool _postGameDashboardShownForGame;
 		private DateTime _ignoreReplayEventsUntil = DateTime.MinValue;
+		private DateTime _nextDashboardPoll = DateTime.MinValue;
+		private bool _wasInRecommendationScene;
+		private string _lastDashboardStateSignature;
+		private static readonly TimeSpan DashboardPollInterval = TimeSpan.FromSeconds(1);
 
 		private SettingsWindow _settingsWindow;
 
@@ -96,7 +101,7 @@ namespace MetaCompanion
 		public void OnLoad()
 		{
 			Log.Initialize();
-			Log.Info("Starting Meta Companion local HSReplay build 2026-06-12 (v1.4.0)");
+			Log.Info("Starting Meta Companion v0.1.0");
 			Log.Info("Plugin assembly: " + typeof(MetaCompanionPlugin).Assembly.Location);
 			Log.Info("Plugin data directory: " + DataDirectory);
 			if (!Directory.Exists(DataDirectory))
@@ -117,6 +122,7 @@ namespace MetaCompanion
 			_view = new PredictionView(_config);
 			_metaDashboardView = new MetaDashboardView(_config);
 			_postGameMetaRefresher = new PostGameMetaRefresher();
+			_quickDashboardRefresher = new QuickDashboardRefresher();
 
 			GameEvents.OnGameStart.Add(() =>
 				{
@@ -126,7 +132,6 @@ namespace MetaCompanion
 					if (decision.ShouldTrack)
 					{
 						Log.Info("Enabling Meta Companion for " + format + " " + mode + " game");
-						_postGameDashboardShownForGame = false;
 						_matchHistoryRecorder = new MatchHistoryRecorder(_config);
 						_matchHistoryRecorder.Start(format.ToString(), mode.ToString());
 						var opponent = new Opponent(Hearthstone_Deck_Tracker.Core.Game);
@@ -135,6 +140,8 @@ namespace MetaCompanion
 						_view.SetEnabled(true);
 						if (decision.DashboardAction == GameStartDashboardAction.Hide)
 						{
+							_wasInRecommendationScene = false;
+							_metaDashboardView?.ResetUserDismissed();
 							_metaDashboardView?.Hide();
 						}
 						controller.OnPredictionUpdate.Add(_view.OnPredictionUpdate);
@@ -160,10 +167,12 @@ namespace MetaCompanion
 			GameEvents.OnGameEnd.Add(() =>
 				{
 					_matchHistoryRecorder?.Complete("game_end");
-					ShowPostGameDashboard("game_end");
+					_quickDashboardRefresher?.TryRefreshAfterGame(
+						_config,
+						() => UpdateStandardRecommendationDashboard(true));
 					_postGameMetaRefresher?.TryRefreshAfterGame(
 						_config,
-						() => _metaDashboardView?.ShowPostGame());
+						() => UpdateStandardRecommendationDashboard(true));
 				});
 			GameEvents.OnInMenu.Add(() =>
 				{
@@ -180,10 +189,16 @@ namespace MetaCompanion
 					_matchHistoryRecorder?.Complete("in_menu");
 					if (wasTrackingGame)
 					{
-						ShowPostGameDashboard("in_menu");
+						_quickDashboardRefresher?.TryRefreshAfterGame(
+							_config,
+							() => UpdateStandardRecommendationDashboard(true));
 					}
 					_matchHistoryRecorder = null;
 					_controller = null;
+					if (wasTrackingGame)
+					{
+						UpdateStandardRecommendationDashboard(true);
+					}
 				});
 			GameEvents.OnOpponentDraw.Add(() =>
 				{
@@ -276,10 +291,12 @@ namespace MetaCompanion
 			_metaDashboardView?.OnUnload();
 			_metaDashboardView = null;
 			_postGameMetaRefresher = null;
+			_quickDashboardRefresher = null;
 		}
 
 		public void OnUpdate()
 		{
+			UpdateStandardRecommendationDashboard(false);
 		}
 
 		internal static bool ShouldStartTrackingGame(Format? format, GameMode mode, bool alreadyTracking)
@@ -304,16 +321,90 @@ namespace MetaCompanion
 				shouldTrack ? GameStartDashboardAction.Hide : GameStartDashboardAction.None);
 		}
 
-		private void ShowPostGameDashboard(string reason)
+		internal static bool ShouldShowStandardRecommendations(
+			Format? format,
+			GameMode gameMode,
+			HsMode currentMode,
+			bool trackingGame,
+			bool enabled)
 		{
-			if (_postGameDashboardShownForGame)
+			if (!enabled || trackingGame)
+			{
+				return false;
+			}
+
+			if (format.HasValue && format.Value != Format.Standard && format.Value != Format.All)
+			{
+				return false;
+			}
+
+			if (gameMode != GameMode.Ranked &&
+				gameMode != GameMode.Casual &&
+				gameMode != GameMode.Friendly &&
+				gameMode != GameMode.None)
+			{
+				return false;
+			}
+
+			return currentMode == HsMode.TOURNAMENT;
+		}
+
+		private void UpdateStandardRecommendationDashboard(bool force)
+		{
+			if (!force && DateTime.Now < _nextDashboardPoll)
+			{
+				return;
+			}
+			_nextDashboardPoll = DateTime.Now.Add(DashboardPollInterval);
+
+			var game = Hearthstone_Deck_Tracker.Core.Game;
+			var shouldShow = game != null && ShouldShowStandardRecommendations(
+				game.CurrentFormat,
+				game.CurrentGameMode,
+				game.CurrentMode,
+				_controller != null,
+				_config != null && _config.EnableMetaDashboard);
+			LogDashboardStateIfChanged(game, shouldShow);
+
+			if (shouldShow)
+			{
+				if (!_wasInRecommendationScene)
+				{
+					_wasInRecommendationScene = true;
+					_metaDashboardView?.ResetUserDismissed();
+				}
+				if (!(_metaDashboardView?.UserDismissed ?? true))
+				{
+					_metaDashboardView?.ShowRecommendations();
+				}
+				return;
+			}
+
+			if (_wasInRecommendationScene)
+			{
+				_metaDashboardView?.ResetUserDismissed();
+			}
+			_wasInRecommendationScene = false;
+			_metaDashboardView?.Hide();
+		}
+
+		private void LogDashboardStateIfChanged(
+			Hearthstone_Deck_Tracker.Hearthstone.GameV2 game,
+			bool shouldShow)
+		{
+			var signature = game == null
+				? "no-game"
+				: game.CurrentFormat + "|" + game.CurrentGameMode + "|" + game.CurrentMode +
+					"|tracking=" + (_controller != null) +
+					"|enabled=" + (_config != null && _config.EnableMetaDashboard) +
+					"|show=" + shouldShow;
+			if (signature == _lastDashboardStateSignature)
 			{
 				return;
 			}
 
-			_postGameDashboardShownForGame = true;
-			Log.Info("Showing post-game dashboard after " + reason);
-			_metaDashboardView?.ShowPostGame();
+			_lastDashboardStateSignature = signature;
+			Log.Debug("Recommendation dashboard state: " + signature);
 		}
 
 		private bool ShouldIgnoreReplayEvent()
@@ -323,7 +414,7 @@ namespace MetaCompanion
 
 		public Version Version
 		{
-			get { return new Version(1, 4, 0); }
+			get { return new Version(0, 1, 0); }
 		}
 	}
 }

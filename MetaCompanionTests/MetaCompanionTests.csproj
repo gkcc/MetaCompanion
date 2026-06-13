@@ -76,10 +76,12 @@
     <Compile Include="Tests\LogTest.cs" />
     <Compile Include="Tests\MatchHistoryRecorderTest.cs" />
     <Compile Include="Tests\MetaDashboardDataTest.cs" />
+    <Compile Include="Tests\MetaDashboardPanelTest.cs" />
     <Compile Include="Tests\MetaRetrieverTest.cs" />
     <Compile Include="Tests\OverlayDragHelperTest.cs" />
     <Compile Include="Tests\PluginConfigTest.cs" />
     <Compile Include="Tests\PostGameMetaRefresherTest.cs" />
+    <Compile Include="Tests\QuickDashboardRefresherTest.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="Tests\PredictionControllerTest.cs" />
     <Compile Include="Tests\PredictionEngineTest.cs" />

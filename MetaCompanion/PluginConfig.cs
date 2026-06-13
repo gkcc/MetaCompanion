@@ -15,24 +15,25 @@ namespace MetaCompanion
 
 		public string CurrentMetaFileVersion { get; set;  }
 		public DateTime CurrentMetaFileDownloadTime { get; set; }
+		public bool EnableMetaDashboard { get; set; } = true;
 		public bool FitDeckListToDisplay { get; set; } = true;
 		public bool EnableLateGamePanel { get; set; } = true;
 		public bool EnableNativeHdtOpponentPredictions { get; set; } = false;
-		public int LateGameEvidenceThreshold { get; set; } = 10;
+		public int LateGameEvidenceThreshold { get; set; } = 8;
 		public int LateGameRemainingDeckThreshold { get; set; } = 15;
 		public int LateGamePredictionThreshold { get; set; } = 18;
 		public bool LateGamePanelRightSide { get; set; } = false;
-		public int LateGamePanelCardLimit { get; set; } = 12;
+		public int LateGamePanelCardLimit { get; set; } = 10;
 		public bool EnableMatchHistory { get; set; } = true;
 		public bool EnablePredictionTimeline { get; set; } = true;
 		public int LocalRecommendationHistoryDays { get; set; } = 3;
 		public double LocalRecommendationWeight { get; set; } = 0.35;
 		public int LocalRecommendationTop { get; set; } = 20;
 		public int LocalMetaMinConfidence { get; set; } = 35;
-		public bool EnablePostGameMetaRefresh { get; set; } = true;
+		public bool EnablePostGameMetaRefresh { get; set; } = false;
 		public int PostGameMetaRefreshDelaySeconds { get; set; } = 8;
 		public int PostGameMetaRefreshCooldownMinutes { get; set; } = 2;
-		public bool EnablePostGameDataRefresh { get; set; } = true;
+		public bool EnablePostGameDataRefresh { get; set; } = false;
 		public int PostGameDataRefreshCooldownHours { get; set; } = 24;
 		public string PostGamePrimaryTimeRange { get; set; } = "CURRENT_PATCH";
 		public string PostGameMetaFallbackTimeRange { get; set; } = "LAST_3_DAYS";

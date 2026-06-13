@@ -1,9 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
-using System.IO.Compression;
 using System.Linq;
-using System.Net;
 using System.Text.RegularExpressions;
 using System.Text;
 using System.Threading.Tasks;
@@ -14,13 +12,8 @@ namespace MetaCompanion
 {
 	class MetaRetriever
 	{
-		// How many days we wait before updating the meta since the last download.
-		private const double RecentDownloadTimeoutDays = 1;
-		private const string MetaVersionUrl = "http://metastats.net/metadetector/metaversion.php";
-		private const string MetaFileUrl = "https://s3.amazonaws.com/metadetector/metaDecks.xml.gz";
 		private static readonly string MetaFilePath =
 				Path.Combine(MetaCompanionPlugin.DataDirectory, @"metaDecks.xml");
-		private static readonly string MetaArchivePath = MetaFilePath + ".gz";
 		private static readonly string ManualDeckCodeFilePath =
 				Path.Combine(MetaCompanionPlugin.DataDirectory, @"deckcodes.txt");
 		private static readonly string ArchetypeBranchDeckCodeFilePath =
@@ -37,87 +30,27 @@ namespace MetaCompanion
 				ArchetypeBranchDeckCodeFilePath
 		};
 
-		public async Task<List<Deck>> RetrieveMetaDecks(PluginConfig config)
+		public Task<List<Deck>> RetrieveMetaDecks(PluginConfig config)
 		{
 			var deckCodeDecks = LoadDeckCodeDecks();
 			if (deckCodeDecks.Count > 0)
 			{
 				Log.Info("Meta retrieved from deck code file, " + deckCodeDecks.Count + " decks loaded.");
 				LogDeckClassCounts(deckCodeDecks);
-				return deckCodeDecks;
+				return Task.FromResult(deckCodeDecks);
 			}
 
-			// First check if we need to download the meta file.
-			string newMetaVersion = "";
 			if (!File.Exists(MetaFilePath))
 			{
-				Log.Info("No meta file found.");
-				newMetaVersion = await RetrieveLegacyMetaVersion();
-			}
-			else
-			{
-				double daysSinceLastDownload = (DateTime.Now - config.CurrentMetaFileDownloadTime).TotalDays;
-				if (daysSinceLastDownload > RecentDownloadTimeoutDays)
-				{
-					Log.Info(daysSinceLastDownload +
-							" days since meta file has been updated, checking for new version.");
-					newMetaVersion = await RetrieveLegacyMetaVersion();
-					if (newMetaVersion.Trim() != "" && newMetaVersion != config.CurrentMetaFileVersion)
-					{
-						Log.Info("New version detected: " + newMetaVersion +
-								", old version: " + config.CurrentMetaFileVersion);
-					}
-					else
-					{
-						Log.Debug("Newest version of meta file matches cached version: " + newMetaVersion);
-						newMetaVersion = "";
-					}
-				}
-				else
-				{
-					Log.Debug("Cached meta file is only " + daysSinceLastDownload + " days old.");
-				}
+				Log.Warn("No deck code snapshot found; prediction data is empty until HSReplay deck codes are synced.");
+				return Task.FromResult(new List<Deck>());
 			}
 
-			if (newMetaVersion == "" && !File.Exists(MetaFilePath))
-			{
-				Log.Warn("No deck code file and no usable legacy MetaStats file; prediction data is empty.");
-				return new List<Deck>();
-			}
-
-			if (newMetaVersion != "")
-			{
-				Log.Info("Downloading new meta file.");
-				using (WebClient client = new WebClient())
-				{
-					await client.DownloadFileTaskAsync(MetaFileUrl, MetaArchivePath);
-				}
-
-				Log.Info("Meta file downloaded, unzipping...");
-				FileInfo archiveFile = new FileInfo(MetaArchivePath);
-
-				using (FileStream archiveFileStream = archiveFile.OpenRead())
-				{
-					using (FileStream unzippedFileStream = File.Create(MetaFilePath))
-					{
-						using (GZipStream unzipStream =
-								new GZipStream(archiveFileStream, CompressionMode.Decompress))
-						{
-							unzipStream.CopyTo(unzippedFileStream);
-						}
-					}
-				}
-
-				config.CurrentMetaFileVersion = newMetaVersion;
-				config.CurrentMetaFileDownloadTime = DateTime.Now;
-				config.Save();
-			}
-
-			Log.Debug("Loading meta file");
+			Log.Debug("Loading legacy MetaStats file");
 			List<Deck> metaDecks = XmlManager<List<Deck>>.Load(MetaFilePath);
 			Log.Info("Meta retrieved, " + metaDecks.Count + " decks loaded.");
 			LogDeckClassCounts(metaDecks);
-			return metaDecks;
+			return Task.FromResult(metaDecks);
 		}
 
 		private static void LogDeckClassCounts(IEnumerable<Deck> decks)
@@ -127,22 +60,6 @@ namespace MetaCompanion
 				.OrderBy(group => group.Key)
 				.Select(group => group.Key + "=" + group.Count());
 			Log.Info("Meta deck class counts: " + string.Join(", ", classCounts));
-		}
-
-		private static async Task<string> RetrieveLegacyMetaVersion()
-		{
-			try
-			{
-				using (WebClient client = new WebClient())
-				{
-					return (await client.DownloadStringTaskAsync(MetaVersionUrl)).Trim();
-				}
-			}
-			catch (Exception ex)
-			{
-				Log.Warn("Unable to retrieve legacy MetaStats version: " + ex.Message);
-				return "";
-			}
 		}
 
 		private List<Deck> LoadDeckCodeDecks()

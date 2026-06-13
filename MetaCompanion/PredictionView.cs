@@ -14,9 +14,6 @@ namespace MetaCompanion
 	public class PredictionView
 	{
 		private const int ArchetypeLabelMaxNames = 3;
-		private const int LateGameMinimumEvidence = 4;
-		private const int LateGameDeckCountEvidence = 6;
-		private const int LateGameTallListEvidence = 6;
 
 		private static readonly MethodInfo UpdateOpponentCardsMethod =
 			typeof(Hearthstone_Deck_Tracker.Core).GetMethod(
@@ -120,20 +117,13 @@ namespace MetaCompanion
 				return false;
 			}
 
-			if (prediction.EvidenceCards < LateGameMinimumEvidence)
+			if (!prediction.RemainingDeckCards.HasValue)
 			{
 				return false;
 			}
 
-			var lowDeckWithEnoughEvidence = prediction.RemainingDeckCards.HasValue &&
-				prediction.RemainingDeckCards.Value <= config.LateGameRemainingDeckThreshold &&
-				prediction.EvidenceCards >= LateGameDeckCountEvidence;
-			var enoughEvidence = prediction.EvidenceCards >= config.LateGameEvidenceThreshold;
-			var nativeListWouldBeTall =
-				prediction.NumVisiblePredictedCards >= config.LateGamePredictionThreshold &&
-				prediction.EvidenceCards >= LateGameTallListEvidence;
-
-			return lowDeckWithEnoughEvidence || enoughEvidence || nativeListWouldBeTall;
+			return prediction.RemainingDeckCards.Value <= config.LateGameRemainingDeckThreshold &&
+				prediction.EvidenceCards >= config.LateGameEvidenceThreshold;
 		}
 
 		private bool ShouldUseNativeOpponentPredictions()

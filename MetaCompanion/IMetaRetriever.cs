@@ -10,7 +10,7 @@ namespace MetaCompanion
 	public interface IMetaRetriever
 	{
 		// Returns the list of all decks used in the current meta.
-		// If the last cached version is too out of date, it will be retrieved via WebClient.
+		// Returns an empty list when no local deck snapshot is available yet.
 		Task<List<Deck>> RetrieveMetaDecks(PluginConfig config);
 	}
 }
