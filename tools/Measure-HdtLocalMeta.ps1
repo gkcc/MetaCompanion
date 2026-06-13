@@ -10,6 +10,8 @@ param(
 	[int]$TopCandidates = 3,
 	[datetime]$PatchTime = [datetime]::MinValue,
 	[double]$PrePatchWeight = 0.35,
+	[double]$RecencyHalfLifeDays = 3.0,
+	[bool]$UsePatchWindow = $true,
 	[string]$PatchMarkerPath = "$env:APPDATA\HearthstoneDeckTracker\MetaCompanion\patch_marker.txt"
 )
 
@@ -90,6 +92,15 @@ function Resolve-EffectivePatchTime {
 	}
 
 	return $null
+}
+
+function Get-RecencyWeight([datetime]$Value, [datetime]$Now) {
+	if ($RecencyHalfLifeDays -le 0) {
+		return 1.0
+	}
+
+	$ageDays = [Math]::Max(0.0, ($Now - $Value).TotalDays)
+	return [Math]::Pow(0.5, $ageDays / [Math]::Max(0.1, $RecencyHalfLifeDays))
 }
 
 function Normalize-Class([string]$ClassName) {
@@ -370,15 +381,27 @@ foreach ($group in ($archetypes | Group-Object player_class)) {
 	$classCardFrequency[$group.Name] = $frequency
 }
 
-$cutoff = (Get-Date).AddDays(-1 * [Math]::Max(1, $Days))
+$now = Get-Date
+$defaultCutoff = $now.AddDays(-1 * [Math]::Max(1, $Days))
 $effectivePatchTime = Resolve-EffectivePatchTime
+$sampleWindowStart = $defaultCutoff
+$sampleWindow = "last_$([Math]::Max(1, $Days))_days"
+if ($UsePatchWindow -and $effectivePatchTime -and $effectivePatchTime -lt $now) {
+	if ($effectivePatchTime -le $defaultCutoff) {
+		$sampleWindowStart = $effectivePatchTime
+		$sampleWindow = "current_patch"
+	} else {
+		$sampleWindowStart = $defaultCutoff
+		$sampleWindow = "recent_days_with_patch_weight"
+	}
+}
 $prePatchWeightFactor = [Math]::Max(0.0, [Math]::Min(1.0, $PrePatchWeight))
 $gameRows = New-Object System.Collections.Generic.List[object]
 $summary = @{}
 
 foreach ($game in Import-Csv -Path $OpponentHistoryPath -Delimiter "`t") {
 	$startTime = Try-ParseDate $game.start_time
-	if ($null -eq $startTime -or $startTime -lt $cutoff) {
+	if ($null -eq $startTime -or $startTime -lt $sampleWindowStart) {
 		continue
 	}
 
@@ -473,7 +496,8 @@ foreach ($game in Import-Csv -Path $OpponentHistoryPath -Delimiter "`t") {
 	} else {
 		1.0
 	}
-	$weight = $baseWeight * $patchWeight
+	$recencyWeight = Get-RecencyWeight $startTime $now
+	$weight = $baseWeight * $patchWeight * $recencyWeight
 
 	$isWin = ([string]$game.result).Equals("Win", [StringComparison]::OrdinalIgnoreCase)
 	$isLoss = ([string]$game.result).Equals("Loss", [StringComparison]::OrdinalIgnoreCase)
@@ -515,6 +539,8 @@ foreach ($game in Import-Csv -Path $OpponentHistoryPath -Delimiter "`t") {
 		confidence_pct = $confidence
 		weight = [Math]::Round($weight, 4)
 		patch_weight = [Math]::Round($patchWeight, 4)
+		recency_weight = [Math]::Round($recencyWeight, 4)
+		age_days = [Math]::Round([Math]::Max(0.0, ($now - $startTime).TotalDays), 3)
 		coverage_pct = [Math]::Round([double]$top.coverage * 100.0, 2)
 		best_branch_rank = [int]$top.best_branch_rank
 		best_branch_deck_id = [string]$top.best_branch_deck_id
@@ -535,7 +561,7 @@ $gamesPath = "$OutputPrefix`_archetypes.tsv"
 $summaryPath = "$OutputPrefix`_environment.tsv"
 $jsonPath = "$OutputPrefix`_summary.json"
 
-$gameHeader = "game_id`tstart_time`tend_time`tresult`tplayer_deck_name`tplayer_hero`topponent_hero`topponent_class`topponent_card_count`trelevant_cards`tmatched_cards`tpredicted_archetype_id`tpredicted_archetype`tconfidence_pct`tweight`tpatch_weight`tcoverage_pct`tbest_branch_rank`tbest_branch_deck_id`tcandidate_archetypes`treplay_file`treplay_path`thsreplay_upload_id`thsreplay_url"
+$gameHeader = "game_id`tstart_time`tend_time`tresult`tplayer_deck_name`tplayer_hero`topponent_hero`topponent_class`topponent_card_count`trelevant_cards`tmatched_cards`tpredicted_archetype_id`tpredicted_archetype`tconfidence_pct`tweight`tpatch_weight`trecency_weight`tage_days`tcoverage_pct`tbest_branch_rank`tbest_branch_deck_id`tcandidate_archetypes`treplay_file`treplay_path`thsreplay_upload_id`thsreplay_url"
 $gameLines = New-Object System.Collections.Generic.List[string]
 $gameLines.Add($gameHeader)
 foreach ($row in $gameRows) {
@@ -543,7 +569,8 @@ foreach ($row in $gameRows) {
 		$row.player_deck_name, $row.player_hero, $row.opponent_hero, $row.opponent_class,
 		$row.opponent_card_count, $row.relevant_cards, $row.matched_cards,
 		$row.predicted_archetype_id, $row.predicted_archetype, $row.confidence_pct,
-		$row.weight, $row.patch_weight, $row.coverage_pct, $row.best_branch_rank, $row.best_branch_deck_id,
+		$row.weight, $row.patch_weight, $row.recency_weight, $row.age_days,
+		$row.coverage_pct, $row.best_branch_rank, $row.best_branch_deck_id,
 		$row.candidate_archetypes, $row.replay_file, $row.replay_path,
 		$row.hsreplay_upload_id, $row.hsreplay_url)
 	$gameLines.Add(($values | ForEach-Object { Format-TsvValue $_ }) -join "`t")
@@ -595,10 +622,14 @@ if ($effectivePatchTime) {
 [void]$json.Add("library_path", $libraryPath)
 [void]$json.Add("library_source", $librarySource)
 [void]$json.Add("history_days", $Days)
+[void]$json.Add("sample_window", $sampleWindow)
+[void]$json.Add("sample_window_start", $sampleWindowStart.ToString("o"))
 [void]$json.Add("min_relevant_cards", $MinRelevantCards)
 [void]$json.Add("min_confidence", $MinConfidence)
 [void]$json.Add("patch_time", $patchTimeValue)
 [void]$json.Add("pre_patch_weight", $prePatchWeightFactor)
+[void]$json.Add("recency_half_life_days", $RecencyHalfLifeDays)
+[void]$json.Add("use_patch_window", $UsePatchWindow)
 [void]$json.Add("patch_marker_path", $PatchMarkerPath)
 [void]$json.Add("deck_count", $branches.Count)
 [void]$json.Add("branch_count", $branches.Count)

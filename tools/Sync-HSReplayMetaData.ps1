@@ -164,7 +164,8 @@ function Get-ArchetypeInfo([int]$Id, [string]$FallbackClass, [hashtable]$Map) {
 function New-RankedRows([object[]]$Rows, [int]$Limit) {
 	$result = New-Object System.Collections.ArrayList
 	$rank = 1
-	foreach ($row in ($Rows | Select-Object -First $Limit)) {
+	$items = if ($Limit -le 0) { @($Rows) } else { @($Rows | Select-Object -First $Limit) }
+	foreach ($row in $items) {
 		[void]$result.Add([pscustomobject][ordered]@{
 			rank = $rank
 			archetype_id = $row.archetype_id
@@ -221,6 +222,7 @@ function Write-MetaSummaryFiles([object]$PopularityDistribution, [string]$Archet
 
 	$overallRows = @($allRows |
 		Sort-Object @{ Expression = { $_.pct_of_total }; Descending = $true }, @{ Expression = { $_.total_games }; Descending = $true })
+	$allRankedRows = New-RankedRows $overallRows 0
 	$topOverallRows = New-RankedRows $overallRows $TopOverall
 
 	$topByClass = [ordered]@{}
@@ -239,6 +241,7 @@ function Write-MetaSummaryFiles([object]$PopularityDistribution, [string]$Archet
 		region = $Region
 		locale = $Locale
 		source = "HSReplay meta overview analytics"
+		all = @($allRankedRows)
 		top_overall = @($topOverallRows)
 		top_by_class = $topByClass
 	}

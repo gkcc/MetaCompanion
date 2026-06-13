@@ -1,6 +1,6 @@
 ﻿# 本地 HSReplay 数据说明
 
-Meta Companion 不在 HDT 进程里直接抓网页。数据同步放在 `tools/` 脚本里完成，插件启动时只读取本地快照，降低对局中卡顿和网络失败的风险。
+Meta Companion 不在 HDT 进程里直接抓网页。数据同步放在 `tools/` 脚本里完成，插件启动时只读取本地快照，降低对局中卡顿和网络失败的风险。社区发布包默认不安装这些脚本；它们主要用于开发者维护快照，或高级用户手动同步。
 
 ## 公共牌组快照
 
@@ -32,7 +32,7 @@ Premium 数据需要你自己的 HSReplay 登录 Cookie：
 
 ## Premium 环境数据
 
-最近 3 天、标准天梯、钻石到传说的形态热度和对阵矩阵：
+当前补丁或最近区间、标准天梯、钻石到传说的形态热度和对阵矩阵：
 
 ```powershell
 .\tools\Sync-HSReplayMetaData.ps1 `
@@ -78,6 +78,8 @@ Premium 数据需要你自己的 HSReplay 登录 Cookie：
 ```powershell
 .\tools\Update-MetaCompanionData.ps1 -LocalMeta -PersonalRecommendations
 ```
+
+`local_meta_archetypes.tsv` 是逐局识别缓存：脚本先从 HDT 的 `DeckStats.xml` 导出每局对手实际出现过的卡，再用当前牌组库识别这局对手最像哪个流派，最后把识别结果、置信度、补丁权重和时间衰减权重写成表。它不是独立数据源，只是避免插件反复实时扫描 HDT 历史和解析大量 deckstring。默认能识别补丁时间时会统计当前补丁内全量样本；如果补丁刚开始且最近 N 天里仍有补丁前对局，这些样本会保留但按补丁权重降权；识别不到补丁时间时退回最近 N 天。
 
 相关输出：
 

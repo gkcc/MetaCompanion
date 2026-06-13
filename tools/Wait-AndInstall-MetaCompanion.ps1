@@ -1,7 +1,8 @@
 param(
 	[int]$PollSeconds = 2,
 	[string]$BuildPath = "",
-	[string]$LogPath = "$env:APPDATA\HearthstoneDeckTracker\MetaCompanion\pending-install.log"
+	[string]$LogPath = "$env:APPDATA\HearthstoneDeckTracker\MetaCompanion\pending-install.log",
+	[switch]$IncludeTools
 )
 
 $ErrorActionPreference = "Stop"
@@ -21,12 +22,24 @@ while (Get-Process HearthstoneDeckTracker -ErrorAction SilentlyContinue) {
 
 Write-PendingLog "Hearthstone Deck Tracker exited. Installing Meta Companion..."
 try {
-	if (-not [string]::IsNullOrWhiteSpace($BuildPath)) {
-		& "$PSScriptRoot\Install-MetaCompanion.ps1" -BuildPath $BuildPath *>&1 | ForEach-Object {
+	if ($IncludeTools) {
+		if ([string]::IsNullOrWhiteSpace($BuildPath)) {
+			& "$PSScriptRoot\Install-MetaCompanion.ps1" -IncludeTools *>&1 | ForEach-Object {
+				Write-PendingLog $_
+			}
+		} else {
+			Write-PendingLog "Using build path: $BuildPath"
+			& "$PSScriptRoot\Install-MetaCompanion.ps1" -BuildPath $BuildPath -IncludeTools *>&1 | ForEach-Object {
+				Write-PendingLog $_
+			}
+		}
+	} elseif ([string]::IsNullOrWhiteSpace($BuildPath)) {
+		& "$PSScriptRoot\Install-MetaCompanion.ps1" *>&1 | ForEach-Object {
 			Write-PendingLog $_
 		}
 	} else {
-		& "$PSScriptRoot\Install-MetaCompanion.ps1" *>&1 | ForEach-Object {
+		Write-PendingLog "Using build path: $BuildPath"
+		& "$PSScriptRoot\Install-MetaCompanion.ps1" -BuildPath $BuildPath *>&1 | ForEach-Object {
 			Write-PendingLog $_
 		}
 	}

@@ -47,6 +47,54 @@ $recommendationsOnly = ($Recommendations -or $PersonalRecommendations -or $Local
 	-not $Full -and -not $Premium -and -not $Meta -and
 	-not $Branches -and $RankRanges.Count -eq 0
 
+function Try-ParseDate([string]$Value) {
+	$result = [DateTime]::MinValue
+	if ([DateTime]::TryParse($Value, [ref]$result)) {
+		return $result
+	}
+	return $null
+}
+
+function Resolve-HearthstoneExePath {
+	$process = Get-Process -Name "Hearthstone" -ErrorAction SilentlyContinue | Select-Object -First 1
+	if ($process -and -not [string]::IsNullOrWhiteSpace($process.Path) -and
+		(Test-Path -LiteralPath $process.Path)) {
+		return $process.Path
+	}
+
+	$candidates = @(
+		"F:\Hearthstone\Hearthstone.exe",
+		"C:\Program Files (x86)\Hearthstone\Hearthstone.exe",
+		"C:\Program Files\Hearthstone\Hearthstone.exe"
+	)
+	foreach ($candidate in $candidates) {
+		if (Test-Path -LiteralPath $candidate) {
+			return $candidate
+		}
+	}
+	return ""
+}
+
+function Resolve-EffectivePatchTime {
+	if ($PatchTime -ne [datetime]::MinValue) {
+		return $PatchTime
+	}
+
+	$patchMarkerPath = "$env:APPDATA\HearthstoneDeckTracker\MetaCompanion\patch_marker.txt"
+	if (Test-Path -LiteralPath $patchMarkerPath) {
+		$markerTime = Try-ParseDate ((Get-Content -LiteralPath $patchMarkerPath -Raw -Encoding UTF8).Trim())
+		if ($markerTime) {
+			return $markerTime
+		}
+	}
+
+	$exePath = Resolve-HearthstoneExePath
+	if (-not [string]::IsNullOrWhiteSpace($exePath)) {
+		return (Get-Item -LiteralPath $exePath).LastWriteTime
+	}
+	return $null
+}
+
 if ($recommendationsOnly) {
 	$rankRanges = @()
 	$limitPerRange = 0
@@ -186,15 +234,19 @@ if ($LocalMeta -or $PersonalRecommendations) {
 		(Test-Path $OutputPath)) {
 		Write-Host ""
 		Write-Host "Measuring local HDT opponent meta..."
-		& $hdtHistoryExportScript -Days $PersonalRecommendationHistoryDays
+		$effectivePatchTime = Resolve-EffectivePatchTime
+		$historyExportArgs = @{
+			Days = $PersonalRecommendationHistoryDays
+		}
+		& $hdtHistoryExportScript @historyExportArgs
 		$localMetaArgs = @{
 			DeckCodePath = $OutputPath
 			Days = $PersonalRecommendationHistoryDays
 			MinConfidence = $LocalMetaMinConfidence
 			PrePatchWeight = $PrePatchWeight
 		}
-		if ($PatchTime -ne [datetime]::MinValue) {
-			$localMetaArgs.PatchTime = $PatchTime
+		if ($effectivePatchTime) {
+			$localMetaArgs.PatchTime = $effectivePatchTime
 		}
 		& $localMetaScript @localMetaArgs
 	} else {

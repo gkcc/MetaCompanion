@@ -108,6 +108,32 @@ function Try-ParseDate([string]$Value) {
 	return $null
 }
 
+function Get-LocalMetaCutoff([string]$Path, [datetime]$Fallback) {
+	$directory = Split-Path -Parent $Path
+	if ([string]::IsNullOrWhiteSpace($directory)) {
+		return $Fallback
+	}
+
+	$summaryPath = Join-Path $directory "local_meta_summary.json"
+	if (-not (Test-Path -LiteralPath $summaryPath)) {
+		return $Fallback
+	}
+
+	try {
+		$summary = Get-Content -LiteralPath $summaryPath -Encoding UTF8 -Raw | ConvertFrom-Json
+		if ($summary.PSObject.Properties.Name -contains "sample_window_start") {
+			$parsed = Try-ParseDate ([string]$summary.sample_window_start)
+			if ($parsed) {
+				return $parsed
+			}
+		}
+	} catch {
+		return $Fallback
+	}
+
+	return $Fallback
+}
+
 $summaryPath = Join-Path $MetaDirectory "summary.json"
 $matrixPath = Join-Path $MetaDirectory "head_to_head_archetype_matchups_v2.json"
 $archetypesPath = Join-Path $MetaDirectory "archetypes.zh-hans.json"
@@ -120,10 +146,16 @@ $archetypeNameMap = @{}
 Add-ArchetypesToMap $archetypes $archetypeMap $archetypeNameMap
 
 $remoteRows = New-Object System.Collections.Generic.List[object]
-foreach ($row in @($summary.top_overall)) {
-	$remoteRows.Add($row)
+if ($summary.PSObject.Properties.Name -contains "all" -and @($summary.all).Count -gt 0) {
+	foreach ($row in @($summary.all)) {
+		$remoteRows.Add($row)
+	}
+} else {
+	foreach ($row in @($summary.top_overall)) {
+		$remoteRows.Add($row)
+	}
 }
-if ($IncludeClassTop) {
+if ($IncludeClassTop -and -not ($summary.PSObject.Properties.Name -contains "all")) {
 	foreach ($classProperty in $summary.top_by_class.PSObject.Properties) {
 		foreach ($row in @($classProperty.Value)) {
 			if (-not ($remoteRows | Where-Object { [int]$_.archetype_id -eq [int]$row.archetype_id })) {
@@ -155,12 +187,13 @@ $localSource = "none"
 $cutoff = (Get-Date).AddDays(-1 * [Math]::Max(1, $HistoryDays))
 if ($UseHdtLocalMeta -and (Test-Path $LocalMetaPath)) {
 	$localSource = "hdt_deckstats"
+	$localMetaCutoff = Get-LocalMetaCutoff $LocalMetaPath $cutoff
 	foreach ($row in Import-Csv -Path $LocalMetaPath -Delimiter "`t") {
 		$date = Try-ParseDate $row.end_time
 		if ($null -eq $date) {
 			$date = Try-ParseDate $row.start_time
 		}
-		if ($null -eq $date -or $date -lt $cutoff) {
+		if ($null -eq $date -or $date -lt $localMetaCutoff) {
 			continue
 		}
 

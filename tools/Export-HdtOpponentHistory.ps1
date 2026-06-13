@@ -2,6 +2,7 @@ param(
 	[string]$DeckStatsPath = "$env:APPDATA\HearthstoneDeckTracker\DeckStats.xml",
 	[string]$OutputPath = "$env:APPDATA\HearthstoneDeckTracker\MetaCompanion\hdt_opponent_history.tsv",
 	[int]$Days = 3,
+	[datetime]$Since = [datetime]::MinValue,
 	[string]$Format = "Standard",
 	[string]$GameMode = "Ranked"
 )
@@ -51,7 +52,11 @@ if (-not (Test-Path $DeckStatsPath)) {
 	throw "DeckStats.xml was not found: $DeckStatsPath"
 }
 
-$since = (Get-Date).AddDays(-1 * [Math]::Abs($Days))
+$since = if ($Since -ne [datetime]::MinValue) {
+	$Since
+} else {
+	(Get-Date).AddDays(-1 * [Math]::Abs($Days))
+}
 $outputDirectory = Split-Path -Parent $OutputPath
 if (-not [string]::IsNullOrWhiteSpace($outputDirectory)) {
 	New-Item -ItemType Directory -Force -Path $outputDirectory | Out-Null

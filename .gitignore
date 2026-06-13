@@ -226,3 +226,6 @@ build.bat
 tmp_hsreplay_*.txt
 dist/MetaCompanion.dll
 dist/*.zip
+dist/*.ps1
+!dist/Install-MetaCompanion.ps1
+!dist/Wait-AndInstall-MetaCompanion.ps1

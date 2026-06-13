@@ -30,10 +30,16 @@ $cscDir="$env:USERPROFILE\.nuget\packages\microsoft.net.compilers\4.2.0\tools"
 & "$env:WINDIR\SysWOW64\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -ExecutionPolicy Bypass -File .\tools\Run-Tests.ps1
 ```
 
-安装到 HDT：
+安装到 HDT。普通安装只复制插件 DLL，不会安装自动同步脚本：
 
 ```powershell
 .\tools\Install-MetaCompanion.ps1 -BuildPath .\MetaCompanion\bin\x86\Release\MetaCompanion.dll
+```
+
+开发或高级手动同步场景才需要把 `tools/` 复制到 HDT 数据目录：
+
+```powershell
+.\tools\Install-MetaCompanion.ps1 -BuildPath .\MetaCompanion\bin\x86\Release\MetaCompanion.dll -IncludeTools
 ```
 
 如果 HDT 正在运行，使用等待式安装：
@@ -42,9 +48,9 @@ $cscDir="$env:USERPROFILE\.nuget\packages\microsoft.net.compilers\4.2.0\tools"
 .\tools\Wait-AndInstall-MetaCompanion.ps1
 ```
 
-## 数据刷新
+## 开发者数据刷新
 
-常用入口：
+社区发布包默认不附带自动刷新脚本；下面的入口仅用于本地开发、维护数据快照或高级用户手动同步：
 
 ```powershell
 .\tools\Update-MetaCompanionData.ps1 -PersonalRecommendations

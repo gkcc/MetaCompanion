@@ -1,5 +1,6 @@
 ﻿param(
-	[string]$BuildPath = ""
+	[string]$BuildPath = "",
+	[switch]$IncludeTools
 )
 
 $ErrorActionPreference = "Stop"
@@ -79,9 +80,44 @@ if (Test-Path -LiteralPath $legacyDataDirectory) {
 	Remove-Item -LiteralPath $legacyDataDirectory -Recurse -Force
 	Write-Host "Removed legacy data directory: $legacyDataDirectory"
 }
-New-Item -ItemType Directory -Force -Path $toolTargetDirectory | Out-Null
-Get-ChildItem -Path $PSScriptRoot -Filter "*.ps1" -File | ForEach-Object {
-	Copy-Item -LiteralPath $_.FullName -Destination (Join-Path $toolTargetDirectory $_.Name) -Force
+if ($IncludeTools) {
+	New-Item -ItemType Directory -Force -Path $toolTargetDirectory | Out-Null
+	Get-ChildItem -Path $PSScriptRoot -Filter "*.ps1" -File | ForEach-Object {
+		Copy-Item -LiteralPath $_.FullName -Destination (Join-Path $toolTargetDirectory $_.Name) -Force
+	}
+} elseif (Test-Path -LiteralPath $toolTargetDirectory) {
+	Remove-Item -LiteralPath $toolTargetDirectory -Recurse -Force
+	Write-Host "Removed bundled refresh tools: $toolTargetDirectory"
+}
+
+$configPath = Join-Path $dataTargetDirectory "config.xml"
+if (Test-Path -LiteralPath $configPath) {
+	[xml]$configXml = Get-Content -LiteralPath $configPath -Encoding UTF8
+	$configChanged = $false
+	if ($IncludeTools) {
+		if ($configXml.PluginConfig.EnablePostGameMetaRefresh -and
+			$configXml.PluginConfig.EnablePostGameMetaRefresh -ne "true") {
+			$configXml.PluginConfig.EnablePostGameMetaRefresh = "true"
+			$configChanged = $true
+		}
+		if ($configChanged) {
+			$configXml.Save($configPath)
+			Write-Host "Enabled post-game local meta refresh in config: $configPath"
+		}
+	} else {
+		if ($configXml.PluginConfig.EnablePostGameMetaRefresh) {
+			$configXml.PluginConfig.EnablePostGameMetaRefresh = "false"
+			$configChanged = $true
+		}
+		if ($configXml.PluginConfig.EnablePostGameDataRefresh) {
+			$configXml.PluginConfig.EnablePostGameDataRefresh = "false"
+			$configChanged = $true
+		}
+		if ($configChanged) {
+			$configXml.Save($configPath)
+			Write-Host "Disabled post-game refresh in config: $configPath"
+		}
+	}
 }
 
 $pluginsXmlPath = "$env:APPDATA\HearthstoneDeckTracker\plugins.xml"
@@ -118,5 +154,9 @@ if (Test-Path $pluginsXmlPath) {
 @($BuildPath) + $targets | ForEach-Object {
 	Get-FileHash $_ -Algorithm SHA256
 }
-Write-Host "Tools copied to $toolTargetDirectory"
+if ($IncludeTools) {
+	Write-Host "Tools copied to $toolTargetDirectory"
+} else {
+	Write-Host "Refresh tools were not installed. Re-run with -IncludeTools for development or advanced manual sync."
+}
 

@@ -91,10 +91,16 @@ $archetypeMap = @{}
 Add-ArchetypesToMap $archetypes $archetypeMap
 
 $environmentRows = New-Object System.Collections.Generic.List[object]
-foreach ($row in @($summary.top_overall)) {
-	$environmentRows.Add($row)
+if ($summary.PSObject.Properties.Name -contains "all" -and @($summary.all).Count -gt 0) {
+	foreach ($row in @($summary.all)) {
+		$environmentRows.Add($row)
+	}
+} else {
+	foreach ($row in @($summary.top_overall)) {
+		$environmentRows.Add($row)
+	}
 }
-if ($IncludeClassTop) {
+if ($IncludeClassTop -and -not ($summary.PSObject.Properties.Name -contains "all")) {
 	foreach ($classProperty in $summary.top_by_class.PSObject.Properties) {
 		foreach ($row in @($classProperty.Value)) {
 			if (-not ($environmentRows | Where-Object { [int]$_.archetype_id -eq [int]$row.archetype_id })) {
