@@ -160,6 +160,7 @@ ClientBin/
 *.dbproj.schemaview
 
 # MetaCompanion local-only data
+artifacts/
 hsreplay_archetypes.*.json
 hsreplay_cookie.txt
 hsreplay_deckcodes.txt

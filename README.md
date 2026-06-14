@@ -64,6 +64,22 @@ Premium 数据需要把自己的 HSReplay 登录 Cookie 放到：
 
 不要提交 Cookie、Premium 缓存或本地对局历史。
 
+## 社区发布前检查
+
+发布前先跑自动门禁，脚本会完成 Release x86 构建、测试、敏感信息扫描和社区包内容审计：
+
+```powershell
+.\tools\Invoke-ReleaseGate.ps1
+```
+
+真实客户端烟测使用半自动脚本。它会安装 DLL、重启 HDT、采集日志，并让操作者手动确认炉石界面里的关键行为；脚本不会自动开始排位：
+
+```powershell
+.\tools\Invoke-HdtClientSmoke.ps1 -LaunchHearthstone
+```
+
+完整清单见 [docs/RELEASE-CHECKLIST.md](docs/RELEASE-CHECKLIST.md)。
+
 ## 来源与许可
 
 Meta Companion 是独立插件项目，但保留原开源项目和参考实现的许可与致谢。详见 [NOTICE.md](NOTICE.md)。

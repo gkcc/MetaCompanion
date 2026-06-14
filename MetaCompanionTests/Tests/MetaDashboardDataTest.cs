@@ -117,6 +117,19 @@ namespace MetaCompanionTests.Tests
 		}
 
 		[TestMethod]
+		public void Load_WithCleanInstallDirectory_ReturnsEmptySnapshot()
+		{
+			var snapshot = MetaDashboardSnapshot.Load(_tempDirectory);
+
+			Assert.IsFalse(snapshot.HasContent);
+			Assert.AreEqual(0, snapshot.Recommendations.Count);
+			Assert.AreEqual(0, snapshot.Environment.Count);
+			Assert.AreEqual(0, snapshot.EnvironmentClasses.Count);
+			Assert.IsNull(snapshot.LastGame);
+			Assert.IsFalse(snapshot.UpdatedAt.HasValue);
+		}
+
+		[TestMethod]
 		public void Load_DoesNotTreatLastGameAsDashboardContent()
 		{
 			File.WriteAllText(
