@@ -2,7 +2,7 @@ param(
 	[string]$CookiePath = "$env:APPDATA\HearthstoneDeckTracker\MetaCompanion\hsreplay_cookie.txt",
 	[string]$Cookie = "",
 	[string]$OutputDirectory = "$env:APPDATA\HearthstoneDeckTracker\MetaCompanion\Premium\Meta",
-	[string]$TimeRange = "LAST_3_DAYS",
+	[string]$TimeRange = "AUTO_CURRENT_PATCH_OR_LAST_3_DAYS",
 	[string]$RankRange = "DIAMOND_THROUGH_LEGEND",
 	[string]$GameType = "RANKED_STANDARD",
 	[string]$Region = "ALL",
@@ -261,6 +261,157 @@ function Write-MetaSummaryFiles([object]$PopularityDistribution, [string]$Archet
 		}
 	}
 	Set-Content -Path $SummaryTsvPath -Value $tsvLines -Encoding UTF8
+}
+
+function Get-MetaSummarySampleGames([string]$SummaryJsonPath) {
+	if (-not (Test-Path -LiteralPath $SummaryJsonPath)) {
+		throw "Meta summary not found: $SummaryJsonPath"
+	}
+
+	$summary = Get-Content -LiteralPath $SummaryJsonPath -Encoding UTF8 -Raw | ConvertFrom-Json
+	$total = [int64]0
+	foreach ($row in @($summary.all)) {
+		if ($null -ne $row.total_games) {
+			$total += [int64]$row.total_games
+		}
+	}
+	return $total
+}
+
+function Copy-MetaCacheFiles([string]$SourceDirectory, [string]$DestinationDirectory) {
+	if (-not (Test-Path -LiteralPath $SourceDirectory)) {
+		throw "Meta cache source directory not found: $SourceDirectory"
+	}
+
+	New-Item -ItemType Directory -Force -Path $DestinationDirectory | Out-Null
+	Get-ChildItem -LiteralPath $SourceDirectory -File -Force |
+		ForEach-Object {
+			Copy-Item -LiteralPath $_.FullName -Destination (Join-Path $DestinationDirectory $_.Name) -Force
+		}
+}
+
+function Set-AutoTimeRangeManifest(
+	[string]$ManifestPath,
+	[object]$Selected,
+	[object[]]$Candidates
+) {
+	if (-not (Test-Path -LiteralPath $ManifestPath)) {
+		return
+	}
+
+	$manifest = Get-Content -LiteralPath $ManifestPath -Encoding UTF8 -Raw | ConvertFrom-Json
+	$candidateRows = @()
+	foreach ($candidate in $Candidates) {
+		$candidateRows += [ordered]@{
+			time_range = $candidate.time_range
+			sample_games = $candidate.sample_games
+			summary_as_of = $candidate.summary_as_of
+			run_directory = $candidate.run_directory
+		}
+	}
+
+	$manifestMap = [ordered]@{}
+	foreach ($property in $manifest.PSObject.Properties) {
+		$manifestMap[$property.Name] = $property.Value
+	}
+	$manifestMap["auto_time_range_policy"] =
+		"choose_smaller_sample_between_CURRENT_PATCH_and_LAST_3_DAYS"
+	$manifestMap["selected_time_range"] = $Selected.time_range
+	if ($manifestMap.Contains("candidate_sample_games")) {
+		$manifestMap.Remove("candidate_sample_games")
+	}
+	$manifestMap.Add("candidate_sample_games", $candidateRows)
+	$manifestMap | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath $ManifestPath -Encoding UTF8
+}
+
+function Invoke-AutoCurrentPatchOrLast3DaysMetaSync {
+	$candidateTimeRanges = @("CURRENT_PATCH", "LAST_3_DAYS")
+	$runId = Get-Date -Format "yyyyMMdd-HHmmss"
+	$candidateRoot = Join-Path ([System.IO.Path]::GetTempPath()) "MetaCompanionMetaCandidates-$runId"
+	$results = New-Object System.Collections.Generic.List[object]
+
+	Write-Host "Auto-selecting HSReplay meta TimeRange from: $($candidateTimeRanges -join ', ')"
+	foreach ($candidateTimeRange in $candidateTimeRanges) {
+		$candidateOutput = Join-Path $candidateRoot $candidateTimeRange
+		$candidateArgs = @{
+			CookiePath = $CookiePath
+			OutputDirectory = $candidateOutput
+			TimeRange = $candidateTimeRange
+			RankRange = $RankRange
+			GameType = $GameType
+			Region = $Region
+			Locale = $Locale
+			TopOverall = $TopOverall
+			TopPerClass = $TopPerClass
+			TimeoutSeconds = $TimeoutSeconds
+			Retries = $Retries
+		}
+		if (-not [string]::IsNullOrWhiteSpace($Cookie)) {
+			$candidateArgs.Cookie = $Cookie
+		}
+
+		try {
+			& $PSCommandPath @candidateArgs
+			$candidateLatest = Join-Path $candidateOutput "latest"
+			$candidateSummary = Join-Path $candidateLatest "summary.json"
+			$summary = Get-Content -LiteralPath $candidateSummary -Encoding UTF8 -Raw | ConvertFrom-Json
+			$sampleGames = Get-MetaSummarySampleGames $candidateSummary
+			$candidateRun = Get-ChildItem -LiteralPath (Join-Path $candidateOutput "runs") -Directory |
+				Sort-Object LastWriteTime -Descending |
+				Select-Object -First 1
+			if ($null -eq $candidateRun) {
+				throw "No run directory was created for TimeRange=$candidateTimeRange"
+			}
+
+			$results.Add([pscustomobject]@{
+				time_range = $candidateTimeRange
+				sample_games = $sampleGames
+				summary_as_of = $summary.as_of
+				latest_directory = $candidateLatest
+				run_directory = $candidateRun.FullName
+			}) | Out-Null
+			Write-Host "Candidate TimeRange=$candidateTimeRange SampleGames=$sampleGames AsOf=$($summary.as_of)"
+		} catch {
+			Write-Warning "Candidate TimeRange=$candidateTimeRange failed: $($_.Exception.Message)"
+		}
+	}
+
+	if ($results.Count -eq 0) {
+		throw "No HSReplay meta TimeRange candidate succeeded."
+	}
+
+	$selected = $null
+	foreach ($result in $results) {
+		if ($null -eq $selected -or
+			([int64]$result.sample_games) -lt ([int64]$selected.sample_games) -or
+			(([int64]$result.sample_games) -eq ([int64]$selected.sample_games) -and
+				[string]$result.time_range -lt [string]$selected.time_range)) {
+			$selected = $result
+		}
+	}
+	$realLatestDirectory = Join-Path $OutputDirectory "latest"
+	$realRunDirectory = Join-Path (Join-Path $OutputDirectory "runs") "$runId-$($selected.time_range)"
+	$candidateArray = $results.ToArray()
+
+	Copy-MetaCacheFiles $selected.latest_directory $realLatestDirectory
+	Copy-MetaCacheFiles $selected.run_directory $realRunDirectory
+	Set-AutoTimeRangeManifest `
+		-ManifestPath (Join-Path $realLatestDirectory "manifest.json") `
+		-Selected $selected `
+		-Candidates $candidateArray
+	Set-AutoTimeRangeManifest `
+		-ManifestPath (Join-Path $realRunDirectory "manifest.json") `
+		-Selected $selected `
+		-Candidates $candidateArray
+
+	Write-Host "Selected HSReplay meta TimeRange=$($selected.time_range) with SampleGames=$($selected.sample_games)."
+	Write-Host "Wrote HSReplay meta cache to $realRunDirectory"
+	Write-Host "Summary: $(Join-Path $realLatestDirectory 'summary.tsv')"
+}
+
+if ($TimeRange -in @("AUTO_CURRENT_PATCH_OR_LAST_3_DAYS", "AUTO")) {
+	Invoke-AutoCurrentPatchOrLast3DaysMetaSync
+	return
 }
 
 $cookieArgs = Get-HSReplayCookieArgs

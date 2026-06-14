@@ -38,6 +38,23 @@ namespace MetaCompanionTests.Tests
 		}
 
 		[TestMethod]
+		public void RefreshTask_IsExternalDailyDetector()
+		{
+			var repoRoot = FindRepoRoot();
+			var refreshScript = File.ReadAllText(
+				Path.Combine(repoRoot, "tools", "Run-MetaCompanionRefresh.ps1"));
+			var installScript = File.ReadAllText(
+				Path.Combine(repoRoot, "tools", "Install-MetaCompanionRefreshTask.ps1"));
+
+			StringAssert.Contains(refreshScript, "Test-RemoteCacheRefreshedToday");
+			StringAssert.Contains(refreshScript, "selected_time_range");
+			StringAssert.Contains(refreshScript, "AUTO_CURRENT_PATCH_OR_LAST_3_DAYS");
+			StringAssert.Contains(refreshScript, "Remote cache already refreshed today");
+			StringAssert.Contains(installScript, "Meta Companion Remote Cache Refresh");
+			StringAssert.Contains(installScript, "Run-MetaCompanionRefresh.ps1");
+		}
+
+		[TestMethod]
 		public void ReleaseChecklist_DocumentsCommunityPackageAndNoPremiumRequirement()
 		{
 			var repoRoot = FindRepoRoot();

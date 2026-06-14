@@ -1,6 +1,7 @@
 param(
-	[string]$TaskName = "Meta Companion Local Refresh",
+	[string]$TaskName = "Meta Companion Remote Cache Refresh",
 	[string]$At = "08:05",
+	[string]$DataDirectory = "$env:APPDATA\HearthstoneDeckTracker\MetaCompanion",
 	[switch]$IncludeBranches,
 	[switch]$SkipBranches
 )
@@ -14,7 +15,7 @@ if (-not (Test-Path $refreshScript)) {
 }
 
 $time = [DateTime]::Parse($At)
-$arguments = "-NoProfile -ExecutionPolicy Bypass -File `"$refreshScript`""
+$arguments = "-NoProfile -ExecutionPolicy Bypass -File `"$refreshScript`" -DataDirectory `"$DataDirectory`""
 if ($IncludeBranches) {
 	$arguments += " -IncludeBranches"
 }
@@ -37,9 +38,10 @@ Register-ScheduledTask `
 	-Action $action `
 	-Trigger $trigger `
 	-Settings $settings `
-	-Description "Refresh local Meta Companion HSReplay Premium meta cache and personal recommendations." `
+	-Description "Daily external refresh for Meta Companion HSReplay remote cache and personal recommendations." `
 	-Force | Out-Null
 
 Write-Host "Installed scheduled task: $TaskName"
 Write-Host "Daily time: $($time.ToString('HH:mm'))"
 Write-Host "Script: $refreshScript"
+Write-Host "Data directory: $DataDirectory"

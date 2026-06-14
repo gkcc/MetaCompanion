@@ -10,6 +10,8 @@ param(
 	[string]$MetaFallbackTimeRange = "LAST_3_DAYS",
 	[string]$PremiumFallbackTimeRange = "LAST_7_DAYS",
 	[int]$PremiumMaxDecks = 30,
+	[string]$DataDirectory = "$env:APPDATA\HearthstoneDeckTracker\MetaCompanion",
+	[switch]$Force,
 	[switch]$IncludeBranches,
 	[switch]$SkipBranches
 )
@@ -17,13 +19,44 @@ param(
 $ErrorActionPreference = "Stop"
 
 $repoRoot = Split-Path -Parent $PSScriptRoot
-$logDirectory = "$env:APPDATA\HearthstoneDeckTracker\MetaCompanion\Logs"
+$logDirectory = Join-Path $DataDirectory "Logs"
 New-Item -ItemType Directory -Force -Path $logDirectory | Out-Null
 $logPath = Join-Path $logDirectory ("refresh-" + (Get-Date).ToString("yyyyMMdd-HHmmss") + ".log")
+
+function Test-RemoteCacheRefreshedToday([string]$Root) {
+	$requiredPaths = @(
+		(Join-Path $Root "hsreplay_deckcodes.txt"),
+		(Join-Path $Root "Premium\Meta\latest\summary.json"),
+		(Join-Path $Root "Premium\Meta\latest\head_to_head_archetype_matchups_v2.json"),
+		(Join-Path $Root "Premium\Meta\latest\manifest.json")
+	)
+	foreach ($path in $requiredPaths) {
+		if (-not (Test-Path -LiteralPath $path)) {
+			return $false
+		}
+		if ((Get-Item -LiteralPath $path).LastWriteTime.Date -ne (Get-Date).Date) {
+			return $false
+		}
+	}
+
+	$manifestPath = Join-Path $Root "Premium\Meta\latest\manifest.json"
+	try {
+		$manifest = Get-Content -LiteralPath $manifestPath -Raw -Encoding UTF8 | ConvertFrom-Json
+		return -not [string]::IsNullOrWhiteSpace([string]$manifest.selected_time_range) -and
+			$null -ne $manifest.candidate_sample_games
+	} catch {
+		return $false
+	}
+}
 
 Start-Transcript -Path $logPath | Out-Null
 try {
 	Set-Location $repoRoot
+	if (-not $Force -and (Test-RemoteCacheRefreshedToday $DataDirectory)) {
+		Write-Host "Remote cache already refreshed today; skipping. Use -Force to refresh anyway."
+		return
+	}
+
 	function Invoke-MetaCompanionRefreshRun(
 		[string]$PremiumTimeRange,
 		[string]$MetaTimeRange,
@@ -62,7 +95,7 @@ try {
 	try {
 		Invoke-MetaCompanionRefreshRun `
 			-PremiumTimeRange $PrimaryTimeRange `
-			-MetaTimeRange $PrimaryTimeRange `
+			-MetaTimeRange "AUTO_CURRENT_PATCH_OR_LAST_3_DAYS" `
 			-BranchCandidateTimeRange $PrimaryTimeRange `
 			-PremiumStopOnUnsupported $true
 	} catch {
@@ -70,7 +103,7 @@ try {
 		Write-Warning "Retrying with Premium=$PremiumFallbackTimeRange, Meta=$MetaFallbackTimeRange."
 		Invoke-MetaCompanionRefreshRun `
 			-PremiumTimeRange $PremiumFallbackTimeRange `
-			-MetaTimeRange $MetaFallbackTimeRange `
+			-MetaTimeRange "AUTO_CURRENT_PATCH_OR_LAST_3_DAYS" `
 			-BranchCandidateTimeRange $PremiumFallbackTimeRange `
 			-PremiumStopOnUnsupported $false
 	}

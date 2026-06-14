@@ -15,7 +15,7 @@ param(
 	[string]$PremiumTimeRange = "LAST_7_DAYS",
 	[int]$PremiumMaxDecks = 30,
 	[switch]$PremiumStopOnUnsupported,
-	[string]$MetaTimeRange = "LAST_3_DAYS",
+	[string]$MetaTimeRange = "AUTO_CURRENT_PATCH_OR_LAST_3_DAYS",
 	[int]$MetaTopOverall = 20,
 	[int]$MetaTopPerClass = 5,
 	[int]$RecommendationTop = 20,
