@@ -245,9 +245,10 @@ namespace MetaCompanion
 			for (var index = 0; index < distribution.Segments.Count; index++)
 			{
 				var segment = distribution.Segments[index];
+				var segmentBrush = GetSegmentBrush(segment.PlayerClass, index);
 				var fill = new Border
 				{
-					Background = GetSegmentBrush(segment.PlayerClass, index),
+					Background = segmentBrush,
 					BorderBrush = Brush("#66171E27"),
 					BorderThickness = new Thickness(index == 0 ? 0 : 1, 0, 0, 0),
 					ToolTip = segment.ToolTip
@@ -257,7 +258,7 @@ namespace MetaCompanion
 					fill.Child = new TextBlock
 					{
 						Text = (index + 1).ToString(CultureInfo.InvariantCulture),
-						Foreground = Brush("#F2FFFFFF"),
+						Foreground = GetSegmentTextBrush(segment.PlayerClass, index),
 						FontSize = 9.5,
 						FontWeight = FontWeights.SemiBold,
 						TextAlignment = TextAlignment.Center,
@@ -285,6 +286,7 @@ namespace MetaCompanion
 			for (var index = 0; index < distribution.Segments.Count; index++)
 			{
 				var segment = distribution.Segments[index];
+				var segmentBrush = GetSegmentBrush(segment.PlayerClass, index);
 				var item = new StackPanel
 				{
 					Orientation = Orientation.Horizontal,
@@ -296,11 +298,11 @@ namespace MetaCompanion
 					Width = 11,
 					Height = 11,
 					Margin = new Thickness(0, 1, 3, 0),
-					Background = GetSegmentBrush(segment.PlayerClass, index),
+					Background = segmentBrush,
 					Child = new TextBlock
 					{
 						Text = (index + 1).ToString(CultureInfo.InvariantCulture),
-						Foreground = Brush("#F2FFFFFF"),
+						Foreground = GetSegmentTextBrush(segment.PlayerClass, index),
 						FontSize = 7.5,
 						FontWeight = FontWeights.SemiBold,
 						TextAlignment = TextAlignment.Center,
@@ -400,18 +402,28 @@ namespace MetaCompanion
 
 		private static Brush GetSegmentBrush(string playerClass, int segmentIndex)
 		{
+			return new SolidColorBrush(GetSegmentColor(playerClass, segmentIndex));
+		}
+
+		private static Brush GetSegmentTextBrush(string playerClass, int segmentIndex)
+		{
+			return new SolidColorBrush(GetReadableTextColor(GetSegmentColor(playerClass, segmentIndex)));
+		}
+
+		internal static Color GetSegmentColor(string playerClass, int segmentIndex)
+		{
 			var color = GetClassColor(playerClass);
 			var darken = Math.Min(0.42, segmentIndex * 0.12);
 			var lighten = segmentIndex % 2 == 0
 				? Math.Min(0.16, segmentIndex * 0.03)
 				: Math.Min(0.28, 0.12 + segmentIndex * 0.03);
-			return new SolidColorBrush(Color.FromRgb(
+			return Color.FromRgb(
 				Blend(color.R, darken, lighten),
 				Blend(color.G, darken, lighten),
-				Blend(color.B, darken, lighten)));
+				Blend(color.B, darken, lighten));
 		}
 
-		private static Color GetClassColor(string playerClass)
+		internal static Color GetClassColor(string playerClass)
 		{
 			switch ((playerClass ?? "")
 				.Replace(" ", "")
@@ -421,30 +433,42 @@ namespace MetaCompanion
 				.ToUpperInvariant())
 			{
 				case "DEATHKNIGHT":
-					return Color.FromRgb(196, 55, 76);
+					return Color.FromRgb(196, 30, 58);
 				case "DEMONHUNTER":
-					return Color.FromRgb(120, 204, 72);
+					return Color.FromRgb(163, 48, 201);
 				case "DRUID":
-					return Color.FromRgb(214, 133, 56);
+					return Color.FromRgb(255, 124, 10);
+				case "EVOKER":
+					return Color.FromRgb(51, 147, 127);
 				case "HUNTER":
-					return Color.FromRgb(92, 177, 79);
+					return Color.FromRgb(170, 211, 114);
 				case "MAGE":
-					return Color.FromRgb(75, 165, 226);
+					return Color.FromRgb(63, 199, 235);
+				case "MONK":
+					return Color.FromRgb(0, 255, 152);
 				case "PALADIN":
-					return Color.FromRgb(223, 180, 86);
+					return Color.FromRgb(244, 140, 186);
 				case "PRIEST":
-					return Color.FromRgb(214, 220, 226);
+					return Color.FromRgb(255, 255, 255);
 				case "ROGUE":
-					return Color.FromRgb(219, 199, 79);
+					return Color.FromRgb(255, 244, 104);
 				case "SHAMAN":
-					return Color.FromRgb(71, 126, 214);
+					return Color.FromRgb(0, 112, 221);
 				case "WARLOCK":
-					return Color.FromRgb(153, 91, 203);
+					return Color.FromRgb(135, 136, 238);
 				case "WARRIOR":
-					return Color.FromRgb(202, 88, 63);
+					return Color.FromRgb(198, 155, 109);
 				default:
 					return Color.FromRgb(132, 150, 166);
 			}
+		}
+
+		private static Color GetReadableTextColor(Color background)
+		{
+			var luminance = (0.2126 * background.R + 0.7152 * background.G + 0.0722 * background.B) / 255.0;
+			return luminance > 0.62
+				? Color.FromRgb(23, 30, 39)
+				: Color.FromRgb(255, 255, 255);
 		}
 
 		private static byte Blend(byte value, double darken, double lighten)

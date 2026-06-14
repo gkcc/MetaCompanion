@@ -5,6 +5,7 @@ using System.IO;
 using System.Linq;
 using System.Text;
 using System.Windows.Controls;
+using System.Windows.Media;
 
 namespace MetaCompanionTests.Tests
 {
@@ -86,6 +87,37 @@ namespace MetaCompanionTests.Tests
 				.Select(text => text.Text));
 			StringAssert.Contains(legendText, "\u4efb\u52a1\u6cd5");
 			StringAssert.Contains(legendText, "\u6253\u8138\u6cd5");
+		}
+
+		[TestMethod]
+		public void GetClassColor_UsesWarcraftClassPaletteForAllHearthstoneClasses()
+		{
+			AssertColor("DEATHKNIGHT", 0xC4, 0x1E, 0x3A);
+			AssertColor("DEMONHUNTER", 0xA3, 0x30, 0xC9);
+			AssertColor("DRUID", 0xFF, 0x7C, 0x0A);
+			AssertColor("EVOKER", 0x33, 0x93, 0x7F);
+			AssertColor("HUNTER", 0xAA, 0xD3, 0x72);
+			AssertColor("MAGE", 0x3F, 0xC7, 0xEB);
+			AssertColor("MONK", 0x00, 0xFF, 0x98);
+			AssertColor("PALADIN", 0xF4, 0x8C, 0xBA);
+			AssertColor("PRIEST", 0xFF, 0xFF, 0xFF);
+			AssertColor("ROGUE", 0xFF, 0xF4, 0x68);
+			AssertColor("SHAMAN", 0x00, 0x70, 0xDD);
+			AssertColor("WARLOCK", 0x87, 0x88, 0xEE);
+			AssertColor("WARRIOR", 0xC6, 0x9B, 0x6D);
+			Assert.AreEqual(
+				MetaDashboardPanel.GetClassColor("DEMONHUNTER"),
+				MetaDashboardPanel.GetClassColor("Demon Hunter"));
+			Assert.AreEqual(
+				MetaDashboardPanel.GetClassColor("DEMONHUNTER"),
+				MetaDashboardPanel.GetClassColor("DEMON_HUNTER"));
+		}
+
+		private static void AssertColor(string playerClass, byte red, byte green, byte blue)
+		{
+			var color = MetaDashboardPanel.GetClassColor(playerClass);
+			Assert.AreEqual(Color.FromRgb(red, green, blue), color, playerClass);
+			Assert.AreEqual(color, MetaDashboardPanel.GetSegmentColor(playerClass, 0), playerClass);
 		}
 
 		private void WriteEnvironmentRows(params string[] rows)
