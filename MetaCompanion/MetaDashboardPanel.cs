@@ -12,6 +12,7 @@ namespace MetaCompanion
 	internal class MetaDashboardPanel : Border
 	{
 		private const double DistributionBarWidth = 318.0;
+		private const double ClassOverviewBarHeight = 10.0;
 		private const double DistributionBarHeight = 16.0;
 		private const double MinScaledBarWidth = 18.0;
 		private const string DashboardToolTip =
@@ -93,10 +94,10 @@ namespace MetaCompanion
 			_recommendations = new StackPanel { Margin = new Thickness(0, 4, 0, 9) };
 			root.Children.Add(_recommendations);
 
-			root.Children.Add(SectionTitle("\u8fd1\u671f\u5bf9\u624b\uff08\u6309\u804c\u4e1a\uff09", EnvironmentClassToolTip));
+			root.Children.Add(SectionTitle("\u8fd1\u671f\u5bf9\u624b\uff1a\u804c\u4e1a\u5408\u8ba1", EnvironmentClassToolTip));
 			_environmentChart = new StackPanel { Margin = new Thickness(0, 5, 0, 6) };
 			root.Children.Add(_environmentChart);
-			root.Children.Add(SectionTitle("\u6d41\u6d3e\u6392\u884c", EnvironmentArchetypeToolTip));
+			root.Children.Add(SectionTitle("\u8fd1\u671f\u6d41\u6d3e\uff1a\u5355\u9879\u6392\u884c", EnvironmentArchetypeToolTip));
 			_environment = new StackPanel { Margin = new Thickness(0, 2, 0, 0) };
 			root.Children.Add(_environment);
 		}
@@ -119,10 +120,8 @@ namespace MetaCompanion
 				return;
 			}
 
-			_subtitle.Text = snapshot.UpdatedAt.HasValue
-				? "\u66f4\u65b0 " + snapshot.UpdatedAt.Value.ToString("MM-dd HH:mm")
-				: "\u8bfb\u53d6\u672c\u5730\u7f13\u5b58";
-			_subtitle.ToolTip = DashboardToolTip;
+			_subtitle.Text = BuildSubtitle(snapshot);
+			_subtitle.ToolTip = BuildSubtitleToolTip(snapshot);
 			FillItems(_recommendations, snapshot.Recommendations, "\u6682\u65e0\u63a8\u8350\u7ed3\u679c");
 			FillEnvironmentChart(_environmentChart, snapshot.EnvironmentClasses);
 			FillItems(_environment, snapshot.Environment, "\u6682\u65e0\u8fd1\u671f\u5bf9\u624b\u5206\u5e03");
@@ -162,10 +161,99 @@ namespace MetaCompanion
 			}
 
 			var maxGames = list.Max(item => item.Games);
+			target.Children.Add(CreateClassOverviewStrip(list));
 			for (var index = 0; index < list.Count; index++)
 			{
 				target.Children.Add(CreateClassDistributionRow(list[index], index, maxGames));
 			}
+		}
+
+		private static string BuildSubtitle(MetaDashboardSnapshot snapshot)
+		{
+			var text = snapshot.UpdatedAt.HasValue
+				? "\u66f4\u65b0 " + snapshot.UpdatedAt.Value.ToString("MM-dd HH:mm")
+				: "\u8bfb\u53d6\u672c\u5730\u7f13\u5b58";
+			var sampleGames = GetSampleGames(snapshot);
+			return sampleGames > 0
+				? text + " \u00b7 \u6837\u672c " + sampleGames.ToString(CultureInfo.InvariantCulture) + "\u5c40"
+				: text;
+		}
+
+		private static string BuildSubtitleToolTip(MetaDashboardSnapshot snapshot)
+		{
+			var sampleGames = GetSampleGames(snapshot);
+			if (sampleGames <= 0)
+			{
+				return DashboardToolTip;
+			}
+
+			return DashboardToolTip + "\n\u672c\u5730\u6837\u672c " +
+				sampleGames.ToString(CultureInfo.InvariantCulture) +
+				" \u5c40\uff1b\u4e0a\u65b9\u804c\u4e1a\u662f\u5408\u8ba1\uff0c\u4e0b\u65b9\u6d41\u6d3e\u662f\u5355\u9879\u6392\u884c\u3002";
+		}
+
+		private static int GetSampleGames(MetaDashboardSnapshot snapshot)
+		{
+			return snapshot != null && snapshot.EnvironmentClasses != null
+				? snapshot.EnvironmentClasses.Sum(item => item.Games)
+				: 0;
+		}
+
+		private static UIElement CreateClassOverviewStrip(List<MetaDashboardClassDistribution> classes)
+		{
+			var totalGames = classes.Sum(item => item.Games);
+			var toolTip = BuildClassOverviewToolTip(classes, totalGames);
+			var host = new Grid
+			{
+				Width = DistributionBarWidth,
+				Height = ClassOverviewBarHeight,
+				HorizontalAlignment = HorizontalAlignment.Left,
+				Margin = new Thickness(0, 0, 0, 7),
+				Background = Brush("#301F2A34"),
+				ToolTip = toolTip,
+				ClipToBounds = true
+			};
+
+			for (var index = 0; index < classes.Count; index++)
+			{
+				var distribution = classes[index];
+				host.ColumnDefinitions.Add(new ColumnDefinition
+				{
+					Width = new GridLength(Math.Max(0.01, distribution.Games), GridUnitType.Star)
+				});
+
+				var fill = new Border
+				{
+					Background = new SolidColorBrush(GetClassColor(distribution.PlayerClass)),
+					BorderBrush = Brush("#66171E27"),
+					BorderThickness = new Thickness(index == 0 ? 0 : 1, 0, 0, 0),
+					ToolTip = distribution.ToolTip
+				};
+				Grid.SetColumn(fill, index);
+				host.Children.Add(fill);
+			}
+
+			return host;
+		}
+
+		private static string BuildClassOverviewToolTip(
+			List<MetaDashboardClassDistribution> classes,
+			int totalGames)
+		{
+			var lines = new List<string>
+			{
+				"\u5168\u6837\u672c\u804c\u4e1a\u5360\u6bd4\uff08" +
+					totalGames.ToString(CultureInfo.InvariantCulture) + " \u5c40\uff09"
+			};
+			lines.AddRange(classes.Select(distribution =>
+			{
+				var className = string.IsNullOrWhiteSpace(distribution.ClassName)
+					? distribution.PlayerClass
+					: distribution.ClassName;
+				return className + " " + distribution.Games.ToString(CultureInfo.InvariantCulture) +
+					" \u5c40 / " + FormatPercent(distribution.SamplePct, 1) + "%";
+			}));
+			return string.Join("\n", lines);
 		}
 
 		private static UIElement CreateClassDistributionRow(

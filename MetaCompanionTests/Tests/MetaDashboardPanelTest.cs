@@ -56,17 +56,26 @@ namespace MetaCompanionTests.Tests
 
 			panel.Update("title", snapshot);
 
-			Assert.AreEqual(2, panel.EnvironmentChartPanel.Children.Count);
+			Assert.AreEqual(3, panel.EnvironmentChartPanel.Children.Count);
 			Assert.AreEqual(3, panel.EnvironmentListPanel.Children.Count);
 			var sectionTitles = ((StackPanel)panel.Child).Children
 				.OfType<TextBlock>()
 				.Select(text => text.Text)
 				.ToList();
-			CollectionAssert.Contains(sectionTitles, "\u8fd1\u671f\u5bf9\u624b\uff08\u6309\u804c\u4e1a\uff09");
-			CollectionAssert.Contains(sectionTitles, "\u6d41\u6d3e\u6392\u884c");
+			CollectionAssert.Contains(sectionTitles, "\u8fd1\u671f\u5bf9\u624b\uff1a\u804c\u4e1a\u5408\u8ba1");
+			CollectionAssert.Contains(sectionTitles, "\u8fd1\u671f\u6d41\u6d3e\uff1a\u5355\u9879\u6392\u884c");
+			var subtitle = ((StackPanel)panel.Child).Children
+				.OfType<TextBlock>()
+				.Single(text => text.Text.Contains("\u6837\u672c"));
+			StringAssert.Contains(subtitle.Text, "\u6837\u672c 7\u5c40");
+			StringAssert.Contains(subtitle.ToolTip.ToString(), "\u804c\u4e1a\u662f\u5408\u8ba1");
+			var overview = panel.EnvironmentChartPanel.Children[0] as Grid;
+			Assert.IsNotNull(overview);
+			Assert.AreEqual(10.0, overview.Height, 0.1);
+			StringAssert.Contains(overview.ToolTip.ToString(), "\u5168\u6837\u672c\u804c\u4e1a\u5360\u6bd4");
 			var mageRow = panel.EnvironmentChartPanel.Children
 				.OfType<StackPanel>()
-				.Single(row => row.ToolTip.ToString().StartsWith("\u6cd5\u5e08", StringComparison.Ordinal));
+				.Single(row => row.ToolTip.ToString().Contains("\u804c\u4e1a\u5408\u8ba1\uff1a\u6cd5\u5e08"));
 			var host = mageRow.Children
 				.OfType<Grid>()
 				.Single(child => Math.Abs(child.Height - 16.0) < 0.1);

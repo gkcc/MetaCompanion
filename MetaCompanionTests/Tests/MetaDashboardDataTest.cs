@@ -66,7 +66,7 @@ namespace MetaCompanionTests.Tests
 			StringAssert.Contains(snapshot.Recommendations[0].ToolTip, "HSReplay \u5bf9\u9635\u77e9\u9635");
 			Assert.AreEqual("\u4efb\u52a1\u7267", snapshot.Environment[0].Title);
 			Assert.AreEqual("4 \u5c40 / 100%", snapshot.Environment[0].Detail);
-			StringAssert.Contains(snapshot.Environment[0].ToolTip, "\u603b\u9891\u6b21");
+			StringAssert.Contains(snapshot.Environment[0].ToolTip, "\u5168\u6837\u672c\u5360\u6bd4");
 			StringAssert.Contains(snapshot.Environment[0].ToolTip, "\u80dc\u8d1f 3-1");
 			Assert.AreEqual(1, snapshot.EnvironmentClasses.Count);
 			Assert.AreEqual("PRIEST", snapshot.EnvironmentClasses[0].PlayerClass);
