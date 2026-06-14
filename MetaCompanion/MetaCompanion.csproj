@@ -1,5 +1,5 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
-<Project ToolsVersion="12.0" DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+<Project ToolsVersion="4.0" DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <Import Project="$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props" Condition="Exists('$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props')" />
   <PropertyGroup>
     <Configuration Condition=" '$(Configuration)' == '' ">Debug</Configuration>
@@ -10,6 +10,7 @@
     <RootNamespace>MetaCompanion</RootNamespace>
     <AssemblyName>MetaCompanion</AssemblyName>
     <TargetFrameworkVersion>v4.7.2</TargetFrameworkVersion>
+    <FrameworkPathOverride Condition="'$(FrameworkPathOverride)' == '' and !Exists('$(ProgramFiles(x86))\Reference Assemblies\Microsoft\Framework\.NETFramework\$(TargetFrameworkVersion)\mscorlib.dll') and Exists('$(WINDIR)\Microsoft.NET\Framework\v4.0.30319\mscorlib.dll')">$(WINDIR)\Microsoft.NET\Framework\v4.0.30319</FrameworkPathOverride>
     <FileAlignment>512</FileAlignment>
     <HdtAppPath Condition="'$(HdtAppPath)' == ''">$(LOCALAPPDATA)\HearthstoneDeckTracker\app-1.52.20</HdtAppPath>
   </PropertyGroup>
