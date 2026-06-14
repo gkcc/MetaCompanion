@@ -444,27 +444,92 @@ namespace MetaCompanion
 
 		private static List<LocalMatchRow> DeduplicateLocalRows(IEnumerable<LocalMatchRow> rows)
 		{
-			return rows
+			var groups = new List<List<LocalMatchRow>>();
+			foreach (var row in rows
 				.Where(row => row != null)
-				.GroupBy(GetLocalMatchKey)
-				.Select(group => group
-					.OrderByDescending(row => row.EvidenceCount)
-					.ThenByDescending(row => row.ConfidencePct)
-					.ThenBy(row => row.Source == "hdt_deckstats" ? 0 : 1)
-					.First())
+				.OrderBy(row => row.EndedAt)
+				.ThenBy(row => ParseDate(row.StartedAt) ?? row.EndedAt))
+			{
+				var group = groups.FirstOrDefault(existing =>
+					IsSameLocalMatch(existing[0], row));
+				if (group == null)
+				{
+					group = new List<LocalMatchRow>();
+					groups.Add(group);
+				}
+				group.Add(row);
+			}
+
+			return groups
+				.Select(SelectPreferredLocalRow)
 				.OrderBy(row => row.EndedAt)
 				.ToList();
 		}
 
-		private static string GetLocalMatchKey(LocalMatchRow row)
+		private static bool IsSameLocalMatch(LocalMatchRow left, LocalMatchRow right)
 		{
-			var startedAt = ParseDate(row.StartedAt);
-			if (startedAt.HasValue)
+			if (!string.IsNullOrWhiteSpace(left.MatchId) &&
+				string.Equals(left.MatchId, right.MatchId, StringComparison.OrdinalIgnoreCase))
 			{
-				return MetaRetriever.NormalizeClass(row.OpponentClass) + "|" +
-					startedAt.Value.ToString("yyyyMMddHHmmss", CultureInfo.InvariantCulture);
+				return true;
 			}
-			return "id|" + row.MatchId;
+
+			if (!string.Equals(
+				MetaRetriever.NormalizeClass(left.OpponentClass),
+				MetaRetriever.NormalizeClass(right.OpponentClass),
+				StringComparison.OrdinalIgnoreCase))
+			{
+				return false;
+			}
+
+			if (!string.Equals(
+				NormalizeResult(left.Result),
+				NormalizeResult(right.Result),
+				StringComparison.OrdinalIgnoreCase))
+			{
+				return false;
+			}
+
+			if (Math.Abs((left.EndedAt - right.EndedAt).TotalSeconds) <= 90)
+			{
+				return true;
+			}
+
+			var leftStartedAt = ParseDate(left.StartedAt);
+			var rightStartedAt = ParseDate(right.StartedAt);
+			return leftStartedAt.HasValue &&
+				rightStartedAt.HasValue &&
+				Math.Abs((leftStartedAt.Value - rightStartedAt.Value).TotalSeconds) <= 90;
+		}
+
+		private static LocalMatchRow SelectPreferredLocalRow(IEnumerable<LocalMatchRow> group)
+		{
+			var rows = group.ToList();
+			var selected = rows
+				.OrderBy(row => row.Source == "plugin_match_history" ? 0 : 1)
+				.ThenByDescending(row => row.ConfidencePct)
+				.ThenByDescending(row => row.EvidenceCount)
+				.First();
+			foreach (var donor in rows.Where(row => !ReferenceEquals(row, selected)))
+			{
+				if (string.IsNullOrWhiteSpace(selected.ReplayFile))
+				{
+					selected.ReplayFile = donor.ReplayFile;
+				}
+				if (string.IsNullOrWhiteSpace(selected.ReplayPath))
+				{
+					selected.ReplayPath = donor.ReplayPath;
+				}
+				if (string.IsNullOrWhiteSpace(selected.HsReplayUploadId))
+				{
+					selected.HsReplayUploadId = donor.HsReplayUploadId;
+				}
+				if (string.IsNullOrWhiteSpace(selected.HsReplayUrl))
+				{
+					selected.HsReplayUrl = donor.HsReplayUrl;
+				}
+			}
+			return selected;
 		}
 
 		private static string FormatCandidateArchetypes(

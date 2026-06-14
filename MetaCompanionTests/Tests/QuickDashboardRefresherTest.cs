@@ -105,12 +105,14 @@ namespace MetaCompanionTests.Tests
 				"<DeckStats>" +
 				DeckStatsGame(
 					"hdt-1",
-					"2026-06-13 13:00:00",
+					"2026-06-13 13:04:45",
+					"2026-06-13 13:05:00",
 					"Win",
 					"Priest",
 					"CORE_CS1_112:2;CORE_CFM_604:1") +
 				DeckStatsGame(
 					"hdt-2",
+					"2026-06-13 13:30:00",
 					"2026-06-13 13:30:00",
 					"Loss",
 					"Priest",
@@ -169,10 +171,14 @@ namespace MetaCompanionTests.Tests
 				.Skip(1)
 				.ToList();
 			Assert.AreEqual(2, localRows.Count);
-			Assert.IsTrue(localRows.All(row => row.EndsWith("\thdt_deckstats", StringComparison.Ordinal)));
-			StringAssert.Contains(
-				File.ReadAllText(Path.Combine(_tempDirectory, "local_meta_summary.json"), Encoding.UTF8),
-				"\"hdt_deckstats\":2");
+			Assert.AreEqual(1, localRows.Count(row =>
+				row.EndsWith("\tplugin_match_history", StringComparison.Ordinal)));
+			Assert.AreEqual(1, localRows.Count(row =>
+				row.EndsWith("\thdt_deckstats", StringComparison.Ordinal)));
+			var summary = File.ReadAllText(
+				Path.Combine(_tempDirectory, "local_meta_summary.json"), Encoding.UTF8);
+			StringAssert.Contains(summary, "\"plugin_match_history\":1");
+			StringAssert.Contains(summary, "\"hdt_deckstats\":1");
 		}
 
 		private void WritePremiumMeta(
@@ -218,6 +224,7 @@ namespace MetaCompanionTests.Tests
 		private static string DeckStatsGame(
 			string id,
 			string startedAt,
+			string endedAt,
 			string result,
 			string opponentHero,
 			string cards)
@@ -225,7 +232,7 @@ namespace MetaCompanionTests.Tests
 			return "<Game>" +
 				"<GameId>" + id + "</GameId>" +
 				"<StartTime>" + startedAt + "</StartTime>" +
-				"<EndTime>" + startedAt + "</EndTime>" +
+				"<EndTime>" + endedAt + "</EndTime>" +
 				"<Format>Standard</Format>" +
 				"<GameMode>Ranked</GameMode>" +
 				"<Result>" + result + "</Result>" +
