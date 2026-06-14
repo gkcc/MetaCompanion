@@ -41,6 +41,10 @@
 						Content="启用剩余卡牌预测浮窗"
 						Margin="0,8,0,0"
 						ToolTip="仅在对手牌库剩余很少且已有足够真实证据时显示，避免遮挡 HDT 原生牌表。"/>
+				<CheckBox IsChecked="{Binding EnableNativeHdtOpponentPredictions}"
+						Content="启用 HDT 牌表内嵌预测"
+						Margin="0,8,0,0"
+						ToolTip="对局早中期把预测的前几张牌写入 HDT 对手牌表；不会修改 HDT 的全局显示设置。"/>
 			</StackPanel>
 		</Border>
 

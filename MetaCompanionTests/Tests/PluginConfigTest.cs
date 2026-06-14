@@ -21,7 +21,7 @@ namespace MetaCompanionTests.Tests
 			var config = new PluginConfig();
 			Assert.IsTrue(config.EnableMetaDashboard);
 			Assert.IsTrue(config.EnableLateGamePanel);
-			Assert.IsFalse(config.EnableNativeHdtOpponentPredictions);
+			Assert.IsTrue(config.EnableNativeHdtOpponentPredictions);
 			Assert.AreEqual(8, config.LateGameEvidenceThreshold);
 			Assert.AreEqual(15, config.LateGameRemainingDeckThreshold);
 			Assert.AreEqual(18, config.LateGamePredictionThreshold);

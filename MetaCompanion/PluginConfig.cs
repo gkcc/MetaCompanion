@@ -18,7 +18,7 @@ namespace MetaCompanion
 		public bool EnableMetaDashboard { get; set; } = true;
 		public bool FitDeckListToDisplay { get; set; } = true;
 		public bool EnableLateGamePanel { get; set; } = true;
-		public bool EnableNativeHdtOpponentPredictions { get; set; } = false;
+		public bool EnableNativeHdtOpponentPredictions { get; set; } = true;
 		public int LateGameEvidenceThreshold { get; set; } = 8;
 		public int LateGameRemainingDeckThreshold { get; set; } = 15;
 		public int LateGamePredictionThreshold { get; set; } = 18;

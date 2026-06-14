@@ -556,12 +556,12 @@ namespace MetaCompanionTests.Tests
 		}
 
 		[TestMethod]
-		public void NativeHdtOpponentPredictions_DisabledByDefault()
+		public void NativeHdtOpponentPredictions_EnabledByDefault()
 		{
-			Assert.IsFalse(PredictionView.ShouldUseNativeOpponentPredictions(new PluginConfig()));
-			Assert.IsTrue(PredictionView.ShouldUseNativeOpponentPredictions(new PluginConfig
+			Assert.IsTrue(PredictionView.ShouldUseNativeOpponentPredictions(new PluginConfig()));
+			Assert.IsFalse(PredictionView.ShouldUseNativeOpponentPredictions(new PluginConfig
 			{
-				EnableNativeHdtOpponentPredictions = true
+				EnableNativeHdtOpponentPredictions = false
 			}));
 		}
 
