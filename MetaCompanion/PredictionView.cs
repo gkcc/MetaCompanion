@@ -20,8 +20,6 @@ namespace MetaCompanion
 				"UpdateOpponentCards",
 				BindingFlags.Static | BindingFlags.NonPublic);
 
-		private bool _lastHideOpponentCards;
-		private bool _changedHideOpponentCards;
 		private bool _wroteNativePredictions;
 		private bool _enabled;
 		private readonly PluginConfig _config;
@@ -52,9 +50,6 @@ namespace MetaCompanion
 				if (ShouldUseNativeOpponentPredictions())
 				{
 					Log.Debug("Enabling Meta Companion native HDT opponent deck predictions");
-					_lastHideOpponentCards = Config.Instance.HideOpponentCards;
-					Config.Instance.HideOpponentCards = false;
-					_changedHideOpponentCards = true;
 				}
 			}
 			else
@@ -69,11 +64,6 @@ namespace MetaCompanion
 						RemoveArchetypeLabel();
 						RemoveLateGamePanel();
 					});
-				if (_changedHideOpponentCards)
-				{
-					Config.Instance.HideOpponentCards = _lastHideOpponentCards;
-					_changedHideOpponentCards = false;
-				}
 			}
 		}
 

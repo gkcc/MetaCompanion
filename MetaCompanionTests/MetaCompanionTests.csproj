@@ -73,6 +73,7 @@
   <ItemGroup>
     <Compile Include="Mocks\MockOpponent.cs" />
     <Compile Include="Tests\CardProximityRankerTest.cs" />
+    <Compile Include="Tests\HdtConfigMutationTest.cs" />
     <Compile Include="Tests\MetaCompanionPluginTest.cs" />
     <Compile Include="Tests\LogTest.cs" />
     <Compile Include="Tests\MatchHistoryRecorderTest.cs" />
