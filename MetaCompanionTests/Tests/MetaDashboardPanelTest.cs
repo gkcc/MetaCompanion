@@ -58,6 +58,12 @@ namespace MetaCompanionTests.Tests
 
 			Assert.AreEqual(2, panel.EnvironmentChartPanel.Children.Count);
 			Assert.AreEqual(3, panel.EnvironmentListPanel.Children.Count);
+			var sectionTitles = ((StackPanel)panel.Child).Children
+				.OfType<TextBlock>()
+				.Select(text => text.Text)
+				.ToList();
+			CollectionAssert.Contains(sectionTitles, "\u8fd1\u671f\u5bf9\u624b\uff08\u6309\u804c\u4e1a\uff09");
+			CollectionAssert.Contains(sectionTitles, "\u6d41\u6d3e\u6392\u884c");
 			var mageRow = panel.EnvironmentChartPanel.Children
 				.OfType<StackPanel>()
 				.Single(row => row.ToolTip.ToString().StartsWith("\u6cd5\u5e08", StringComparison.Ordinal));

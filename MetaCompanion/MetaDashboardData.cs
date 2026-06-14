@@ -175,7 +175,8 @@ namespace MetaCompanion
 			int totalGames)
 		{
 			return row.Name + " (" + GetClassDisplayName(row.PlayerClass) + ")\n" +
-				"\u603b\u9891\u6b21 " + FormatPercent(GetSamplePercent(row.Games, totalGames), 1) + "% / " +
+				"\u6d41\u6d3e\u6392\u884c\uff1a\u5168\u6837\u672c\u5360\u6bd4 " +
+				FormatPercent(GetSamplePercent(row.Games, totalGames), 1) + "% / " +
 				row.Games.ToString(CultureInfo.InvariantCulture) + " \u5c40\n" +
 				"\u80dc\u8d1f " + row.Wins.ToString(CultureInfo.InvariantCulture) + "-" +
 				row.Losses.ToString(CultureInfo.InvariantCulture) +
@@ -189,7 +190,7 @@ namespace MetaCompanion
 			return row.Name + " (" + className + ")\n" +
 				"\u6837\u672c " + row.Games.ToString(CultureInfo.InvariantCulture) + " \u5c40\n" +
 				"\u804c\u4e1a\u5185\u9891\u6b21 " + FormatPercent(classShare, 1) + "%\n" +
-				"\u603b\u9891\u6b21 " + FormatPercent(GetSamplePercent(row.Games, totalGames), 1) + "%\n" +
+				"\u5168\u6837\u672c\u5360\u6bd4 " + FormatPercent(GetSamplePercent(row.Games, totalGames), 1) + "%\n" +
 				"\u80dc\u8d1f " + row.Wins.ToString(CultureInfo.InvariantCulture) + "-" +
 				row.Losses.ToString(CultureInfo.InvariantCulture) +
 				(row.WinRate.HasValue ? " / " + FormatPercent(row.WinRate.Value, 2) + "%" : "");
@@ -203,14 +204,15 @@ namespace MetaCompanion
 		{
 			var lines = new List<string>
 			{
-				className + " " + games.ToString(CultureInfo.InvariantCulture) + " \u5c40 / " +
+				"\u804c\u4e1a\u5408\u8ba1\uff1a" + className + " " +
+					games.ToString(CultureInfo.InvariantCulture) + " \u5c40 / " +
 					FormatPercent(GetSamplePercent(games, totalGames), 1) + "%"
 			};
 			lines.AddRange(segments.Select(segment =>
 				segment.Title + ": " +
 				segment.Games.ToString(CultureInfo.InvariantCulture) + " \u5c40 / " +
 				FormatPercent(segment.ClassSamplePct, 1) + "% \u804c\u4e1a\u5185 / " +
-				FormatPercent(segment.SamplePct, 1) + "% \u603b\u9891\u6b21"));
+				FormatPercent(segment.SamplePct, 1) + "% \u5168\u6837\u672c"));
 			return string.Join("\n", lines);
 		}
 

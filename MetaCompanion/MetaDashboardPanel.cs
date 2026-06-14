@@ -20,6 +20,10 @@ namespace MetaCompanion
 			"\u6d41\u6d3e\u63a8\u8350\u6309 HSReplay \u5bf9\u9635\u77e9\u9635\u80dc\u7387\u548c\u672c\u5730\u8fd1 3 \u5929\u5bf9\u624b\u5206\u5e03\u52a0\u6743\u6392\u5e8f\uff1b\u9ed8\u8ba4\u672c\u5730\u5206\u5e03\u6743\u91cd 35%\u3002";
 		private const string EnvironmentToolTip =
 			"\u8fd1\u671f\u5bf9\u624b\u6765\u81ea HDT \u672c\u5730\u5386\u53f2\uff0c\u6309\u539f\u59cb\u5c40\u6570\u7edf\u8ba1\u804c\u4e1a\u548c\u5f62\u6001\u9891\u6b21\u3002";
+		private const string EnvironmentClassToolTip =
+			"\u6309\u5bf9\u624b\u804c\u4e1a\u5408\u8ba1\u7684\u5c40\u6570\u548c\u5360\u6bd4\uff1b\u8272\u5757\u662f\u8be5\u804c\u4e1a\u4e0b\u7684\u6d41\u6d3e\u62c6\u5206\u3002\u4f8b\u5982\u7267\u5e08 6 \u5c40\u53ef\u80fd\u7531\u4efb\u52a1\u7267 5 \u5c40 + \u63a7\u5236\u7267 1 \u5c40\u7ec4\u6210\u3002";
+		private const string EnvironmentArchetypeToolTip =
+			"\u6309\u5355\u4e2a\u6d41\u6d3e\u7edf\u8ba1\u7684\u6392\u884c\uff0c\u8fd9\u91cc\u7684\u5c40\u6570\u4e0d\u662f\u804c\u4e1a\u5408\u8ba1\uff1b\u5360\u6bd4\u5206\u6bcd\u662f\u8fd1\u671f\u5168\u90e8\u5df2\u8bc6\u522b\u5bf9\u5c40\u3002";
 
 		private readonly Action _closeAction;
 		private readonly TextBlock _title;
@@ -89,9 +93,10 @@ namespace MetaCompanion
 			_recommendations = new StackPanel { Margin = new Thickness(0, 4, 0, 9) };
 			root.Children.Add(_recommendations);
 
-			root.Children.Add(SectionTitle("\u8fd1\u671f\u5bf9\u624b", EnvironmentToolTip));
+			root.Children.Add(SectionTitle("\u8fd1\u671f\u5bf9\u624b\uff08\u6309\u804c\u4e1a\uff09", EnvironmentClassToolTip));
 			_environmentChart = new StackPanel { Margin = new Thickness(0, 5, 0, 6) };
 			root.Children.Add(_environmentChart);
+			root.Children.Add(SectionTitle("\u6d41\u6d3e\u6392\u884c", EnvironmentArchetypeToolTip));
 			_environment = new StackPanel { Margin = new Thickness(0, 2, 0, 0) };
 			root.Children.Add(_environment);
 		}
