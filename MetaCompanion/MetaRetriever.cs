@@ -14,21 +14,6 @@ namespace MetaCompanion
 	{
 		private static readonly string MetaFilePath =
 				Path.Combine(MetaCompanionPlugin.DataDirectory, @"metaDecks.xml");
-		private static readonly string ManualDeckCodeFilePath =
-				Path.Combine(MetaCompanionPlugin.DataDirectory, @"deckcodes.txt");
-		private static readonly string ArchetypeBranchDeckCodeFilePath =
-				Path.Combine(MetaCompanionPlugin.DataDirectory, @"archetype_deck_branches.tsv");
-		private static readonly string HsReplayDeckCodeFilePath =
-				Path.Combine(MetaCompanionPlugin.DataDirectory, @"hsreplay_deckcodes.txt");
-		private static readonly string HsGuruDeckCodeFilePath =
-				Path.Combine(MetaCompanionPlugin.DataDirectory, @"hsguru_deckcodes.txt");
-		private static readonly string[] DeckCodeFilePaths =
-		{
-				ManualDeckCodeFilePath,
-				HsReplayDeckCodeFilePath,
-				HsGuruDeckCodeFilePath,
-				ArchetypeBranchDeckCodeFilePath
-		};
 
 		public Task<List<Deck>> RetrieveMetaDecks(PluginConfig config)
 		{
@@ -64,10 +49,18 @@ namespace MetaCompanion
 
 		private List<Deck> LoadDeckCodeDecks()
 		{
-			var existingFiles = SelectDeckCodeFilePaths(DeckCodeFilePaths.Where(File.Exists));
+			return LoadDeckCodeDecks(MetaCompanionPlugin.DataDirectory);
+		}
+
+		internal static List<Deck> LoadDeckCodeDecks(string dataDirectory)
+		{
+			var deckCodeFilePaths = BuildDeckCodeFilePaths(dataDirectory);
+			var existingFiles = SelectDeckCodeFilePaths(
+				deckCodeFilePaths.Where(File.Exists),
+				dataDirectory);
 			if (existingFiles.Count == 0)
 			{
-				Log.Info("No deck code file found in " + MetaCompanionPlugin.DataDirectory);
+				Log.Info("No deck code file found in " + dataDirectory);
 				return new List<Deck>();
 			}
 			Log.Info("Reading deck codes from preferred sources: " + string.Join(", ", existingFiles));
@@ -111,30 +104,51 @@ namespace MetaCompanion
 			return decks;
 		}
 
+		private static string[] BuildDeckCodeFilePaths(string dataDirectory)
+		{
+			return new[]
+			{
+				Path.Combine(dataDirectory, "deckcodes.txt"),
+				Path.Combine(dataDirectory, "hsreplay_deckcodes.txt"),
+				Path.Combine(dataDirectory, "hsguru_deckcodes.txt"),
+				Path.Combine(dataDirectory, "archetype_deck_branches.tsv")
+			};
+		}
+
 		internal static List<string> SelectDeckCodeFilePaths(IEnumerable<string> existingFiles)
+		{
+			return SelectDeckCodeFilePaths(existingFiles, MetaCompanionPlugin.DataDirectory);
+		}
+
+		internal static List<string> SelectDeckCodeFilePaths(
+			IEnumerable<string> existingFiles, string dataDirectory)
 		{
 			var existing = new HashSet<string>(existingFiles, StringComparer.OrdinalIgnoreCase);
 			var selected = new List<string>();
-			if (existing.Contains(ManualDeckCodeFilePath))
+			var manualDeckCodeFilePath = Path.Combine(dataDirectory, "deckcodes.txt");
+			var hsReplayDeckCodeFilePath = Path.Combine(dataDirectory, "hsreplay_deckcodes.txt");
+			var hsGuruDeckCodeFilePath = Path.Combine(dataDirectory, "hsguru_deckcodes.txt");
+			var archetypeBranchDeckCodeFilePath = Path.Combine(dataDirectory, "archetype_deck_branches.tsv");
+			if (existing.Contains(manualDeckCodeFilePath))
 			{
-				selected.Add(ManualDeckCodeFilePath);
+				selected.Add(manualDeckCodeFilePath);
 			}
 
-			if (existing.Contains(HsReplayDeckCodeFilePath))
+			if (existing.Contains(hsReplayDeckCodeFilePath))
 			{
-				selected.Add(HsReplayDeckCodeFilePath);
+				selected.Add(hsReplayDeckCodeFilePath);
 				return selected;
 			}
 
-			if (existing.Contains(HsGuruDeckCodeFilePath))
+			if (existing.Contains(hsGuruDeckCodeFilePath))
 			{
-				selected.Add(HsGuruDeckCodeFilePath);
+				selected.Add(hsGuruDeckCodeFilePath);
 				return selected;
 			}
 
-			if (existing.Contains(ArchetypeBranchDeckCodeFilePath))
+			if (existing.Contains(archetypeBranchDeckCodeFilePath))
 			{
-				selected.Add(ArchetypeBranchDeckCodeFilePath);
+				selected.Add(archetypeBranchDeckCodeFilePath);
 			}
 			return selected;
 		}

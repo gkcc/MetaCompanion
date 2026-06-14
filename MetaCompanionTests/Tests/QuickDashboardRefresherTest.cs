@@ -1,7 +1,10 @@
 using MetaCompanion;
+using Hearthstone_Deck_Tracker.Hearthstone;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using System;
+using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Text;
 
 namespace MetaCompanionTests.Tests
@@ -87,6 +90,91 @@ namespace MetaCompanionTests.Tests
 			Assert.AreEqual(questPriest, snapshot.LastGame.Title);
 		}
 
+		[TestMethod]
+		public void Refresh_MergesHdtDeckStatsAndPluginHistoryWithoutDuplicateMatches()
+		{
+			HearthDb.Cards.LoadBaseData();
+			var now = new DateTime(2026, 6, 13, 14, 45, 0);
+			var questPriest = "\u4efb\u52a1\u7267";
+			var heraldShaman = "\u5146\u793a\u8428";
+			var divineShieldPaladin = "\u5723\u76fe\u9a91";
+			WritePremiumMeta(questPriest, heraldShaman, divineShieldPaladin);
+			var deckStatsPath = Path.Combine(_tempDirectory, "DeckStats.xml");
+			File.WriteAllText(
+				deckStatsPath,
+				"<DeckStats>" +
+				DeckStatsGame(
+					"hdt-1",
+					"2026-06-13 13:00:00",
+					"Win",
+					"Priest",
+					"CORE_CS1_112:2;CORE_CFM_604:1") +
+				DeckStatsGame(
+					"hdt-2",
+					"2026-06-13 13:30:00",
+					"Loss",
+					"Priest",
+					"CORE_CS1_112:1;CORE_CFM_604:1") +
+				"</DeckStats>",
+				Encoding.UTF8);
+			File.WriteAllText(
+				MatchHistoryRecorder.GetHistoryPath(_tempDirectory),
+				MatchHistoryRecorder.HistoryHeader + Environment.NewLine +
+				string.Join("\t", new[]
+				{
+					"plugin-duplicate",
+					"2026-06-13 13:00:00",
+					"2026-06-13 13:05:00",
+					"Standard",
+					"Ranked",
+					"win",
+					"Priest",
+					questPriest,
+					"35",
+					"low",
+					"1",
+					"1",
+					"20",
+					questPriest,
+					questPriest + ":35%",
+					"game_end",
+					"",
+					"",
+					"",
+					""
+				}) + Environment.NewLine,
+				Encoding.UTF8);
+
+			var result = QuickDashboardRefresher.Refresh(
+				new PluginConfig
+				{
+					LocalRecommendationHistoryDays = 3,
+					LocalRecommendationWeight = 0.35,
+					LocalRecommendationTop = 5,
+					LocalMetaMinConfidence = 35
+				},
+				_tempDirectory,
+				now,
+				deckStatsPath,
+				new List<Deck>
+				{
+					BuildDeck("Priest", questPriest, "CORE_CS1_112", "CORE_CFM_604")
+				});
+
+			Assert.IsTrue(result.EnvironmentUpdated);
+			Assert.AreEqual(2, result.LocalMatchCount);
+			var localRows = File.ReadAllLines(
+					Path.Combine(_tempDirectory, "local_meta_archetypes.tsv"),
+					Encoding.UTF8)
+				.Skip(1)
+				.ToList();
+			Assert.AreEqual(2, localRows.Count);
+			Assert.IsTrue(localRows.All(row => row.EndsWith("\thdt_deckstats", StringComparison.Ordinal)));
+			StringAssert.Contains(
+				File.ReadAllText(Path.Combine(_tempDirectory, "local_meta_summary.json"), Encoding.UTF8),
+				"\"hdt_deckstats\":2");
+		}
+
 		private void WritePremiumMeta(
 			string questPriest,
 			string heraldShaman,
@@ -125,6 +213,44 @@ namespace MetaCompanionTests.Tests
 				"}" +
 				"}",
 				Encoding.UTF8);
+		}
+
+		private static string DeckStatsGame(
+			string id,
+			string startedAt,
+			string result,
+			string opponentHero,
+			string cards)
+		{
+			return "<Game>" +
+				"<GameId>" + id + "</GameId>" +
+				"<StartTime>" + startedAt + "</StartTime>" +
+				"<EndTime>" + startedAt + "</EndTime>" +
+				"<Format>Standard</Format>" +
+				"<GameMode>Ranked</GameMode>" +
+				"<Result>" + result + "</Result>" +
+				"<OpponentHero>" + opponentHero + "</OpponentHero>" +
+				"<OpponentCards>" +
+				string.Join("", cards.Split(';').Select(card =>
+					{
+						var parts = card.Split(':');
+						return "<Card Id=\"" + parts[0] + "\" Count=\"" + parts[1] + "\" />";
+					})) +
+				"</OpponentCards>" +
+				"</Game>";
+		}
+
+		private static Deck BuildDeck(string playerClass, string name, params string[] cardIds)
+		{
+			var deck = new Deck { Class = playerClass, Name = name };
+			foreach (var cardId in cardIds)
+			{
+				var card = Database.GetCardFromId(cardId);
+				Assert.IsNotNull(card, cardId);
+				card.Count = cardId == "CORE_CS1_112" ? 2 : 1;
+				deck.Cards.Add(card);
+			}
+			return deck;
 		}
 	}
 }
