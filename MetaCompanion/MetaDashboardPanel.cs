@@ -174,22 +174,31 @@ namespace MetaCompanion
 				? "\u66f4\u65b0 " + snapshot.UpdatedAt.Value.ToString("MM-dd HH:mm")
 				: "\u8bfb\u53d6\u672c\u5730\u7f13\u5b58";
 			var sampleGames = GetSampleGames(snapshot);
-			return sampleGames > 0
+			var remoteSource = GetRemoteSourceText(snapshot);
+			var sampleText = sampleGames > 0
 				? text + " \u00b7 \u6837\u672c " + sampleGames.ToString(CultureInfo.InvariantCulture) + "\u5c40"
 				: text;
+			return string.IsNullOrWhiteSpace(remoteSource)
+				? sampleText
+				: sampleText + " \u00b7 \u8fdc\u7a0b " + remoteSource;
 		}
 
 		private static string BuildSubtitleToolTip(MetaDashboardSnapshot snapshot)
 		{
+			var lines = new List<string> { DashboardToolTip };
 			var sampleGames = GetSampleGames(snapshot);
-			if (sampleGames <= 0)
+			if (sampleGames > 0)
 			{
-				return DashboardToolTip;
+				lines.Add("\u672c\u5730\u6837\u672c " +
+					sampleGames.ToString(CultureInfo.InvariantCulture) +
+					" \u5c40\uff1b\u4e0a\u65b9\u804c\u4e1a\u662f\u5408\u8ba1\uff0c\u4e0b\u65b9\u6d41\u6d3e\u662f\u5355\u9879\u6392\u884c\u3002");
 			}
 
-			return DashboardToolTip + "\n\u672c\u5730\u6837\u672c " +
-				sampleGames.ToString(CultureInfo.InvariantCulture) +
-				" \u5c40\uff1b\u4e0a\u65b9\u804c\u4e1a\u662f\u5408\u8ba1\uff0c\u4e0b\u65b9\u6d41\u6d3e\u662f\u5355\u9879\u6392\u884c\u3002";
+			if (snapshot != null && snapshot.RemoteSource != null && snapshot.RemoteSource.HasData)
+			{
+				lines.Add(snapshot.RemoteSource.ToolTip);
+			}
+			return string.Join("\n", lines.Where(line => !string.IsNullOrWhiteSpace(line)).ToArray());
 		}
 
 		private static int GetSampleGames(MetaDashboardSnapshot snapshot)
@@ -197,6 +206,15 @@ namespace MetaCompanion
 			return snapshot != null && snapshot.EnvironmentClasses != null
 				? snapshot.EnvironmentClasses.Sum(item => item.Games)
 				: 0;
+		}
+
+		private static string GetRemoteSourceText(MetaDashboardSnapshot snapshot)
+		{
+			return snapshot != null &&
+				snapshot.RemoteSource != null &&
+				snapshot.RemoteSource.HasData
+				? snapshot.RemoteSource.ShortText
+				: "";
 		}
 
 		private static UIElement CreateClassOverviewStrip(List<MetaDashboardClassDistribution> classes)

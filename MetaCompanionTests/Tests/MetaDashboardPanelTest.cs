@@ -105,6 +105,30 @@ namespace MetaCompanionTests.Tests
 		}
 
 		[TestMethod]
+		public void Update_SubtitleShowsRemoteSourceWhenAvailable()
+		{
+			WriteEnvironmentRows(
+				"1\t56\t\u4efb\u52a1\u7267\tPRIEST\t4\t4\t45\t95\t3\t1\t75");
+			WriteRemoteSource(
+				"CURRENT_PATCH",
+				"LAST_3_DAYS",
+				40986,
+				18765);
+			var snapshot = MetaDashboardSnapshot.Load(_tempDirectory);
+			var panel = new MetaDashboardPanel(null);
+
+			panel.Update("title", snapshot);
+
+			var subtitle = ((StackPanel)panel.Child).Children
+				.OfType<TextBlock>()
+				.Single(text => text.Text.Contains("\u8fdc\u7a0b"));
+			StringAssert.Contains(subtitle.Text, "\u8fdc\u7a0b");
+			StringAssert.Contains(subtitle.Text, "3\u5929");
+			StringAssert.Contains(subtitle.ToolTip.ToString(), "HSReplay \u8fdc\u7a0b\u6570\u636e\u6e90");
+			StringAssert.Contains(subtitle.ToolTip.ToString(), "\u5019\u9009\u6837\u672c");
+		}
+
+		[TestMethod]
 		public void GetClassColor_UsesWarcraftClassPaletteForAllHearthstoneClasses()
 		{
 			AssertColor("DEATHKNIGHT", 0xC4, 0x1E, 0x3A);
@@ -143,6 +167,38 @@ namespace MetaCompanionTests.Tests
 				Environment.NewLine +
 				string.Join(Environment.NewLine, rows) +
 				Environment.NewLine,
+				Encoding.UTF8);
+		}
+
+		private void WriteRemoteSource(
+			string summaryTimeRange,
+			string selectedTimeRange,
+			int currentPatchGames,
+			int last3DaysGames)
+		{
+			var directory = Path.Combine(_tempDirectory, "Premium", "Meta", "latest");
+			Directory.CreateDirectory(directory);
+			File.WriteAllText(
+				Path.Combine(directory, "summary.json"),
+				"{" +
+				"\"generated_at\":\"2026-06-13T00:42:46+08:00\"," +
+				"\"as_of\":\"2026-06-12T09:21:35Z\"," +
+				"\"time_range\":\"" + summaryTimeRange + "\"," +
+				"\"game_type\":\"RANKED_STANDARD\"," +
+				"\"rank_range\":\"DIAMOND_THROUGH_LEGEND\"," +
+				"\"region\":\"ALL\"" +
+				"}",
+				Encoding.UTF8);
+			File.WriteAllText(
+				Path.Combine(directory, "manifest.json"),
+				"{" +
+				"\"selected_time_range\":\"" + selectedTimeRange + "\"," +
+				"\"auto_time_range_policy\":\"choose_smaller_sample_between_CURRENT_PATCH_and_LAST_3_DAYS\"," +
+				"\"candidate_sample_games\":[" +
+				"{\"time_range\":\"CURRENT_PATCH\",\"sample_games\":" + currentPatchGames + "}," +
+				"{\"time_range\":\"LAST_3_DAYS\",\"sample_games\":" + last3DaysGames + "}" +
+				"]" +
+				"}",
 				Encoding.UTF8);
 		}
 	}

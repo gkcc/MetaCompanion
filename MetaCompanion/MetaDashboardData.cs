@@ -1,9 +1,11 @@
 using System;
+using System.Collections;
 using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Text;
+using System.Web.Script.Serialization;
 
 namespace MetaCompanion
 {
@@ -26,6 +28,8 @@ namespace MetaCompanion
 			new List<MetaDashboardClassDistribution>();
 		public MetaDashboardItem LastGame { get; private set; }
 		public DateTime? UpdatedAt { get; private set; }
+		public MetaDashboardRemoteSource RemoteSource { get; private set; } =
+			MetaDashboardRemoteSource.Empty;
 
 		public bool HasContent =>
 			Recommendations.Count > 0 || Environment.Count > 0 || EnvironmentClasses.Count > 0;
@@ -43,6 +47,10 @@ namespace MetaCompanion
 			var environmentPath = Path.Combine(dataDirectory, "local_meta_environment.tsv");
 			var gamesPath = Path.Combine(dataDirectory, "local_meta_archetypes.tsv");
 			var hdtHistoryPath = Path.Combine(dataDirectory, "hdt_opponent_history.tsv");
+			var remoteSummaryPath = Path.Combine(
+				dataDirectory, "Premium", "Meta", "latest", "summary.json");
+			var remoteManifestPath = Path.Combine(
+				dataDirectory, "Premium", "Meta", "latest", "manifest.json");
 
 			snapshot.Recommendations = LoadRecommendations(recommendationPath);
 			var environmentRows = LoadEnvironmentRows(environmentPath);
@@ -55,6 +63,7 @@ namespace MetaCompanion
 				.OrderByDescending(value => value)
 				.Cast<DateTime?>()
 				.FirstOrDefault();
+			snapshot.RemoteSource = MetaDashboardRemoteSource.Load(remoteSummaryPath, remoteManifestPath);
 			return snapshot;
 		}
 
@@ -424,6 +433,309 @@ namespace MetaCompanion
 					return string.IsNullOrWhiteSpace(playerClass) ? "\u672a\u77e5" : playerClass;
 			}
 		}
+	}
+
+	internal class MetaDashboardRemoteSource
+	{
+		public static readonly MetaDashboardRemoteSource Empty = new MetaDashboardRemoteSource();
+
+		public string TimeRange { get; private set; } = "";
+		public string SelectedTimeRange { get; private set; } = "";
+		public string AutoTimeRangePolicy { get; private set; } = "";
+		public string GameType { get; private set; } = "";
+		public string RankRange { get; private set; } = "";
+		public string Region { get; private set; } = "";
+		public DateTime? GeneratedAt { get; private set; }
+		public DateTime? AsOf { get; private set; }
+		public List<MetaDashboardRemoteCandidate> Candidates { get; private set; } =
+			new List<MetaDashboardRemoteCandidate>();
+
+		public bool HasData
+		{
+			get
+			{
+				return !string.IsNullOrWhiteSpace(TimeRange) ||
+					!CreatingTimeIsEmpty() ||
+					!string.IsNullOrWhiteSpace(SelectedTimeRange);
+			}
+		}
+
+		public string EffectiveTimeRange
+		{
+			get
+			{
+				return string.IsNullOrWhiteSpace(SelectedTimeRange)
+					? TimeRange
+					: SelectedTimeRange;
+			}
+		}
+
+		public string ShortText
+		{
+			get
+			{
+				if (!HasData)
+				{
+					return "";
+				}
+
+				var time = FormatShortTime(AsOf ?? GeneratedAt);
+				var range = FormatTimeRangeShort(EffectiveTimeRange);
+				if (string.IsNullOrWhiteSpace(time))
+				{
+					return range;
+				}
+				return string.IsNullOrWhiteSpace(range)
+					? time
+					: time + " " + range;
+			}
+		}
+
+		public string SettingsText
+		{
+			get
+			{
+				if (!HasData)
+				{
+					return "";
+				}
+
+				var parts = new List<string>
+				{
+					"HSReplay " + FormatTimeRangeLong(EffectiveTimeRange)
+				};
+				if (!string.IsNullOrWhiteSpace(RankRange))
+				{
+					parts.Add(FormatRankRange(RankRange));
+				}
+				if (AsOf.HasValue)
+				{
+					parts.Add("\u622a\u81f3 " + FormatFullTime(AsOf));
+				}
+				return string.Join(" / ", parts.Where(part => !string.IsNullOrWhiteSpace(part)).ToArray());
+			}
+		}
+
+		public string ToolTip
+		{
+			get
+			{
+				if (!HasData)
+				{
+					return "";
+				}
+
+				var lines = new List<string>
+				{
+					"HSReplay \u8fdc\u7a0b\u6570\u636e\u6e90",
+					"\u65f6\u95f4\u8303\u56f4\uff1a" + FormatTimeRangeLong(EffectiveTimeRange)
+				};
+				if (!string.IsNullOrWhiteSpace(SelectedTimeRange) &&
+					!string.Equals(SelectedTimeRange, TimeRange, StringComparison.OrdinalIgnoreCase))
+				{
+					lines[1] += "\uff08\u81ea\u52a8\u9009\u62e9\uff09";
+				}
+				AddLine(lines, "\u5206\u6bb5\uff1a", FormatRankRange(RankRange));
+				AddLine(lines, "\u6a21\u5f0f\uff1a", GameType);
+				AddLine(lines, "\u5730\u533a\uff1a", Region);
+				AddLine(lines, "\u6570\u636e\u622a\u81f3\uff1a", FormatFullTime(AsOf));
+				AddLine(lines, "\u7f13\u5b58\u751f\u6210\uff1a", FormatFullTime(GeneratedAt));
+				if (Candidates.Count > 0)
+				{
+					lines.Add("\u5019\u9009\u6837\u672c\uff1a" + string.Join("\uff1b", Candidates
+						.Select(candidate => FormatTimeRangeLong(candidate.TimeRange) + " " +
+							candidate.SampleGames.ToString(CultureInfo.InvariantCulture) + "\u5c40")
+						.ToArray()));
+				}
+				return string.Join("\n", lines.Where(line => !string.IsNullOrWhiteSpace(line)).ToArray());
+			}
+		}
+
+		public static MetaDashboardRemoteSource Load(string summaryPath, string manifestPath)
+		{
+			var source = new MetaDashboardRemoteSource();
+			var summary = ReadJsonObject(summaryPath);
+			if (summary != null)
+			{
+				source.GeneratedAt = ParseDate(StringValue(summary, "generated_at"));
+				source.AsOf = ParseDate(StringValue(summary, "as_of"));
+				source.TimeRange = StringValue(summary, "time_range");
+				source.GameType = StringValue(summary, "game_type");
+				source.RankRange = StringValue(summary, "rank_range");
+				source.Region = StringValue(summary, "region");
+			}
+
+			var manifest = ReadJsonObject(manifestPath);
+			if (manifest != null)
+			{
+				source.SelectedTimeRange = StringValue(manifest, "selected_time_range");
+				source.AutoTimeRangePolicy = StringValue(manifest, "auto_time_range_policy");
+				var candidates = ObjectValue(manifest, "candidate_sample_games") as IEnumerable;
+				if (candidates != null && !(candidates is string))
+				{
+					foreach (var candidateObject in candidates)
+					{
+						var candidate = candidateObject as Dictionary<string, object>;
+						if (candidate == null)
+						{
+							continue;
+						}
+
+						source.Candidates.Add(new MetaDashboardRemoteCandidate
+						{
+							TimeRange = StringValue(candidate, "time_range"),
+							SampleGames = LongValue(candidate, "sample_games"),
+							SummaryAsOf = ParseDate(StringValue(candidate, "summary_as_of"))
+						});
+					}
+				}
+			}
+
+			return source.HasData ? source : Empty;
+		}
+
+		private bool CreatingTimeIsEmpty()
+		{
+			return !GeneratedAt.HasValue && !AsOf.HasValue;
+		}
+
+		private static void AddLine(List<string> lines, string label, string value)
+		{
+			if (!string.IsNullOrWhiteSpace(value))
+			{
+				lines.Add(label + value);
+			}
+		}
+
+		private static Dictionary<string, object> ReadJsonObject(string path)
+		{
+			if (string.IsNullOrWhiteSpace(path) || !File.Exists(path))
+			{
+				return null;
+			}
+
+			try
+			{
+				return new JavaScriptSerializer().DeserializeObject(
+					File.ReadAllText(path, Encoding.UTF8)) as Dictionary<string, object>;
+			}
+			catch
+			{
+				return null;
+			}
+		}
+
+		private static object ObjectValue(Dictionary<string, object> values, string key)
+		{
+			if (values == null || key == null || !values.ContainsKey(key))
+			{
+				return null;
+			}
+			return values[key];
+		}
+
+		private static string StringValue(Dictionary<string, object> values, string key)
+		{
+			var value = ObjectValue(values, key);
+			return value == null ? "" : Convert.ToString(value, CultureInfo.InvariantCulture);
+		}
+
+		private static long LongValue(Dictionary<string, object> values, string key)
+		{
+			var value = ObjectValue(values, key);
+			if (value == null)
+			{
+				return 0;
+			}
+
+			long parsed;
+			return long.TryParse(
+				Convert.ToString(value, CultureInfo.InvariantCulture),
+				NumberStyles.Integer,
+				CultureInfo.InvariantCulture,
+				out parsed)
+				? parsed
+				: 0;
+		}
+
+		private static DateTime? ParseDate(string value)
+		{
+			if (string.IsNullOrWhiteSpace(value))
+			{
+				return null;
+			}
+
+			DateTime parsed;
+			return DateTime.TryParse(
+				value,
+				CultureInfo.InvariantCulture,
+				DateTimeStyles.RoundtripKind,
+				out parsed)
+				? (DateTime?)parsed.ToLocalTime()
+				: null;
+		}
+
+		private static string FormatShortTime(DateTime? value)
+		{
+			return value.HasValue
+				? value.Value.ToString("MM-dd HH:mm", CultureInfo.InvariantCulture)
+				: "";
+		}
+
+		private static string FormatFullTime(DateTime? value)
+		{
+			return value.HasValue
+				? value.Value.ToString("yyyy-MM-dd HH:mm", CultureInfo.InvariantCulture)
+				: "";
+		}
+
+		private static string FormatTimeRangeShort(string timeRange)
+		{
+			switch ((timeRange ?? "").Trim().ToUpperInvariant())
+			{
+				case "CURRENT_PATCH":
+					return "\u8865\u4e01";
+				case "LAST_3_DAYS":
+					return "3\u5929";
+				default:
+					return timeRange ?? "";
+			}
+		}
+
+		private static string FormatTimeRangeLong(string timeRange)
+		{
+			switch ((timeRange ?? "").Trim().ToUpperInvariant())
+			{
+				case "CURRENT_PATCH":
+					return "\u6700\u65b0\u8865\u4e01";
+				case "LAST_3_DAYS":
+					return "\u6700\u8fd13\u5929";
+				default:
+					return timeRange ?? "";
+			}
+		}
+
+		private static string FormatRankRange(string rankRange)
+		{
+			switch ((rankRange ?? "").Trim().ToUpperInvariant())
+			{
+				case "DIAMOND_THROUGH_LEGEND":
+					return "\u94bb\u77f3-\u4f20\u8bf4";
+				case "DIAMOND_FOUR_THROUGH_DIAMOND_ONE":
+					return "\u94bb4-\u94bb1";
+				case "BRONZE_THROUGH_GOLD":
+					return "\u9752\u94dc-\u9ec4\u91d1";
+				default:
+					return rankRange ?? "";
+			}
+		}
+	}
+
+	internal class MetaDashboardRemoteCandidate
+	{
+		public string TimeRange { get; set; } = "";
+		public long SampleGames { get; set; }
+		public DateTime? SummaryAsOf { get; set; }
 	}
 
 	internal class MetaDashboardEnvironmentRow

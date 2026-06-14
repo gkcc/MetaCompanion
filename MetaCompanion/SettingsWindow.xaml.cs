@@ -147,6 +147,8 @@ namespace MetaCompanion
 			{
 				var matrixPath = PostGameMetaRefresher.GetMetaMatrixPath(MetaCompanionPlugin.DataDirectory);
 				var summaryPath = PostGameMetaRefresher.GetMetaSummaryPath(MetaCompanionPlugin.DataDirectory);
+				var manifestPath = Path.Combine(
+					MetaCompanionPlugin.DataDirectory, "Premium", "Meta", "latest", "manifest.json");
 				if (!File.Exists(matrixPath) && !File.Exists(summaryPath))
 				{
 					return "对阵矩阵: 未同步";
@@ -157,7 +159,11 @@ namespace MetaCompanion
 					.Select(File.GetLastWriteTime)
 					.OrderByDescending(time => time)
 					.First();
-				return "对阵矩阵: 更新于 " + newest.ToString("yyyy-MM-dd HH:mm");
+				var remoteSource = MetaDashboardRemoteSource.Load(summaryPath, manifestPath);
+				var sourceText = remoteSource.HasData
+					? " | " + remoteSource.SettingsText
+					: "";
+				return "对阵矩阵: 更新于 " + newest.ToString("yyyy-MM-dd HH:mm") + sourceText;
 			}
 		}
 

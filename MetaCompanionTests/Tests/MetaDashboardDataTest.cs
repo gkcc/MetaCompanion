@@ -40,6 +40,28 @@ namespace MetaCompanionTests.Tests
 				"1\t\u5143\u7d20\u8428\tSHAMAN\t58.13\t99.03" + Environment.NewLine,
 				Encoding.UTF8);
 			File.WriteAllText(
+				Path.Combine(recommendationDirectory, "summary.json"),
+				"{" +
+				"\"generated_at\":\"2026-06-13T00:42:46+08:00\"," +
+				"\"as_of\":\"2026-06-12T09:21:35Z\"," +
+				"\"time_range\":\"CURRENT_PATCH\"," +
+				"\"game_type\":\"RANKED_STANDARD\"," +
+				"\"rank_range\":\"DIAMOND_THROUGH_LEGEND\"," +
+				"\"region\":\"ALL\"" +
+				"}",
+				Encoding.UTF8);
+			File.WriteAllText(
+				Path.Combine(recommendationDirectory, "manifest.json"),
+				"{" +
+				"\"selected_time_range\":\"LAST_3_DAYS\"," +
+				"\"auto_time_range_policy\":\"choose_smaller_sample_between_CURRENT_PATCH_and_LAST_3_DAYS\"," +
+				"\"candidate_sample_games\":[" +
+				"{\"time_range\":\"CURRENT_PATCH\",\"sample_games\":40986,\"summary_as_of\":\"2026-06-12T09:21:35Z\"}," +
+				"{\"time_range\":\"LAST_3_DAYS\",\"sample_games\":18765,\"summary_as_of\":\"2026-06-12T09:30:03Z\"}" +
+				"]" +
+				"}",
+				Encoding.UTF8);
+			File.WriteAllText(
 				Path.Combine(_tempDirectory, "local_meta_environment.tsv"),
 				"rank\tarchetype_id\tname\tplayer_class\tgames\tweighted_games\tlocal_pct\tavg_confidence\twins\tlosses\twin_rate" + Environment.NewLine +
 				"1\t56\t\u4efb\u52a1\u7267\tPRIEST\t4\t3.4\t52.2\t95\t3\t1\t75" + Environment.NewLine,
@@ -78,6 +100,11 @@ namespace MetaCompanionTests.Tests
 			StringAssert.Contains(snapshot.LastGame.ToolTip, "\u5f62\u6001\u7f6e\u4fe1\u5ea6");
 			Assert.AreEqual("https://hsreplay.net/uploads/upload/g1/", snapshot.LastGame.HsReplayUrl);
 			Assert.AreEqual("C:\\HDT\\Replays\\g1.hdtreplay", snapshot.LastGame.ReplayPath);
+			Assert.IsTrue(snapshot.RemoteSource.HasData);
+			Assert.AreEqual("LAST_3_DAYS", snapshot.RemoteSource.EffectiveTimeRange);
+			Assert.AreEqual(2, snapshot.RemoteSource.Candidates.Count);
+			StringAssert.Contains(snapshot.RemoteSource.SettingsText, "\u6700\u8fd13\u5929");
+			StringAssert.Contains(snapshot.RemoteSource.ToolTip, "\u5019\u9009\u6837\u672c");
 		}
 
 		[TestMethod]
