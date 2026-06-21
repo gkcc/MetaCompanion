@@ -2,7 +2,8 @@ param(
 	[string]$CookiePath = "$env:APPDATA\HearthstoneDeckTracker\MetaCompanion\hsreplay_cookie.txt",
 	[string]$Cookie = "",
 	[string]$OutputDirectory = "$env:APPDATA\HearthstoneDeckTracker\MetaCompanion\Premium\Meta",
-	[string]$TimeRange = "AUTO_CURRENT_PATCH_OR_LAST_3_DAYS",
+	[string]$TimeRange = "CURRENT_PATCH",
+	[string]$PatchVersion = "",
 	[string]$RankRange = "DIAMOND_THROUGH_LEGEND",
 	[string]$GameType = "RANKED_STANDARD",
 	[string]$Region = "ALL",
@@ -59,6 +60,68 @@ function Get-HSReplayCookieArgs {
 		$cookieHeader = $cookieHeader.Substring("Cookie:".Length).Trim()
 	}
 	return @("-H", "Cookie: $cookieHeader")
+}
+
+function Normalize-HearthstonePatchVersion([string]$Value) {
+	if ([string]::IsNullOrWhiteSpace($Value)) {
+		return ""
+	}
+	$match = [regex]::Match($Value, "\b(\d+\.\d+\.\d+)(?:\.\d+)?\b")
+	if ($match.Success) {
+		return $match.Groups[1].Value
+	}
+	return ""
+}
+
+function Resolve-HearthstoneExePath {
+	$process = Get-Process -Name "Hearthstone" -ErrorAction SilentlyContinue | Select-Object -First 1
+	if ($process -and -not [string]::IsNullOrWhiteSpace($process.Path) -and
+		(Test-Path -LiteralPath $process.Path)) {
+		return $process.Path
+	}
+
+	$candidates = @(
+		"F:\Hearthstone\Hearthstone.exe",
+		"C:\Program Files (x86)\Hearthstone\Hearthstone.exe",
+		"C:\Program Files\Hearthstone\Hearthstone.exe"
+	)
+	foreach ($candidate in $candidates) {
+		if (Test-Path -LiteralPath $candidate) {
+			return $candidate
+		}
+	}
+	return ""
+}
+
+function Resolve-HearthstonePatchVersion([string]$PreferredVersion) {
+	$normalized = Normalize-HearthstonePatchVersion $PreferredVersion
+	if (-not [string]::IsNullOrWhiteSpace($normalized)) {
+		return $normalized
+	}
+
+	$patchVersionPath = "$env:APPDATA\HearthstoneDeckTracker\MetaCompanion\patch_version.txt"
+	if (Test-Path -LiteralPath $patchVersionPath) {
+		$normalized = Normalize-HearthstonePatchVersion (
+			Get-Content -LiteralPath $patchVersionPath -Raw -Encoding UTF8)
+		if (-not [string]::IsNullOrWhiteSpace($normalized)) {
+			return $normalized
+		}
+	}
+
+	$exePath = Resolve-HearthstoneExePath
+	if (-not [string]::IsNullOrWhiteSpace($exePath)) {
+		$productDbPath = Join-Path (Split-Path -Parent $exePath) ".product.db"
+		if (Test-Path -LiteralPath $productDbPath) {
+			$text = [System.Text.Encoding]::ASCII.GetString(
+				[System.IO.File]::ReadAllBytes($productDbPath))
+			$normalized = Normalize-HearthstonePatchVersion $text
+			if (-not [string]::IsNullOrWhiteSpace($normalized)) {
+				return $normalized
+			}
+		}
+	}
+
+	return ""
 }
 
 function Invoke-HSReplayJson([string]$Url, [string]$Name, [object[]]$CookieArgs) {
@@ -236,6 +299,8 @@ function Write-MetaSummaryFiles([object]$PopularityDistribution, [string]$Archet
 		generated_at = (Get-Date).ToString("o")
 		as_of = $PopularityDistribution.as_of
 		time_range = $TimeRange
+		patch_version = $effectivePatchVersion
+		patch_label = if ([string]::IsNullOrWhiteSpace($effectivePatchVersion)) { "" } else { "$effectivePatchVersion patch" }
 		game_type = $GameType
 		rank_range = $RankRange
 		region = $Region
@@ -345,6 +410,7 @@ function Invoke-AutoCurrentPatchOrLast3DaysMetaSync {
 			TopPerClass = $TopPerClass
 			TimeoutSeconds = $TimeoutSeconds
 			Retries = $Retries
+			PatchVersion = $PatchVersion
 		}
 		if (-not [string]::IsNullOrWhiteSpace($Cookie)) {
 			$candidateArgs.Cookie = $Cookie
@@ -414,6 +480,11 @@ if ($TimeRange -in @("AUTO_CURRENT_PATCH_OR_LAST_3_DAYS", "AUTO")) {
 	return
 }
 
+$effectivePatchVersion = Resolve-HearthstonePatchVersion $PatchVersion
+if (-not [string]::IsNullOrWhiteSpace($effectivePatchVersion)) {
+	Write-Host "Detected Hearthstone patch version: $effectivePatchVersion"
+}
+
 $cookieArgs = Get-HSReplayCookieArgs
 $runId = Get-Date -Format "yyyyMMdd-HHmmss"
 $runDirectory = Join-Path (Join-Path $OutputDirectory "runs") $runId
@@ -459,6 +530,9 @@ $requests = @(
 $manifest = [ordered]@{
 	generated_at = (Get-Date).ToString("o")
 	time_range = $TimeRange
+	selected_time_range = $TimeRange
+	patch_version = $effectivePatchVersion
+	patch_label = if ([string]::IsNullOrWhiteSpace($effectivePatchVersion)) { "" } else { "$effectivePatchVersion patch" }
 	game_type = $GameType
 	rank_range = $RankRange
 	region = $Region

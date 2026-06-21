@@ -48,10 +48,67 @@ namespace MetaCompanionTests.Tests
 
 			StringAssert.Contains(refreshScript, "Test-RemoteCacheRefreshedToday");
 			StringAssert.Contains(refreshScript, "selected_time_range");
-			StringAssert.Contains(refreshScript, "AUTO_CURRENT_PATCH_OR_LAST_3_DAYS");
+			StringAssert.Contains(refreshScript, "CURRENT_PATCH");
+			Assert.IsFalse(refreshScript.Contains("AUTO_CURRENT_PATCH_OR_LAST_3_DAYS"));
 			StringAssert.Contains(refreshScript, "Remote cache already refreshed today");
 			StringAssert.Contains(installScript, "Meta Companion Remote Cache Refresh");
 			StringAssert.Contains(installScript, "Run-MetaCompanionRefresh.ps1");
+			StringAssert.Contains(installScript, "New-ScheduledTaskTrigger -AtLogOn");
+			StringAssert.Contains(installScript, "LogonDelayMinutes");
+			StringAssert.Contains(installScript, "StartWhenAvailable");
+			StringAssert.Contains(installScript, "Meta Companion Daily Refresh");
+		}
+
+		[TestMethod]
+		public void OneClickRefreshScripts_PinCurrentPatchTimeRange()
+		{
+			var repoRoot = FindRepoRoot();
+			var oneClickDir = Path.Combine(repoRoot, "\u4e00\u952e\u811a\u672c");
+			var smartRefresh = File.ReadAllText(Directory.GetFiles(oneClickDir, "04 *.cmd")[0]);
+			var forceRefresh = File.ReadAllText(Directory.GetFiles(oneClickDir, "05 *.cmd")[0]);
+			var localRefresh = File.ReadAllText(Directory.GetFiles(oneClickDir, "07 *.cmd")[0]);
+
+			StringAssert.Contains(smartRefresh, "-PrimaryTimeRange CURRENT_PATCH");
+			StringAssert.Contains(smartRefresh, "-MetaFallbackTimeRange CURRENT_PATCH");
+			StringAssert.Contains(forceRefresh, "-PrimaryTimeRange CURRENT_PATCH");
+			StringAssert.Contains(forceRefresh, "-MetaFallbackTimeRange CURRENT_PATCH");
+			StringAssert.Contains(localRefresh, "-MetaTimeRange CURRENT_PATCH");
+
+			foreach (var scriptPath in Directory.GetFiles(oneClickDir, "*.cmd"))
+			{
+				var script = File.ReadAllText(scriptPath);
+				Assert.IsFalse(script.Contains("AUTO_CURRENT_PATCH_OR_LAST_3_DAYS"), scriptPath);
+				Assert.IsFalse(script.Contains("LAST_3_DAYS"), scriptPath);
+			}
+		}
+
+		[TestMethod]
+		public void LocalMetaScripts_UseFullCurrentPatchHdtHistory()
+		{
+			var repoRoot = FindRepoRoot();
+			var exportScript = File.ReadAllText(
+				Path.Combine(repoRoot, "tools", "Export-HdtOpponentHistory.ps1"));
+			var updateScript = File.ReadAllText(
+				Path.Combine(repoRoot, "tools", "Update-MetaCompanionData.ps1"));
+
+			StringAssert.Contains(exportScript, "DefaultDeckStats.xml");
+			StringAssert.Contains(exportScript, "Select-Object -Unique");
+			StringAssert.Contains(updateScript, "$historyExportArgs.Since = $effectivePatchTime");
+			StringAssert.Contains(updateScript, "$MetaTimeRange -eq \"CURRENT_PATCH\"");
+		}
+
+		[TestMethod]
+		public void TestRunner_SandboxesHdtAppDataAndGuardsRealConfig()
+		{
+			var repoRoot = FindRepoRoot();
+			var runner = File.ReadAllText(
+				Path.Combine(repoRoot, "tools", "Run-Tests.ps1"));
+
+			StringAssert.Contains(runner, "Set-HdtTestAppDataPath");
+			StringAssert.Contains(runner, "Assert-RealHdtConfigUnchanged");
+			StringAssert.Contains(runner, "AppDataPath");
+			StringAssert.Contains(runner, "Get-FileHash");
+			StringAssert.Contains(runner, "MetaCompanionTests-");
 		}
 
 		[TestMethod]

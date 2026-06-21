@@ -7,7 +7,7 @@ param(
 	[double]$LocalWeight = 0.35,
 	[int]$LocalMetaMinConfidence = 35,
 	[string]$PrimaryTimeRange = "CURRENT_PATCH",
-	[string]$MetaFallbackTimeRange = "LAST_3_DAYS",
+	[string]$MetaFallbackTimeRange = "CURRENT_PATCH",
 	[string]$PremiumFallbackTimeRange = "LAST_7_DAYS",
 	[int]$PremiumMaxDecks = 30,
 	[string]$DataDirectory = "$env:APPDATA\HearthstoneDeckTracker\MetaCompanion",
@@ -42,8 +42,11 @@ function Test-RemoteCacheRefreshedToday([string]$Root) {
 	$manifestPath = Join-Path $Root "Premium\Meta\latest\manifest.json"
 	try {
 		$manifest = Get-Content -LiteralPath $manifestPath -Raw -Encoding UTF8 | ConvertFrom-Json
-		return -not [string]::IsNullOrWhiteSpace([string]$manifest.selected_time_range) -and
-			$null -ne $manifest.candidate_sample_games
+		$timeRange = [string]$manifest.selected_time_range
+		if ([string]::IsNullOrWhiteSpace($timeRange)) {
+			$timeRange = [string]$manifest.time_range
+		}
+		return [string]::Equals($timeRange, "CURRENT_PATCH", [StringComparison]::OrdinalIgnoreCase)
 	} catch {
 		return $false
 	}
@@ -95,7 +98,7 @@ try {
 	try {
 		Invoke-MetaCompanionRefreshRun `
 			-PremiumTimeRange $PrimaryTimeRange `
-			-MetaTimeRange "AUTO_CURRENT_PATCH_OR_LAST_3_DAYS" `
+			-MetaTimeRange $PrimaryTimeRange `
 			-BranchCandidateTimeRange $PrimaryTimeRange `
 			-PremiumStopOnUnsupported $true
 	} catch {
@@ -103,7 +106,7 @@ try {
 		Write-Warning "Retrying with Premium=$PremiumFallbackTimeRange, Meta=$MetaFallbackTimeRange."
 		Invoke-MetaCompanionRefreshRun `
 			-PremiumTimeRange $PremiumFallbackTimeRange `
-			-MetaTimeRange "AUTO_CURRENT_PATCH_OR_LAST_3_DAYS" `
+			-MetaTimeRange $MetaFallbackTimeRange `
 			-BranchCandidateTimeRange $PremiumFallbackTimeRange `
 			-PremiumStopOnUnsupported $false
 	}
