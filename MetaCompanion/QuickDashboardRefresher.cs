@@ -285,7 +285,8 @@ namespace MetaCompanion
 		{
 			var localRows = new List<LocalMatchRow>();
 			localRows.AddRange(LoadHdtDeckStatsRows(
-				config, dataDirectory, archetypes, now, deckStatsPath, metaDecks, sampleWindow));
+				config, dataDirectory, archetypes, corrections, now, deckStatsPath, metaDecks,
+				sampleWindow));
 			localRows.AddRange(LoadPluginHistoryRows(
 				config, dataDirectory, archetypes, corrections, now, sampleWindow));
 			return DeduplicateLocalRows(localRows);
@@ -325,6 +326,8 @@ namespace MetaCompanion
 				var correction = !string.IsNullOrWhiteSpace(matchId) && corrections.ContainsKey(matchId)
 					? corrections[matchId]
 					: null;
+				var hasCorrection = correction != null &&
+					!string.IsNullOrWhiteSpace(correction.CorrectedArchetype);
 				var archetypeName = correction != null &&
 					!string.IsNullOrWhiteSpace(correction.CorrectedArchetype)
 					? correction.CorrectedArchetype
@@ -378,10 +381,12 @@ namespace MetaCompanion
 					EvidenceCount = ParseInt(Get(row, "evidence_cards"), 0),
 					EvidenceCards = Get(row, "evidence_cards"),
 					CandidateArchetypes = Get(row, "candidate_archetypes"),
+					KeyEvidenceCards = Get(row, "key_evidence_cards"),
 					ReplayFile = Get(row, "replay_file"),
 					ReplayPath = Get(row, "replay_path"),
 					HsReplayUploadId = Get(row, "hsreplay_upload_id"),
 					HsReplayUrl = Get(row, "hsreplay_url"),
+					HasCorrection = hasCorrection,
 					Source = "plugin_match_history"
 				});
 			}
@@ -393,6 +398,7 @@ namespace MetaCompanion
 			PluginConfig config,
 			string dataDirectory,
 			ArchetypeLookup archetypes,
+			Dictionary<string, MatchCorrection> corrections,
 			DateTime now,
 			string deckStatsPath,
 			IReadOnlyList<Deck> metaDecks,
@@ -441,6 +447,14 @@ namespace MetaCompanion
 							continue;
 						}
 
+						var matchId = GetNodeText(game, "GameId");
+						var correction = !string.IsNullOrWhiteSpace(matchId) &&
+							corrections != null &&
+							corrections.ContainsKey(matchId)
+							? corrections[matchId]
+							: null;
+						var hasCorrection = correction != null &&
+							!string.IsNullOrWhiteSpace(correction.CorrectedArchetype);
 						var opponentClass = MetaRetriever.NormalizeClass(GetNodeText(game, "OpponentHero"));
 						if (string.IsNullOrWhiteSpace(opponentClass))
 						{
@@ -461,29 +475,42 @@ namespace MetaCompanion
 							classDecks, knownOriginalCards, evidenceCards);
 						var bestCandidate = candidates
 							.FirstOrDefault(candidate => archetypes.NameToId.ContainsKey(candidate.Name));
-						if (bestCandidate == null || bestCandidate.ConfidencePercent < minConfidence)
+						var archetypeName = hasCorrection
+							? correction.CorrectedArchetype
+							: bestCandidate == null ? "" : bestCandidate.Name;
+						if (string.IsNullOrWhiteSpace(archetypeName) ||
+							!archetypes.NameToId.ContainsKey(archetypeName))
+						{
+							continue;
+						}
+						if (!hasCorrection &&
+							(bestCandidate == null || bestCandidate.ConfidencePercent < minConfidence))
 						{
 							continue;
 						}
 
-						var archetypeId = archetypes.NameToId[bestCandidate.Name];
+						var archetypeId = archetypes.NameToId[archetypeName];
 						var archetype = archetypes.ById.ContainsKey(archetypeId)
 							? archetypes.ById[archetypeId]
-							: new ArchetypeInfo { Id = archetypeId, Name = bestCandidate.Name };
-						var confidencePct = bestCandidate.ConfidencePercent;
+							: new ArchetypeInfo { Id = archetypeId, Name = archetypeName };
+						var confidencePct = hasCorrection ? 100 : bestCandidate.ConfidencePercent;
 						var ageDays = Math.Max(0.0, (now - endedAt.Value).TotalDays);
 						var confidenceWeight = Clamp(confidencePct / 100.0, 0.25, 1.0);
 						var patchWeight = GetPatchWeight(startedAt.Value, sampleWindow);
 						var recencyWeight = GetRecencyWeight(endedAt.Value, now, sampleWindow);
+						var result = hasCorrection &&
+							!string.IsNullOrWhiteSpace(correction.CorrectedResult)
+							? correction.CorrectedResult
+							: NormalizeResult(GetNodeText(game, "Result"));
 
 						localRows.Add(new LocalMatchRow
 						{
-							MatchId = GetNodeText(game, "GameId"),
+							MatchId = matchId,
 							StartedAt = startedAt.Value.ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture),
 							EndedAt = endedAt.Value,
 							Format = format,
 							Mode = mode,
-							Result = NormalizeResult(GetNodeText(game, "Result")),
+							Result = result,
 							OpponentClass = opponentClass,
 							ArchetypeId = archetypeId,
 							ArchetypeName = archetype.Name,
@@ -496,10 +523,12 @@ namespace MetaCompanion
 							EvidenceCount = evidenceCards,
 							EvidenceCards = evidenceCards.ToString(CultureInfo.InvariantCulture),
 							CandidateArchetypes = FormatCandidateArchetypes(candidates),
+							KeyEvidenceCards = FormatKnownCardEvidence(knownOriginalCards),
 							ReplayFile = GetNodeText(game, "ReplayFile"),
 							ReplayPath = ResolveReplayPath(GetNodeText(game, "ReplayFile")),
 							HsReplayUploadId = GetNestedNodeText(game, "HsReplay/UploadId"),
 							HsReplayUrl = GetNestedNodeText(game, "HsReplay/ReplayUrl"),
+							HasCorrection = hasCorrection,
 							Source = "hdt_deckstats"
 						});
 					}
@@ -629,7 +658,8 @@ namespace MetaCompanion
 		{
 			var rows = group.ToList();
 			var selected = rows
-				.OrderBy(row => row.Source == "hdt_deckstats" ? 0 : 1)
+				.OrderBy(row => row.HasCorrection ? 0 : 1)
+				.ThenBy(row => row.Source == "hdt_deckstats" ? 0 : 1)
 				.ThenByDescending(row => row.ConfidencePct)
 				.ThenByDescending(row => row.EvidenceCount)
 				.First();
@@ -651,6 +681,10 @@ namespace MetaCompanion
 				{
 					selected.HsReplayUrl = donor.HsReplayUrl;
 				}
+				if (string.IsNullOrWhiteSpace(selected.KeyEvidenceCards))
+				{
+					selected.KeyEvidenceCards = donor.KeyEvidenceCards;
+				}
 			}
 			return selected;
 		}
@@ -661,7 +695,32 @@ namespace MetaCompanion
 			return string.Join(" / ", candidates
 				.Take(3)
 				.Select(candidate => candidate.Name + ":" +
-					candidate.ConfidencePercent.ToString(CultureInfo.InvariantCulture) + "%"));
+					candidate.ConfidencePercent.ToString(CultureInfo.InvariantCulture) + "% score=" +
+					candidate.Score.ToString(CultureInfo.InvariantCulture) + " branchCount=" +
+					candidate.BranchCount.ToString(CultureInfo.InvariantCulture)));
+		}
+
+		private static string FormatKnownCardEvidence(IDictionary<string, int> knownOriginalCards)
+		{
+			if (knownOriginalCards == null || knownOriginalCards.Count == 0)
+			{
+				return "";
+			}
+
+			return string.Join(", ", knownOriginalCards
+				.OrderByDescending(pair => pair.Value)
+				.ThenBy(pair => pair.Key)
+				.Take(6)
+				.Select(pair =>
+					{
+						var card = Database.GetCardFromId(pair.Key);
+						var name = card == null || string.IsNullOrWhiteSpace(card.Name)
+							? pair.Key
+							: card.Name;
+						return name + (pair.Value > 1
+							? "x" + pair.Value.ToString(CultureInfo.InvariantCulture)
+							: "");
+					}));
 		}
 
 		private static string NormalizeResult(string value)
@@ -998,16 +1057,17 @@ namespace MetaCompanion
 
 		private static Dictionary<string, MatchCorrection> LoadCorrections(string path)
 		{
-			return ReadTsv(path)
-				.Where(row => !string.IsNullOrWhiteSpace(Get(row, "match_id")))
-				.ToDictionary(
-					row => Get(row, "match_id"),
-					row => new MatchCorrection
+			var corrections = new Dictionary<string, MatchCorrection>(StringComparer.OrdinalIgnoreCase);
+			foreach (var row in ReadTsv(path)
+				.Where(row => !string.IsNullOrWhiteSpace(Get(row, "match_id"))))
+			{
+				corrections[Get(row, "match_id")] = new MatchCorrection
 					{
 						CorrectedArchetype = Get(row, "corrected_archetype"),
 						CorrectedResult = Get(row, "corrected_result")
-					},
-					StringComparer.OrdinalIgnoreCase);
+					};
+			}
+			return corrections;
 		}
 
 		private static void WriteEnvironment(
@@ -1041,7 +1101,7 @@ namespace MetaCompanion
 
 			var gameLines = new List<string>
 			{
-				"game_id\tstart_time\tend_time\tresult\tplayer_deck_name\tplayer_hero\topponent_hero\topponent_class\topponent_card_count\trelevant_cards\tmatched_cards\tpredicted_archetype_id\tpredicted_archetype\tconfidence_pct\tweight\tpatch_weight\trecency_weight\tage_days\tcoverage_pct\tbest_branch_rank\tbest_branch_deck_id\tcandidate_archetypes\treplay_file\treplay_path\thsreplay_upload_id\thsreplay_url\tsource"
+				"game_id\tstart_time\tend_time\tresult\tplayer_deck_name\tplayer_hero\topponent_hero\topponent_class\topponent_card_count\trelevant_cards\tmatched_cards\tpredicted_archetype_id\tpredicted_archetype\tconfidence_pct\tweight\tpatch_weight\trecency_weight\tage_days\tcoverage_pct\tbest_branch_rank\tbest_branch_deck_id\tcandidate_archetypes\treplay_file\treplay_path\thsreplay_upload_id\thsreplay_url\tsource\tkey_evidence_cards"
 			};
 			gameLines.AddRange(localRows
 				.OrderBy(row => row.EndedAt)
@@ -1073,7 +1133,8 @@ namespace MetaCompanion
 					row.ReplayPath,
 					row.HsReplayUploadId,
 					row.HsReplayUrl,
-					row.Source
+					row.Source,
+					row.KeyEvidenceCards
 				})));
 			WriteAllLinesAtomic(GetLocalGamesPath(dataDirectory), gameLines);
 
@@ -1431,10 +1492,12 @@ namespace MetaCompanion
 			public int EvidenceCount { get; set; }
 			public string EvidenceCards { get; set; } = "";
 			public string CandidateArchetypes { get; set; } = "";
+			public string KeyEvidenceCards { get; set; } = "";
 			public string ReplayFile { get; set; } = "";
 			public string ReplayPath { get; set; } = "";
 			public string HsReplayUploadId { get; set; } = "";
 			public string HsReplayUrl { get; set; } = "";
+			public bool HasCorrection { get; set; }
 			public string Source { get; set; } = "";
 		}
 

@@ -14,11 +14,13 @@ namespace MetaCompanion
 			"match_id\tstarted_at\tended_at\tformat\tmode\tresult\topponent_class\t" +
 			"predicted_archetype\tconfidence_pct\tconfidence_label\tpossible_decks\t" +
 			"evidence_cards\tremaining_deck_cards\tclosest_deck\tcandidate_archetypes\tend_reason\t" +
-			"replay_file\treplay_path\thsreplay_upload_id\thsreplay_url";
+			"replay_file\treplay_path\thsreplay_upload_id\thsreplay_url\tkey_evidence_cards";
 		public const string TimelineHeader =
 			"match_id\ttimestamp\topponent_class\ttop_archetype\tconfidence_pct\t" +
 			"confidence_label\tpossible_decks\tevidence_cards\tremaining_deck_cards\t" +
-			"closest_deck\tcandidate_archetypes";
+			"closest_deck\tcandidate_archetypes\tkey_evidence_cards";
+		public const string CorrectionsHeader =
+			"match_id\tcorrected_archetype\tcorrected_result\tnotes";
 		private readonly PluginConfig _config;
 		private readonly string _dataDirectory;
 		private readonly Func<DateTime, string, HdtReplayInfo> _replayInfoProvider;
@@ -58,6 +60,38 @@ namespace MetaCompanion
 		public static string GetCorrectionsPath(string dataDirectory)
 		{
 			return Path.Combine(dataDirectory, "match_corrections.tsv");
+		}
+
+		public static void AppendCorrection(
+			string dataDirectory,
+			string matchId,
+			string correctedArchetype,
+			string correctedResult = "",
+			string notes = "")
+		{
+			if (string.IsNullOrWhiteSpace(dataDirectory))
+			{
+				throw new ArgumentException("Data directory is required.", "dataDirectory");
+			}
+			if (string.IsNullOrWhiteSpace(matchId))
+			{
+				throw new ArgumentException("Match id is required.", "matchId");
+			}
+			if (string.IsNullOrWhiteSpace(correctedArchetype))
+			{
+				throw new ArgumentException("Corrected archetype is required.", "correctedArchetype");
+			}
+
+			Directory.CreateDirectory(dataDirectory);
+			var path = GetCorrectionsPath(dataDirectory);
+			EnsureFile(path, CorrectionsHeader);
+			AppendLine(path, JoinTsv(new[]
+			{
+				matchId.Trim(),
+				correctedArchetype.Trim(),
+				(correctedResult ?? "").Trim().ToLowerInvariant(),
+				notes ?? ""
+			}));
 		}
 
 		public void Start(string format, string mode)
@@ -143,7 +177,8 @@ namespace MetaCompanion
 					? prediction.RemainingDeckCards.Value.ToString(CultureInfo.InvariantCulture)
 					: "",
 				prediction.ClosestDeckName ?? "",
-				FormatCandidates(prediction)
+				FormatCandidates(prediction),
+				prediction.FormatKeyEvidence(6)
 			});
 		}
 
@@ -175,7 +210,8 @@ namespace MetaCompanion
 				replay.ReplayFile,
 				replay.ReplayPath,
 				replay.UploadId,
-				replay.ReplayUrl
+				replay.ReplayUrl,
+				_lastPrediction.FormatKeyEvidence(6)
 			});
 		}
 
@@ -197,7 +233,7 @@ namespace MetaCompanion
 		{
 			EnsureFile(
 				GetCorrectionsPath(_dataDirectory),
-				"match_id\tcorrected_archetype\tcorrected_result\tnotes");
+				CorrectionsHeader);
 		}
 
 		private static void EnsureFile(string path, string header)
@@ -259,7 +295,10 @@ namespace MetaCompanion
 		{
 			return string.Join(" / ", prediction.CandidateArchetypes
 				.Take(3)
-				.Select(candidate => candidate.Name + ":" + candidate.ConfidencePercent + "%"));
+				.Select(candidate => candidate.Name + ":" +
+					candidate.ConfidencePercent.ToString(CultureInfo.InvariantCulture) + "% score=" +
+					candidate.Score.ToString(CultureInfo.InvariantCulture) + " branchCount=" +
+					candidate.BranchCount.ToString(CultureInfo.InvariantCulture)));
 		}
 
 		private static string ToTimestamp(DateTime value)

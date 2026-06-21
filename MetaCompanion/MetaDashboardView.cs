@@ -1,5 +1,6 @@
 using Hearthstone_Deck_Tracker.API;
 using System;
+using System.Threading.Tasks;
 using System.Reflection;
 using System.Windows;
 using System.Windows.Controls;
@@ -98,7 +99,7 @@ namespace MetaCompanion
 
 			if (_panel == null)
 			{
-				_panel = new MetaDashboardPanel(HideByUser);
+				_panel = new MetaDashboardPanel(HideByUser, ApplyLastGameCorrection);
 				OverlayDragHelper.Enable(_panel, _panel.DragHandle, SaveDashboardPosition);
 			}
 
@@ -121,6 +122,66 @@ namespace MetaCompanion
 		{
 			UserDismissed = true;
 			Hide();
+		}
+
+		private bool ApplyLastGameCorrection(string matchId, string correctedArchetype)
+		{
+			try
+			{
+				MatchHistoryRecorder.AppendCorrection(
+					MetaCompanionPlugin.DataDirectory,
+					matchId,
+					correctedArchetype,
+					"",
+					"manual dashboard correction");
+				Task.Run(() =>
+					{
+						try
+						{
+							var result = QuickDashboardRefresher.Refresh(
+								_config,
+								MetaCompanionPlugin.DataDirectory,
+								DateTime.Now);
+							RunOnOverlayThread(() =>
+								{
+									if (_panel != null && _panel.Visibility == Visibility.Visible)
+									{
+										_panel.Update(
+											"\u5361\u7ec4\u6d41\u6d3e\u63a8\u8350",
+											MetaDashboardSnapshot.Load(MetaCompanionPlugin.DataDirectory));
+									}
+									if (!result.EnvironmentUpdated)
+									{
+										MessageBox.Show(
+											"\u4fee\u6b63\u5df2\u5199\u5165\uff1b\u5f53\u524d\u6570\u636e\u4e0d\u8db3\u4ee5\u7acb\u5373\u91cd\u751f\u6210\u672c\u5730\u73af\u5883\uff0c\u4e0b\u5c40\u540e\u4f1a\u518d\u5c1d\u8bd5\u5237\u65b0\u3002",
+											"Meta Companion",
+											MessageBoxButton.OK,
+											MessageBoxImage.Information);
+									}
+								});
+						}
+						catch (Exception ex)
+						{
+							Log.Warn("Manual match correction refresh failed: " + ex.Message);
+							RunOnOverlayThread(() =>
+								MessageBox.Show(
+									"\u4fee\u6b63\u5df2\u5199\u5165\uff0c\u4f46\u7acb\u5373\u5237\u65b0\u672c\u5730\u73af\u5883\u5931\u8d25\uff1b\u4e0b\u5c40\u540e\u4f1a\u518d\u5c1d\u8bd5\u5237\u65b0\u3002",
+									"Meta Companion",
+									MessageBoxButton.OK,
+									MessageBoxImage.Information));
+						}
+					});
+				return true;
+			}
+			catch (Exception ex)
+			{
+				MessageBox.Show(
+					"\u4fee\u6b63\u5199\u5165\u5931\u8d25: " + ex.Message,
+					"Meta Companion",
+					MessageBoxButton.OK,
+					MessageBoxImage.Warning);
+				return false;
+			}
 		}
 
 		private void PositionPanel()

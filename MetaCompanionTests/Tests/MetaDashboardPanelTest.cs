@@ -129,6 +129,31 @@ namespace MetaCompanionTests.Tests
 		}
 
 		[TestMethod]
+		public void Update_RendersLastGameExplanationAndLowConfidenceWarning()
+		{
+			File.WriteAllText(
+				Path.Combine(_tempDirectory, "local_meta_archetypes.tsv"),
+				"game_id\tresult\topponent_hero\tpredicted_archetype\tconfidence_pct\tcandidate_archetypes\tkey_evidence_cards" +
+				Environment.NewLine +
+				"g1\tWin\tRogue\t\u704c\u6ce8\u8d3c\t39\t" +
+				"\u704c\u6ce8\u8d3c:39% score=120 branchCount=1 / \u6d77\u76d7\u8d3c:31% score=95 branchCount=2\t" +
+				"\u8ff7\u4f60\u5305,\u9634\u5f71\u6b65" + Environment.NewLine,
+				Encoding.UTF8);
+			var snapshot = MetaDashboardSnapshot.Load(_tempDirectory);
+			var panel = new MetaDashboardPanel(null);
+
+			panel.Update("title", snapshot);
+
+			var text = string.Join("\n", panel.LastGamePanel.Children
+				.OfType<TextBlock>()
+				.Select(block => block.Text));
+			StringAssert.Contains(text, "\u704c\u6ce8\u8d3c");
+			StringAssert.Contains(text, "39% score 120 branchCount 1");
+			StringAssert.Contains(text, "\u4f4e\u7f6e\u4fe1\uff0c\u4ec5\u4f9b\u53c2\u8003");
+			StringAssert.Contains(text, "\u8ff7\u4f60\u5305");
+		}
+
+		[TestMethod]
 		public void GetClassColor_UsesWarcraftClassPaletteForAllHearthstoneClasses()
 		{
 			AssertColor("DEATHKNIGHT", 0xC4, 0x1E, 0x3A);

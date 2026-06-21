@@ -170,12 +170,13 @@ namespace MetaCompanionTests.Tests
 					Path.Combine(_tempDirectory, "local_meta_archetypes.tsv"),
 					Encoding.UTF8)
 				.Skip(1)
+				.Select(line => line.Split('\t'))
 				.ToList();
 			Assert.AreEqual(2, localRows.Count);
 			Assert.AreEqual(0, localRows.Count(row =>
-				row.EndsWith("\tplugin_match_history", StringComparison.Ordinal)));
+				row[26] == "plugin_match_history"));
 			Assert.AreEqual(2, localRows.Count(row =>
-				row.EndsWith("\thdt_deckstats", StringComparison.Ordinal)));
+				row[26] == "hdt_deckstats"));
 			var summary = File.ReadAllText(
 				Path.Combine(_tempDirectory, "local_meta_summary.json"), Encoding.UTF8);
 			Assert.IsFalse(summary.Contains("\"plugin_match_history\""));
@@ -260,6 +261,129 @@ namespace MetaCompanionTests.Tests
 				Path.Combine(_tempDirectory, "local_meta_summary.json"), Encoding.UTF8);
 			StringAssert.Contains(summary, "\"sample_window\":\"current_patch\"");
 			StringAssert.Contains(summary, "\"game_count\":2");
+		}
+
+		[TestMethod]
+		public void Refresh_UsesLatestCorrectionOverOriginalPrediction()
+		{
+			var now = new DateTime(2026, 6, 13, 14, 45, 0);
+			var questPriest = "\u4efb\u52a1\u7267";
+			var heraldShaman = "\u5146\u793a\u8428";
+			var divineShieldPaladin = "\u5723\u76fe\u9a91";
+			WritePremiumMeta(questPriest, heraldShaman, divineShieldPaladin);
+			File.WriteAllText(
+				MatchHistoryRecorder.GetHistoryPath(_tempDirectory),
+				MatchHistoryRecorder.HistoryHeader + Environment.NewLine +
+				HistoryRow(
+					"m1",
+					"2026-06-13 14:30:00",
+					"2026-06-13 14:40:00",
+					"Priest",
+					questPriest,
+					"35") + Environment.NewLine,
+				Encoding.UTF8);
+			File.WriteAllText(
+				MatchHistoryRecorder.GetCorrectionsPath(_tempDirectory),
+				MatchHistoryRecorder.CorrectionsHeader + Environment.NewLine +
+				"m1\t" + heraldShaman + "\t\tfirst correction" + Environment.NewLine +
+				"m1\t" + divineShieldPaladin + "\tloss\tlatest correction" + Environment.NewLine,
+				Encoding.UTF8);
+
+			var result = QuickDashboardRefresher.Refresh(
+				new PluginConfig
+				{
+					LocalRecommendationHistoryDays = 3,
+					LocalRecommendationWeight = 0.35,
+					LocalRecommendationTop = 5,
+					LocalMetaMinConfidence = 90
+				},
+				_tempDirectory,
+				now);
+
+			Assert.IsTrue(result.EnvironmentUpdated);
+			Assert.AreEqual(1, result.LocalMatchCount);
+			var snapshot = MetaDashboardSnapshot.Load(_tempDirectory);
+			Assert.AreEqual(divineShieldPaladin, snapshot.Environment[0].Title);
+			Assert.AreEqual(divineShieldPaladin, snapshot.LastGame.Title);
+			StringAssert.Contains(snapshot.LastGame.Detail, "\u7f6e\u4fe1 100%");
+			var row = File.ReadAllLines(
+					Path.Combine(_tempDirectory, "local_meta_archetypes.tsv"),
+					Encoding.UTF8)
+				.Skip(1)
+				.Single()
+				.Split('\t');
+			Assert.AreEqual("m1", row[0]);
+			Assert.AreEqual("loss", row[3]);
+			Assert.AreEqual(divineShieldPaladin, row[12]);
+			Assert.AreEqual("100", row[13]);
+		}
+
+		[TestMethod]
+		public void Refresh_PrefersCorrectedPluginHistoryOverDuplicateHdtRow()
+		{
+			HearthDb.Cards.LoadBaseData();
+			var now = new DateTime(2026, 6, 13, 14, 45, 0);
+			var questPriest = "\u4efb\u52a1\u7267";
+			var heraldShaman = "\u5146\u793a\u8428";
+			var divineShieldPaladin = "\u5723\u76fe\u9a91";
+			WritePremiumMeta(questPriest, heraldShaman, divineShieldPaladin);
+			var deckStatsPath = Path.Combine(_tempDirectory, "DeckStats.xml");
+			File.WriteAllText(
+				deckStatsPath,
+				"<DeckStats>" +
+				DeckStatsGame(
+					"hdt-duplicate",
+					"2026-06-13 13:04:45",
+					"2026-06-13 13:05:00",
+					"Win",
+					"Priest",
+					"CORE_CS1_112:2;CORE_CFM_604:1") +
+				"</DeckStats>",
+				Encoding.UTF8);
+			File.WriteAllText(
+				MatchHistoryRecorder.GetHistoryPath(_tempDirectory),
+				MatchHistoryRecorder.HistoryHeader + Environment.NewLine +
+				HistoryRow(
+					"plugin-duplicate",
+					"2026-06-13 13:04:30",
+					"2026-06-13 13:05:00",
+					"Priest",
+					questPriest,
+					"35") + Environment.NewLine,
+				Encoding.UTF8);
+			MatchHistoryRecorder.AppendCorrection(
+				_tempDirectory,
+				"plugin-duplicate",
+				divineShieldPaladin);
+
+			var result = QuickDashboardRefresher.Refresh(
+				new PluginConfig
+				{
+					LocalRecommendationHistoryDays = 3,
+					LocalRecommendationWeight = 0.35,
+					LocalRecommendationTop = 5,
+					LocalMetaMinConfidence = 35
+				},
+				_tempDirectory,
+				now,
+				deckStatsPath,
+				new List<Deck>
+				{
+					BuildDeck("Priest", questPriest, "CORE_CS1_112", "CORE_CFM_604")
+				});
+
+			Assert.IsTrue(result.EnvironmentUpdated);
+			Assert.AreEqual(1, result.LocalMatchCount);
+			var row = File.ReadAllLines(
+					Path.Combine(_tempDirectory, "local_meta_archetypes.tsv"),
+					Encoding.UTF8)
+				.Skip(1)
+				.Single()
+				.Split('\t');
+			Assert.AreEqual("plugin-duplicate", row[0]);
+			Assert.AreEqual(divineShieldPaladin, row[12]);
+			Assert.AreEqual("100", row[13]);
+			Assert.AreEqual("plugin_match_history", row[26]);
 		}
 
 		private void WritePremiumMeta(

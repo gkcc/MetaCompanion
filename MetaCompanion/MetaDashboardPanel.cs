@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Globalization;
 using System.Linq;
 using System.Windows;
@@ -25,18 +26,30 @@ namespace MetaCompanion
 			"\u6309\u5bf9\u624b\u804c\u4e1a\u5408\u8ba1\u7684\u5c40\u6570\u548c\u5360\u6bd4\uff1b\u8272\u5757\u662f\u8be5\u804c\u4e1a\u4e0b\u7684\u6d41\u6d3e\u62c6\u5206\u3002\u4f8b\u5982\u7267\u5e08 6 \u5c40\u53ef\u80fd\u7531\u4efb\u52a1\u7267 5 \u5c40 + \u63a7\u5236\u7267 1 \u5c40\u7ec4\u6210\u3002";
 		private const string EnvironmentArchetypeToolTip =
 			"\u6309\u5355\u4e2a\u6d41\u6d3e\u7edf\u8ba1\u7684\u6392\u884c\uff0c\u8fd9\u91cc\u7684\u5c40\u6570\u4e0d\u662f\u804c\u4e1a\u5408\u8ba1\uff1b\u5360\u6bd4\u5206\u6bcd\u662f\u8fd1\u671f\u5168\u90e8\u5df2\u8bc6\u522b\u5bf9\u5c40\u3002";
+		private const string LastGameToolTip =
+			"\u6700\u8fd1\u4e00\u5c40\u7684\u8bc6\u522b\u8be6\u60c5\uff1b\u53ef\u4ee5\u5728\u8fd9\u91cc\u628a\u5f62\u6001\u4fee\u6b63\u5230\u672c\u5730 TSV\uff0c\u4e0d\u4f1a\u8986\u76d6\u539f\u59cb\u5bf9\u5c40\u5386\u53f2\u3002";
 
 		private readonly Action _closeAction;
+		private readonly Func<string, string, bool> _correctionAction;
 		private readonly TextBlock _title;
 		private readonly TextBlock _subtitle;
+		private readonly StackPanel _lastGame;
 		private readonly StackPanel _recommendations;
 		private readonly StackPanel _environmentChart;
 		private readonly StackPanel _environment;
 		private readonly Grid _header;
+		private ComboBox _correctionBox;
+		private MetaDashboardLastGame _currentLastGame;
 
 		public MetaDashboardPanel(Action closeAction)
+			: this(closeAction, null)
+		{
+		}
+
+		public MetaDashboardPanel(Action closeAction, Func<string, string, bool> correctionAction)
 		{
 			_closeAction = closeAction;
+			_correctionAction = correctionAction;
 			Width = 368;
 			Background = Brush("#EA171E27");
 			BorderBrush = Brush("#806D7C8C");
@@ -90,6 +103,10 @@ namespace MetaCompanion
 			};
 			root.Children.Add(_subtitle);
 
+			root.Children.Add(SectionTitle("\u6700\u8fd1\u4e00\u5c40\u8bc6\u522b", LastGameToolTip));
+			_lastGame = new StackPanel { Margin = new Thickness(0, 4, 0, 9) };
+			root.Children.Add(_lastGame);
+
 			root.Children.Add(SectionTitle("\u63a8\u8350\u6d41\u6d3e", RecommendationsToolTip));
 			_recommendations = new StackPanel { Margin = new Thickness(0, 4, 0, 9) };
 			root.Children.Add(_recommendations);
@@ -103,6 +120,7 @@ namespace MetaCompanion
 		}
 
 		public UIElement DragHandle => _header;
+		internal StackPanel LastGamePanel => _lastGame;
 		internal StackPanel EnvironmentChartPanel => _environmentChart;
 		internal StackPanel EnvironmentListPanel => _environment;
 
@@ -110,11 +128,12 @@ namespace MetaCompanion
 		{
 			_title.Text = title ?? "\u5361\u7ec4\u6d41\u6d3e\u63a8\u8350";
 			_title.ToolTip = DashboardToolTip;
-			if (snapshot == null || !snapshot.HasContent)
+			if (snapshot == null || (!snapshot.HasContent && snapshot.LastGame == null))
 			{
 				_subtitle.Text = "\u6682\u65e0\u672c\u5730\u63a8\u8350\u7f13\u5b58";
 				FillItems(_recommendations, Enumerable.Empty<MetaDashboardItem>(),
 					"\u5148\u8fd0\u884c\u4e00\u6b21\u6570\u636e\u66f4\u65b0\u540e\u663e\u793a\u63a8\u8350");
+				FillLastGame(null);
 				FillEnvironmentChart(_environmentChart, Enumerable.Empty<MetaDashboardClassDistribution>());
 				FillItems(_environment, Enumerable.Empty<MetaDashboardItem>(), "\u6682\u65e0\u8fd1\u671f\u5bf9\u624b\u5206\u5e03");
 				return;
@@ -122,9 +141,215 @@ namespace MetaCompanion
 
 			_subtitle.Text = BuildSubtitle(snapshot);
 			_subtitle.ToolTip = BuildSubtitleToolTip(snapshot);
+			FillLastGame(snapshot.LastGame);
 			FillItems(_recommendations, snapshot.Recommendations, "\u6682\u65e0\u63a8\u8350\u7ed3\u679c");
 			FillEnvironmentChart(_environmentChart, snapshot.EnvironmentClasses);
 			FillItems(_environment, snapshot.Environment, "\u6682\u65e0\u8fd1\u671f\u5bf9\u624b\u5206\u5e03");
+		}
+
+		private void FillLastGame(MetaDashboardLastGame item)
+		{
+			_currentLastGame = item;
+			_lastGame.Children.Clear();
+			if (item == null)
+			{
+				_lastGame.Children.Add(new TextBlock
+				{
+					Text = "\u6682\u65e0\u6700\u8fd1\u4e00\u5c40\u8bc6\u522b\u8bb0\u5f55",
+					Foreground = Brush("#FF8FA1B2"),
+					FontSize = 12,
+					TextWrapping = TextWrapping.Wrap,
+					ToolTip = LastGameToolTip
+				});
+				return;
+			}
+
+			_lastGame.Children.Add(new TextBlock
+			{
+				Text = item.Title,
+				Foreground = Brush("#FFF2F6FA"),
+				FontSize = 12,
+				FontWeight = FontWeights.SemiBold,
+				TextTrimming = TextTrimming.CharacterEllipsis,
+				ToolTip = item.ToolTip
+			});
+			if (!string.IsNullOrWhiteSpace(item.Detail))
+			{
+				_lastGame.Children.Add(new TextBlock
+				{
+					Text = item.Detail,
+					Foreground = Brush("#FFA4B8CC"),
+					FontSize = 11,
+					Margin = new Thickness(0, 1, 0, 0),
+					TextWrapping = TextWrapping.Wrap,
+					ToolTip = item.ToolTip
+				});
+			}
+			if (item.IsLowConfidence)
+			{
+				_lastGame.Children.Add(new TextBlock
+				{
+					Text = "\u4f4e\u7f6e\u4fe1\uff0c\u4ec5\u4f9b\u53c2\u8003",
+					Foreground = Brush("#FFFFC857"),
+					FontSize = 11,
+					FontWeight = FontWeights.SemiBold,
+					Margin = new Thickness(0, 2, 0, 0),
+					ToolTip = item.ToolTip
+				});
+			}
+
+			AddCandidateRows(item);
+			AddEvidenceLine(item);
+			AddLastGameActions(item);
+		}
+
+		private void AddCandidateRows(MetaDashboardLastGame item)
+		{
+			if (item.Candidates == null || item.Candidates.Count == 0)
+			{
+				return;
+			}
+
+			for (var index = 0; index < item.Candidates.Take(3).Count(); index++)
+			{
+				var candidate = item.Candidates[index];
+				_lastGame.Children.Add(new TextBlock
+				{
+					Text = (index + 1).ToString(CultureInfo.InvariantCulture) + ". " +
+						candidate.Name + " " +
+						candidate.ConfidencePercent.ToString(CultureInfo.InvariantCulture) +
+						"% score " + candidate.Score.ToString(CultureInfo.InvariantCulture) +
+						" branchCount " + candidate.BranchCount.ToString(CultureInfo.InvariantCulture),
+					Foreground = Brush("#FFBFD0E0"),
+					FontSize = 10.5,
+					Margin = new Thickness(0, index == 0 ? 4 : 1, 0, 0),
+					TextTrimming = TextTrimming.CharacterEllipsis,
+					ToolTip = item.ToolTip
+				});
+			}
+		}
+
+		private void AddEvidenceLine(MetaDashboardLastGame item)
+		{
+			if (item.KeyEvidenceCards == null || item.KeyEvidenceCards.Count == 0)
+			{
+				return;
+			}
+
+			_lastGame.Children.Add(new TextBlock
+			{
+				Text = "\u5173\u952e\u8bc1\u636e: " + string.Join(", ", item.KeyEvidenceCards.ToArray()),
+				Foreground = Brush("#FFA4B8CC"),
+				FontSize = 10.5,
+				Margin = new Thickness(0, 4, 0, 0),
+				TextWrapping = TextWrapping.Wrap,
+				ToolTip = item.ToolTip
+			});
+		}
+
+		private void AddLastGameActions(MetaDashboardLastGame item)
+		{
+			var links = new WrapPanel { Margin = new Thickness(0, 6, 0, 0) };
+			if (!string.IsNullOrWhiteSpace(item.HsReplayUrl))
+			{
+				links.Children.Add(ActionButton("HSReplay", () => OpenExternal(item.HsReplayUrl)));
+			}
+			if (!string.IsNullOrWhiteSpace(item.ReplayPath))
+			{
+				links.Children.Add(ActionButton("\u672c\u5730\u5f55\u50cf", () => OpenExternal(item.ReplayPath)));
+			}
+			if (links.Children.Count > 0)
+			{
+				_lastGame.Children.Add(links);
+			}
+
+			var correction = new WrapPanel { Margin = new Thickness(0, 6, 0, 0) };
+			_correctionBox = new ComboBox
+			{
+				IsEditable = true,
+				Width = 210,
+				MinHeight = 24,
+				ToolTip = "\u9009\u62e9\u5019\u9009\u5f62\u6001\uff0c\u6216\u76f4\u63a5\u8f93\u5165\u6b63\u786e\u5f62\u6001\u540d"
+			};
+			var names = item.Candidates == null
+				? new List<string>()
+				: item.Candidates
+					.Select(candidate => candidate.Name)
+					.Where(name => !string.IsNullOrWhiteSpace(name))
+					.Distinct()
+					.ToList();
+			foreach (var name in names)
+			{
+				_correctionBox.Items.Add(name);
+			}
+			_correctionBox.Text = names.Count > 0 ? names[0] : item.Title;
+			correction.Children.Add(_correctionBox);
+
+			var button = ActionButton("\u4fee\u6b63\u672c\u5c40", ApplyCorrection);
+			button.Margin = new Thickness(6, 0, 0, 0);
+			button.IsEnabled = _correctionAction != null &&
+				!string.IsNullOrWhiteSpace(item.MatchId);
+			correction.Children.Add(button);
+			_lastGame.Children.Add(correction);
+		}
+
+		private Button ActionButton(string text, Action action)
+		{
+			var button = new Button
+			{
+				Content = text,
+				MinWidth = 58,
+				MinHeight = 24,
+				Padding = new Thickness(8, 2, 8, 2),
+				Margin = new Thickness(0, 0, 6, 0),
+				FontSize = 10.5
+			};
+			button.Click += (sender, args) => action?.Invoke();
+			return button;
+		}
+
+		private void ApplyCorrection()
+		{
+			if (_currentLastGame == null || _correctionAction == null)
+			{
+				return;
+			}
+
+			var correctedArchetype = _correctionBox == null ? "" : _correctionBox.Text;
+			if (string.IsNullOrWhiteSpace(correctedArchetype))
+			{
+				MessageBox.Show(
+					"\u8bf7\u5148\u8f93\u5165\u8981\u4fee\u6b63\u7684\u5f62\u6001\u540d\u3002",
+					"Meta Companion",
+					MessageBoxButton.OK,
+					MessageBoxImage.Information);
+				return;
+			}
+
+			if (_correctionAction(_currentLastGame.MatchId, correctedArchetype.Trim()))
+			{
+				MessageBox.Show(
+					"\u5df2\u8bb0\u5f55\u4fee\u6b63\uff0c\u5e76\u5c1d\u8bd5\u5237\u65b0\u672c\u5730\u73af\u5883\u7edf\u8ba1\u3002",
+					"Meta Companion",
+					MessageBoxButton.OK,
+					MessageBoxImage.Information);
+			}
+		}
+
+		private static void OpenExternal(string target)
+		{
+			try
+			{
+				Process.Start(target);
+			}
+			catch (Exception ex)
+			{
+				MessageBox.Show(
+					"\u6253\u5f00\u5931\u8d25: " + ex.Message,
+					"Meta Companion",
+					MessageBoxButton.OK,
+					MessageBoxImage.Warning);
+			}
 		}
 
 		private static TextBlock SectionTitle(string text, string toolTip)

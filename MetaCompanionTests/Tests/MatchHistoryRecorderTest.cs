@@ -1,5 +1,6 @@
 using MetaCompanion;
 using Hearthstone_Deck_Tracker;
+using Hearthstone_Deck_Tracker.Hearthstone;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using System;
 using System.Collections.Generic;
@@ -66,8 +67,13 @@ namespace MetaCompanionTests.Tests
 			StringAssert.Contains(historyLines[1], "71");
 			StringAssert.Contains(historyLines[0], "replay_file");
 			StringAssert.Contains(historyLines[0], "hsreplay_url");
+			StringAssert.Contains(historyLines[0], "key_evidence_cards");
 			StringAssert.Contains(historyLines[1], "game.hdtreplay");
 			StringAssert.Contains(historyLines[1], "abc123");
+			StringAssert.Contains(historyLines[1], "score=300 branchCount=2");
+			StringAssert.Contains(historyLines[1], "Deadly Shotx2");
+			StringAssert.Contains(timelineLines[0], "key_evidence_cards");
+			StringAssert.Contains(timelineLines[1], "score=300 branchCount=2");
 		}
 
 		[TestMethod]
@@ -101,8 +107,38 @@ namespace MetaCompanionTests.Tests
 			Assert.AreEqual("old-match\told-row", lines[1]);
 		}
 
+		[TestMethod]
+		public void AppendCorrection_WritesLegalTsvRowWithoutChangingHistory()
+		{
+			File.WriteAllText(
+				MatchHistoryRecorder.GetHistoryPath(_tempDirectory),
+				MatchHistoryRecorder.HistoryHeader + Environment.NewLine +
+				"m1\toriginal" + Environment.NewLine);
+
+			MatchHistoryRecorder.AppendCorrection(
+				_tempDirectory,
+				"m1",
+				"Quest Priest",
+				"Win",
+				"user note\twith tab");
+
+			var correctionLines = File.ReadAllLines(
+				MatchHistoryRecorder.GetCorrectionsPath(_tempDirectory));
+			var historyLines = File.ReadAllLines(
+				MatchHistoryRecorder.GetHistoryPath(_tempDirectory));
+
+			Assert.AreEqual(2, correctionLines.Length);
+			Assert.AreEqual(MatchHistoryRecorder.CorrectionsHeader, correctionLines[0]);
+			Assert.AreEqual("m1\tQuest Priest\twin\tuser note with tab", correctionLines[1]);
+			Assert.AreEqual(2, historyLines.Length);
+			Assert.AreEqual("m1\toriginal", historyLines[1]);
+		}
+
 		private static PredictionInfo BuildPredictionInfo(string archetypeName, int confidence)
 		{
+			HearthDb.Cards.LoadBaseData();
+			var keyEvidence = Database.GetCardFromName("Deadly Shot");
+			keyEvidence.Count = 2;
 			return new PredictionInfo(
 				1,
 				1,
@@ -114,8 +150,11 @@ namespace MetaCompanionTests.Tests
 				evidenceCards: 3,
 				candidateArchetypes: new List<PredictionInfo.ArchetypeCandidate>
 				{
-					new PredictionInfo.ArchetypeCandidate(archetypeName, confidence, 300, 2)
-				});
+					new PredictionInfo.ArchetypeCandidate(archetypeName, confidence, 300, 2),
+					new PredictionInfo.ArchetypeCandidate("Secret Hunter", 20, 85, 1),
+					new PredictionInfo.ArchetypeCandidate("Token Hunter", 9, 40, 1)
+				},
+				keyEvidenceCards: new List<Card> {keyEvidence});
 		}
 	}
 }

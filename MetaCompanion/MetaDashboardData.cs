@@ -5,6 +5,7 @@ using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Text;
+using System.Text.RegularExpressions;
 using System.Web.Script.Serialization;
 
 namespace MetaCompanion
@@ -19,6 +20,13 @@ namespace MetaCompanion
 			"\u8fd1\u671f\u5bf9\u624b\u5206\u5e03\u6765\u81ea HDT \u672c\u5730\u5386\u53f2\uff1b\u6837\u672c\u7a97\u53e3\u4f18\u5148\u4f7f\u7528\u5f53\u524d\u8865\u4e01\uff0c\u8fd9\u91cc\u6309\u539f\u59cb\u5c40\u6570\u7edf\u8ba1\u804c\u4e1a\u548c\u5f62\u6001\u9891\u6b21\u3002";
 		private const string LastGameToolTip =
 			"\u6700\u8fd1\u4e00\u5c40\u6765\u81ea\u672c\u5730\u5bf9\u5c40\u5386\u53f2\uff1b\u5f62\u6001\u7f6e\u4fe1\u5ea6\u7531\u5df2\u89c1\u539f\u59cb\u724c\u4e0e\u5019\u9009\u5206\u652f\u5339\u914d\u5ea6\u8ba1\u7b97\u3002";
+		private static readonly Regex CandidateConfidenceRegex =
+			new Regex(@"(?<confidence>\d+)\s*%", RegexOptions.Compiled);
+		private static readonly Regex CandidateScoreRegex =
+			new Regex(@"\bscore=(?<score>-?\d+)", RegexOptions.Compiled | RegexOptions.IgnoreCase);
+		private static readonly Regex CandidateBranchCountRegex =
+			new Regex(@"\b(?:branchCount|branches)=(?<branches>-?\d+)",
+				RegexOptions.Compiled | RegexOptions.IgnoreCase);
 
 		public List<MetaDashboardItem> Recommendations { get; private set; } =
 			new List<MetaDashboardItem>();
@@ -26,7 +34,7 @@ namespace MetaCompanion
 			new List<MetaDashboardItem>();
 		public List<MetaDashboardClassDistribution> EnvironmentClasses { get; private set; } =
 			new List<MetaDashboardClassDistribution>();
-		public MetaDashboardItem LastGame { get; private set; }
+		public MetaDashboardLastGame LastGame { get; private set; }
 		public DateTime? UpdatedAt { get; private set; }
 		public MetaDashboardRemoteSource RemoteSource { get; private set; } =
 			MetaDashboardRemoteSource.Empty;
@@ -225,7 +233,7 @@ namespace MetaCompanion
 			return string.Join("\n", lines);
 		}
 
-		private static MetaDashboardItem LoadLastGame(string localMetaPath, string hdtHistoryPath)
+		private static MetaDashboardLastGame LoadLastGame(string localMetaPath, string hdtHistoryPath)
 		{
 			var localRow = ReadTsv(localMetaPath).LastOrDefault();
 			var hdtRow = FindMatchingHdtRow(hdtHistoryPath, localRow);
@@ -238,6 +246,16 @@ namespace MetaCompanion
 			var result = FirstNonEmpty(Get(localRow, "result"), Get(hdtRow, "result"));
 			var opponent = FirstNonEmpty(Get(localRow, "opponent_hero"), Get(hdtRow, "opponent_hero"));
 			var confidence = Get(localRow, "confidence_pct");
+			var candidates = ParseCandidateArchetypes(Get(localRow, "candidate_archetypes"));
+			if (candidates.Count == 0 && !string.IsNullOrWhiteSpace(archetype))
+			{
+				candidates.Add(new MetaDashboardCandidate
+				{
+					Name = archetype,
+					ConfidencePercent = ParseInt(confidence)
+				});
+			}
+			var keyEvidenceCards = ParseList(Get(localRow, "key_evidence_cards"));
 			var title = string.IsNullOrWhiteSpace(archetype) ? "\u6700\u8fd1\u4e00\u5c40" : archetype;
 			var detailParts = new List<string>();
 			if (!string.IsNullOrWhiteSpace(result) || !string.IsNullOrWhiteSpace(opponent))
@@ -249,12 +267,112 @@ namespace MetaCompanion
 				detailParts.Add("\u7f6e\u4fe1 " + confidence + "%");
 			}
 
-			return new MetaDashboardItem(
+			var confidenceValue = ParseInt(confidence);
+			var toolTip = BuildLastGameToolTip(candidates, keyEvidenceCards, confidenceValue);
+			return new MetaDashboardLastGame(
 				title,
 				string.Join(" / ", detailParts.Where(part => !string.IsNullOrWhiteSpace(part))),
 				Get(hdtRow, "hsreplay_url"),
 				FirstNonEmpty(Get(hdtRow, "replay_path"), ResolveReplayPath(Get(hdtRow, "replay_file"))),
-				LastGameToolTip);
+				toolTip)
+			{
+				MatchId = Get(localRow, "game_id"),
+				ConfidencePercent = confidenceValue,
+				Candidates = candidates,
+				KeyEvidenceCards = keyEvidenceCards
+			};
+		}
+
+		internal static List<MetaDashboardCandidate> ParseCandidateArchetypes(string value)
+		{
+			if (string.IsNullOrWhiteSpace(value))
+			{
+				return new List<MetaDashboardCandidate>();
+			}
+
+			return value
+				.Split(new[] {" / "}, StringSplitOptions.RemoveEmptyEntries)
+				.Select(ParseCandidateArchetype)
+				.Where(candidate => candidate != null && !string.IsNullOrWhiteSpace(candidate.Name))
+				.Take(3)
+				.ToList();
+		}
+
+		private static MetaDashboardCandidate ParseCandidateArchetype(string value)
+		{
+			value = value == null ? "" : value.Trim();
+			if (string.IsNullOrWhiteSpace(value))
+			{
+				return null;
+			}
+
+			var confidenceMatch = CandidateConfidenceRegex.Match(value);
+			var confidence = confidenceMatch.Success
+				? ParseInt(confidenceMatch.Groups["confidence"].Value)
+				: 0;
+			var scoreMatch = CandidateScoreRegex.Match(value);
+			var branchMatch = CandidateBranchCountRegex.Match(value);
+			var name = value;
+			var colon = value.IndexOf(':');
+			if (colon >= 0)
+			{
+				name = value.Substring(0, colon);
+			}
+			else if (confidenceMatch.Success)
+			{
+				name = value.Substring(0, confidenceMatch.Index);
+			}
+
+			return new MetaDashboardCandidate
+			{
+				Name = name.Trim(),
+				ConfidencePercent = confidence,
+				Score = scoreMatch.Success ? ParseInt(scoreMatch.Groups["score"].Value) : 0,
+				BranchCount = branchMatch.Success ? ParseInt(branchMatch.Groups["branches"].Value) : 0
+			};
+		}
+
+		private static List<string> ParseList(string value)
+		{
+			if (string.IsNullOrWhiteSpace(value))
+			{
+				return new List<string>();
+			}
+
+			return value
+				.Split(new[] {','}, StringSplitOptions.RemoveEmptyEntries)
+				.Select(item => item.Trim())
+				.Where(item => !string.IsNullOrWhiteSpace(item))
+				.Take(6)
+				.ToList();
+		}
+
+		private static string BuildLastGameToolTip(
+			List<MetaDashboardCandidate> candidates,
+			List<string> keyEvidenceCards,
+			int confidencePercent)
+		{
+			var lines = new List<string> { LastGameToolTip };
+			if (confidencePercent > 0 && confidencePercent < 40)
+			{
+				lines.Add("\u4f4e\u7f6e\u4fe1\uff0c\u4ec5\u4f9b\u53c2\u8003\u3002");
+			}
+			if (candidates != null && candidates.Count > 0)
+			{
+				lines.Add("\u5019\u9009\u5f62\u6001\uff1a" + string.Join("\uff1b", candidates
+					.Select(candidate =>
+						candidate.Name + " " +
+						candidate.ConfidencePercent.ToString(CultureInfo.InvariantCulture) +
+						"% score=" + candidate.Score.ToString(CultureInfo.InvariantCulture) +
+						" branchCount=" + candidate.BranchCount.ToString(CultureInfo.InvariantCulture))
+					.ToArray()));
+			}
+			if (keyEvidenceCards != null && keyEvidenceCards.Count > 0)
+			{
+				lines.Add("\u5173\u952e\u8bc1\u636e\u724c\uff1a" +
+					string.Join(", ", keyEvidenceCards.ToArray()));
+			}
+			return string.Join("\n", lines.Where(line => !string.IsNullOrWhiteSpace(line)).ToArray());
 		}
 
 		private static Dictionary<string, string> FindMatchingHdtRow(
@@ -799,6 +917,35 @@ namespace MetaCompanion
 		public double AvgConfidence { get; set; }
 		public double? WinRate { get; set; }
 		public string ToolTip { get; set; } = "";
+	}
+
+	internal class MetaDashboardCandidate
+	{
+		public string Name { get; set; } = "";
+		public int ConfidencePercent { get; set; }
+		public int Score { get; set; }
+		public int BranchCount { get; set; }
+	}
+
+	internal class MetaDashboardLastGame : MetaDashboardItem
+	{
+		public MetaDashboardLastGame(
+			string title, string detail, string hsReplayUrl = "", string replayPath = "",
+			string toolTip = "")
+			: base(title, detail, hsReplayUrl, replayPath, toolTip)
+		{
+		}
+
+		public string MatchId { get; set; } = "";
+		public int ConfidencePercent { get; set; }
+		public List<MetaDashboardCandidate> Candidates { get; set; } =
+			new List<MetaDashboardCandidate>();
+		public List<string> KeyEvidenceCards { get; set; } = new List<string>();
+
+		public bool IsLowConfidence
+		{
+			get { return ConfidencePercent > 0 && ConfidencePercent < 40; }
+		}
 	}
 
 	internal class MetaDashboardItem

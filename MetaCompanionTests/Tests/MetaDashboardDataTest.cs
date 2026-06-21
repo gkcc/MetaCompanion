@@ -65,9 +65,11 @@ namespace MetaCompanionTests.Tests
 				Encoding.UTF8);
 			File.WriteAllText(
 				Path.Combine(_tempDirectory, "local_meta_archetypes.tsv"),
-				"game_id\tresult\topponent_hero\tpredicted_archetype\tconfidence_pct" +
+				"game_id\tresult\topponent_hero\tpredicted_archetype\tconfidence_pct\tcandidate_archetypes\tkey_evidence_cards" +
 				Environment.NewLine +
-				"g1\tWin\tRogue\t\u704c\u6ce8\u8d3c\t95" + Environment.NewLine,
+				"g1\tWin\tRogue\t\u704c\u6ce8\u8d3c\t95\t" +
+				"\u704c\u6ce8\u8d3c:95% score=480 branchCount=4 / \u6d77\u76d7\u8d3c:38% score=180 branchCount=2 / \u5947\u8ff9\u8d3c:12% score=70 branchCount=1\t" +
+				"\u8ff7\u4f60\u5305,\u9634\u5f71\u6b65" + Environment.NewLine,
 				Encoding.UTF8);
 			File.WriteAllText(
 				Path.Combine(_tempDirectory, "hdt_opponent_history.tsv"),
@@ -95,6 +97,14 @@ namespace MetaCompanionTests.Tests
 			Assert.AreEqual("\u704c\u6ce8\u8d3c", snapshot.LastGame.Title);
 			StringAssert.Contains(snapshot.LastGame.Detail, "\u7f6e\u4fe1 95%");
 			StringAssert.Contains(snapshot.LastGame.ToolTip, "\u5f62\u6001\u7f6e\u4fe1\u5ea6");
+			Assert.AreEqual("g1", snapshot.LastGame.MatchId);
+			Assert.AreEqual(3, snapshot.LastGame.Candidates.Count);
+			Assert.AreEqual("\u704c\u6ce8\u8d3c", snapshot.LastGame.Candidates[0].Name);
+			Assert.AreEqual(95, snapshot.LastGame.Candidates[0].ConfidencePercent);
+			Assert.AreEqual(480, snapshot.LastGame.Candidates[0].Score);
+			Assert.AreEqual(4, snapshot.LastGame.Candidates[0].BranchCount);
+			CollectionAssert.Contains(snapshot.LastGame.KeyEvidenceCards, "\u8ff7\u4f60\u5305");
+			Assert.IsFalse(snapshot.LastGame.IsLowConfidence);
 			Assert.AreEqual("https://hsreplay.net/uploads/upload/g1/", snapshot.LastGame.HsReplayUrl);
 			Assert.AreEqual("C:\\HDT\\Replays\\g1.hdtreplay", snapshot.LastGame.ReplayPath);
 			Assert.IsTrue(snapshot.RemoteSource.HasData);
@@ -166,6 +176,23 @@ namespace MetaCompanionTests.Tests
 
 			Assert.IsFalse(snapshot.HasContent);
 			Assert.IsNotNull(snapshot.LastGame);
+		}
+
+		[TestMethod]
+		public void Load_LastGameMarksLowConfidence()
+		{
+			File.WriteAllText(
+				Path.Combine(_tempDirectory, "local_meta_archetypes.tsv"),
+				"game_id\tresult\topponent_hero\tpredicted_archetype\tconfidence_pct\tcandidate_archetypes" +
+				Environment.NewLine +
+				"g1\tWin\tRogue\t\u704c\u6ce8\u8d3c\t39\t\u704c\u6ce8\u8d3c:39% score=120 branchCount=1" +
+				Environment.NewLine,
+				Encoding.UTF8);
+
+			var snapshot = MetaDashboardSnapshot.Load(_tempDirectory);
+
+			Assert.IsTrue(snapshot.LastGame.IsLowConfidence);
+			StringAssert.Contains(snapshot.LastGame.ToolTip, "\u4f4e\u7f6e\u4fe1");
 		}
 
 		private void WriteEnvironmentRows(params string[] rows)
