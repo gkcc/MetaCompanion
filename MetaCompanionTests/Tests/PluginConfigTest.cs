@@ -39,7 +39,7 @@ namespace MetaCompanionTests.Tests
 			Assert.IsFalse(config.EnablePostGameDataRefresh);
 			Assert.AreEqual(24, config.PostGameDataRefreshCooldownHours);
 			Assert.AreEqual("CURRENT_PATCH", config.PostGamePrimaryTimeRange);
-			Assert.AreEqual("LAST_3_DAYS", config.PostGameMetaFallbackTimeRange);
+			Assert.AreEqual("CURRENT_PATCH", config.PostGameMetaFallbackTimeRange);
 			Assert.AreEqual("LAST_7_DAYS", config.PostGamePremiumFallbackTimeRange);
 			Assert.AreEqual(500, config.PostGameDataRefreshMaxDecks);
 			Assert.AreEqual(30, config.PostGamePremiumRefreshMaxDecks);

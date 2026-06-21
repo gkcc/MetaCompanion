@@ -16,7 +16,7 @@ namespace MetaCompanion
 		private const string RecommendationToolTip =
 			"\u63a8\u8350\u6765\u81ea HSReplay \u5bf9\u9635\u77e9\u9635\u4e0e\u672c\u5730\u5f53\u524d\u8865\u4e01\u5bf9\u624b\u5206\u5e03\uff1b\u9ed8\u8ba4\u672c\u5730\u6743\u91cd 35%\uff0c\u672c\u5730\u6837\u672c\u6309\u65f6\u95f4\u8870\u51cf\u3002\u4f20\u7edf\u5bf9\u6218\u5165\u53e3\u663e\u793a\u7684\u662f\u672c\u5730\u7f13\u5b58\uff0c\u4e0d\u662f\u5f53\u524d\u5bf9\u624b\u5b9e\u65f6\u8bc6\u522b\u3002";
 		private const string EnvironmentToolTip =
-			"\u8fd1\u671f\u5bf9\u624b\u5206\u5e03\u6765\u81ea HDT \u672c\u5730\u5386\u53f2\uff0c\u6309\u539f\u59cb\u5c40\u6570\u7edf\u8ba1\u804c\u4e1a\u548c\u5f62\u6001\u9891\u6b21\u3002";
+			"\u8fd1\u671f\u5bf9\u624b\u5206\u5e03\u6765\u81ea HDT \u672c\u5730\u5386\u53f2\uff1b\u6837\u672c\u7a97\u53e3\u4f18\u5148\u4f7f\u7528\u5f53\u524d\u8865\u4e01\uff0c\u8fd9\u91cc\u6309\u539f\u59cb\u5c40\u6570\u7edf\u8ba1\u804c\u4e1a\u548c\u5f62\u6001\u9891\u6b21\u3002";
 		private const string LastGameToolTip =
 			"\u6700\u8fd1\u4e00\u5c40\u6765\u81ea\u672c\u5730\u5bf9\u5c40\u5386\u53f2\uff1b\u5f62\u6001\u7f6e\u4fe1\u5ea6\u7531\u5df2\u89c1\u539f\u59cb\u724c\u4e0e\u5019\u9009\u5206\u652f\u5339\u914d\u5ea6\u8ba1\u7b97\u3002";
 
@@ -445,6 +445,7 @@ namespace MetaCompanion
 		public string GameType { get; private set; } = "";
 		public string RankRange { get; private set; } = "";
 		public string Region { get; private set; } = "";
+		public string PatchVersion { get; private set; } = "";
 		public DateTime? GeneratedAt { get; private set; }
 		public DateTime? AsOf { get; private set; }
 		public List<MetaDashboardRemoteCandidate> Candidates { get; private set; } =
@@ -480,7 +481,7 @@ namespace MetaCompanion
 				}
 
 				var time = FormatShortTime(AsOf ?? GeneratedAt);
-				var range = FormatTimeRangeShort(EffectiveTimeRange);
+				var range = FormatTimeRangeShort(EffectiveTimeRange, PatchVersion);
 				if (string.IsNullOrWhiteSpace(time))
 				{
 					return range;
@@ -502,7 +503,7 @@ namespace MetaCompanion
 
 				var parts = new List<string>
 				{
-					"HSReplay " + FormatTimeRangeLong(EffectiveTimeRange)
+					"HSReplay " + FormatTimeRangeLong(EffectiveTimeRange, PatchVersion)
 				};
 				if (!string.IsNullOrWhiteSpace(RankRange))
 				{
@@ -528,7 +529,7 @@ namespace MetaCompanion
 				var lines = new List<string>
 				{
 					"HSReplay \u8fdc\u7a0b\u6570\u636e\u6e90",
-					"\u65f6\u95f4\u8303\u56f4\uff1a" + FormatTimeRangeLong(EffectiveTimeRange)
+					"\u65f6\u95f4\u8303\u56f4\uff1a" + FormatTimeRangeLong(EffectiveTimeRange, PatchVersion)
 				};
 				if (!string.IsNullOrWhiteSpace(SelectedTimeRange) &&
 					!string.Equals(SelectedTimeRange, TimeRange, StringComparison.OrdinalIgnoreCase))
@@ -543,7 +544,7 @@ namespace MetaCompanion
 				if (Candidates.Count > 0)
 				{
 					lines.Add("\u5019\u9009\u6837\u672c\uff1a" + string.Join("\uff1b", Candidates
-						.Select(candidate => FormatTimeRangeLong(candidate.TimeRange) + " " +
+						.Select(candidate => FormatTimeRangeLong(candidate.TimeRange, PatchVersion) + " " +
 							candidate.SampleGames.ToString(CultureInfo.InvariantCulture) + "\u5c40")
 						.ToArray()));
 				}
@@ -563,6 +564,7 @@ namespace MetaCompanion
 				source.GameType = StringValue(summary, "game_type");
 				source.RankRange = StringValue(summary, "rank_range");
 				source.Region = StringValue(summary, "region");
+				source.PatchVersion = StringValue(summary, "patch_version");
 			}
 
 			var manifest = ReadJsonObject(manifestPath);
@@ -570,6 +572,9 @@ namespace MetaCompanion
 			{
 				source.SelectedTimeRange = StringValue(manifest, "selected_time_range");
 				source.AutoTimeRangePolicy = StringValue(manifest, "auto_time_range_policy");
+				source.PatchVersion = FirstNonEmpty(
+					source.PatchVersion,
+					StringValue(manifest, "patch_version"));
 				var candidates = ObjectValue(manifest, "candidate_sample_games") as IEnumerable;
 				if (candidates != null && !(candidates is string))
 				{
@@ -605,6 +610,13 @@ namespace MetaCompanion
 			{
 				lines.Add(label + value);
 			}
+		}
+
+		private static string FirstNonEmpty(params string[] values)
+		{
+			return values == null
+				? ""
+				: values.FirstOrDefault(value => !string.IsNullOrWhiteSpace(value)) ?? "";
 		}
 
 		private static Dictionary<string, object> ReadJsonObject(string path)
@@ -689,12 +701,12 @@ namespace MetaCompanion
 				: "";
 		}
 
-		private static string FormatTimeRangeShort(string timeRange)
+		private static string FormatTimeRangeShort(string timeRange, string patchVersion)
 		{
 			switch ((timeRange ?? "").Trim().ToUpperInvariant())
 			{
 				case "CURRENT_PATCH":
-					return "\u8865\u4e01";
+					return FormatPatchLabel(patchVersion);
 				case "LAST_3_DAYS":
 					return "3\u5929";
 				default:
@@ -702,17 +714,24 @@ namespace MetaCompanion
 			}
 		}
 
-		private static string FormatTimeRangeLong(string timeRange)
+		private static string FormatTimeRangeLong(string timeRange, string patchVersion)
 		{
 			switch ((timeRange ?? "").Trim().ToUpperInvariant())
 			{
 				case "CURRENT_PATCH":
-					return "\u6700\u65b0\u8865\u4e01";
+					return FormatPatchLabel(patchVersion);
 				case "LAST_3_DAYS":
 					return "\u6700\u8fd13\u5929";
 				default:
 					return timeRange ?? "";
 			}
+		}
+
+		private static string FormatPatchLabel(string patchVersion)
+		{
+			return string.IsNullOrWhiteSpace(patchVersion)
+				? "\u5f53\u524d\u8865\u4e01\u540e"
+				: patchVersion.Trim() + "\u8865\u4e01\u540e";
 		}
 
 		private static string FormatRankRange(string rankRange)

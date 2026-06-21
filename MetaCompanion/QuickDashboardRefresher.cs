@@ -15,23 +15,24 @@ namespace MetaCompanion
 	{
 		private const int MinMatchupGames = 200;
 		private const double MinCoveragePct = 50.0;
+		private const double PrePatchWeight = 0.35;
+		private const double MinimumRecencyHalfLifeDays = 0.1;
 		private readonly object _lock = new object();
-		private DateTime _lastProcessedHistoryWriteTimeUtc = DateTime.MinValue;
+		private DateTime _lastProcessedSourceWriteTimeUtc = DateTime.MinValue;
 		private bool _isRunning;
 
 		public bool TryRefreshAfterGame(PluginConfig config, Action onCompleted)
 		{
 			var dataDirectory = MetaCompanionPlugin.DataDirectory;
-			var historyPath = MatchHistoryRecorder.GetHistoryPath(dataDirectory);
-			if (!File.Exists(historyPath))
+			var sourceWriteTimeUtc = GetLatestSourceWriteTimeUtc(dataDirectory);
+			if (!sourceWriteTimeUtc.HasValue)
 			{
 				return false;
 			}
 
-			var historyWriteTimeUtc = File.GetLastWriteTimeUtc(historyPath);
 			lock (_lock)
 			{
-				if (_isRunning || historyWriteTimeUtc <= _lastProcessedHistoryWriteTimeUtc)
+				if (_isRunning || sourceWriteTimeUtc.Value <= _lastProcessedSourceWriteTimeUtc)
 				{
 					return false;
 				}
@@ -66,7 +67,7 @@ namespace MetaCompanion
 						{
 							if (refreshed)
 							{
-								_lastProcessedHistoryWriteTimeUtc = historyWriteTimeUtc;
+								_lastProcessedSourceWriteTimeUtc = sourceWriteTimeUtc.Value;
 							}
 							_isRunning = false;
 						}
@@ -78,6 +79,19 @@ namespace MetaCompanion
 					}
 				});
 			return true;
+		}
+
+		private static DateTime? GetLatestSourceWriteTimeUtc(string dataDirectory)
+		{
+			var paths = new[] { MatchHistoryRecorder.GetHistoryPath(dataDirectory) }
+				.Concat(ResolveDeckStatsPaths(null));
+			var times = paths
+				.Where(path => !string.IsNullOrWhiteSpace(path) && File.Exists(path))
+				.Select(File.GetLastWriteTimeUtc)
+				.ToList();
+			return times.Count == 0
+				? (DateTime?)null
+				: times.Max();
 		}
 
 		internal static QuickDashboardRefreshResult Refresh(
@@ -105,12 +119,14 @@ namespace MetaCompanion
 			var metaDirectory = GetPremiumMetaDirectory(dataDirectory);
 			var archetypes = LoadArchetypes(GetArchetypesPath(metaDirectory));
 			var corrections = LoadCorrections(MatchHistoryRecorder.GetCorrectionsPath(dataDirectory));
+			var sampleWindow = BuildLocalSampleWindow(config, dataDirectory, now);
 			var localRows = LoadLocalRows(
-				config, dataDirectory, archetypes, corrections, now, deckStatsPath, metaDecks);
+				config, dataDirectory, archetypes, corrections, now, deckStatsPath, metaDecks,
+				sampleWindow);
 			if (localRows.Count > 0)
 			{
 				var environmentRows = BuildEnvironmentRows(localRows, archetypes);
-				WriteEnvironment(dataDirectory, environmentRows, localRows, config, now);
+				WriteEnvironment(dataDirectory, environmentRows, localRows, config, now, sampleWindow);
 				result.EnvironmentUpdated = true;
 				result.LocalMatchCount = localRows.Count;
 			}
@@ -122,7 +138,8 @@ namespace MetaCompanion
 				localRows);
 			if (recommendations.Count > 0)
 			{
-				WriteRecommendations(metaDirectory, recommendations, config, localRows.Count, now);
+				WriteRecommendations(
+					metaDirectory, recommendations, config, localRows.Count, now, sampleWindow);
 				result.RecommendationsUpdated = true;
 				result.RecommendationCount = recommendations.Count;
 			}
@@ -175,6 +192,87 @@ namespace MetaCompanion
 			return Path.Combine(metaDirectory, "head_to_head_archetype_matchups_v2.json");
 		}
 
+		private static string GetPatchMarkerPath(string dataDirectory)
+		{
+			return Path.Combine(dataDirectory, "patch_marker.txt");
+		}
+
+		private static LocalSampleWindow BuildLocalSampleWindow(
+			PluginConfig config,
+			string dataDirectory,
+			DateTime now)
+		{
+			var historyDays = Math.Max(1, config.LocalRecommendationHistoryDays);
+			var defaultStart = now.AddDays(-historyDays);
+			var patchTime = ResolvePatchTime(dataDirectory);
+			var sampleWindow = "last_" + historyDays.ToString(CultureInfo.InvariantCulture) + "_days";
+			var start = defaultStart;
+
+			if (patchTime.HasValue && patchTime.Value < now)
+			{
+				if (patchTime.Value <= defaultStart)
+				{
+					start = patchTime.Value;
+					sampleWindow = "current_patch";
+				}
+				else
+				{
+					sampleWindow = "recent_days_with_patch_weight";
+				}
+			}
+
+			return new LocalSampleWindow
+			{
+				HistoryDays = historyDays,
+				Start = start,
+				Name = sampleWindow,
+				PatchTime = patchTime,
+				PrePatchWeight = PrePatchWeight,
+				RecencyHalfLifeDays = Math.Max(MinimumRecencyHalfLifeDays, historyDays)
+			};
+		}
+
+		private static DateTime? ResolvePatchTime(string dataDirectory)
+		{
+			if (string.IsNullOrWhiteSpace(dataDirectory))
+			{
+				return null;
+			}
+
+			var markerPath = GetPatchMarkerPath(dataDirectory);
+			if (!File.Exists(markerPath))
+			{
+				return null;
+			}
+
+			try
+			{
+				return ParseDate(File.ReadAllText(markerPath, Encoding.UTF8).Trim());
+			}
+			catch
+			{
+				return null;
+			}
+		}
+
+		private static double GetPatchWeight(DateTime value, LocalSampleWindow sampleWindow)
+		{
+			return sampleWindow.PatchTime.HasValue && value < sampleWindow.PatchTime.Value
+				? sampleWindow.PrePatchWeight
+				: 1.0;
+		}
+
+		private static double GetRecencyWeight(
+			DateTime value,
+			DateTime now,
+			LocalSampleWindow sampleWindow)
+		{
+			var ageDays = Math.Max(0.0, (now - value).TotalDays);
+			return Math.Pow(
+				0.5,
+				ageDays / Math.Max(MinimumRecencyHalfLifeDays, sampleWindow.RecencyHalfLifeDays));
+		}
+
 		private static List<LocalMatchRow> LoadLocalRows(
 			PluginConfig config,
 			string dataDirectory,
@@ -182,13 +280,14 @@ namespace MetaCompanion
 			Dictionary<string, MatchCorrection> corrections,
 			DateTime now,
 			string deckStatsPath,
-			IReadOnlyList<Deck> metaDecks)
+			IReadOnlyList<Deck> metaDecks,
+			LocalSampleWindow sampleWindow)
 		{
 			var localRows = new List<LocalMatchRow>();
 			localRows.AddRange(LoadHdtDeckStatsRows(
-				config, dataDirectory, archetypes, now, deckStatsPath, metaDecks));
+				config, dataDirectory, archetypes, now, deckStatsPath, metaDecks, sampleWindow));
 			localRows.AddRange(LoadPluginHistoryRows(
-				config, dataDirectory, archetypes, corrections, now));
+				config, dataDirectory, archetypes, corrections, now, sampleWindow));
 			return DeduplicateLocalRows(localRows);
 		}
 
@@ -197,7 +296,8 @@ namespace MetaCompanion
 			string dataDirectory,
 			ArchetypeLookup archetypes,
 			Dictionary<string, MatchCorrection> corrections,
-			DateTime now)
+			DateTime now,
+			LocalSampleWindow sampleWindow)
 		{
 			var historyPath = MatchHistoryRecorder.GetHistoryPath(dataDirectory);
 			var rows = ReadTsv(historyPath);
@@ -206,14 +306,12 @@ namespace MetaCompanion
 				return new List<LocalMatchRow>();
 			}
 
-			var historyDays = Math.Max(1, config.LocalRecommendationHistoryDays);
-			var cutoff = now.AddDays(-historyDays);
 			var minConfidence = Math.Max(0, config.LocalMetaMinConfidence);
 			var localRows = new List<LocalMatchRow>();
 			foreach (var row in rows)
 			{
 				var endedAt = ParseDate(FirstNonEmpty(Get(row, "ended_at"), Get(row, "started_at")));
-				if (!endedAt.HasValue || endedAt.Value < cutoff)
+				if (!endedAt.HasValue || endedAt.Value < sampleWindow.Start)
 				{
 					continue;
 				}
@@ -251,9 +349,12 @@ namespace MetaCompanion
 				var archetype = archetypes.ById.ContainsKey(archetypeId)
 					? archetypes.ById[archetypeId]
 					: new ArchetypeInfo { Id = archetypeId, Name = archetypeName };
+				var startedAt = ParseDate(Get(row, "started_at"));
+				var patchReferenceTime = startedAt ?? endedAt.Value;
 				var ageDays = Math.Max(0.0, (now - endedAt.Value).TotalDays);
 				var confidenceWeight = Clamp(confidencePct / 100.0, 0.25, 1.0);
-				var recencyWeight = Math.Pow(0.5, ageDays / historyDays);
+				var patchWeight = GetPatchWeight(patchReferenceTime, sampleWindow);
+				var recencyWeight = GetRecencyWeight(endedAt.Value, now, sampleWindow);
 				var result = correction != null && !string.IsNullOrWhiteSpace(correction.CorrectedResult)
 					? correction.CorrectedResult
 					: Get(row, "result");
@@ -270,7 +371,8 @@ namespace MetaCompanion
 					ArchetypeName = archetype.Name,
 					PlayerClass = archetype.PlayerClass,
 					ConfidencePct = confidencePct,
-					Weight = confidenceWeight * recencyWeight,
+					Weight = confidenceWeight * patchWeight * recencyWeight,
+					PatchWeight = patchWeight,
 					RecencyWeight = recencyWeight,
 					AgeDays = ageDays,
 					EvidenceCount = ParseInt(Get(row, "evidence_cards"), 0),
@@ -293,11 +395,13 @@ namespace MetaCompanion
 			ArchetypeLookup archetypes,
 			DateTime now,
 			string deckStatsPath,
-			IReadOnlyList<Deck> metaDecks)
+			IReadOnlyList<Deck> metaDecks,
+			LocalSampleWindow sampleWindow)
 		{
-			var path = ResolveDeckStatsPath(deckStatsPath);
-			if (string.IsNullOrWhiteSpace(path) || !File.Exists(path) ||
-				archetypes.NameToId.Count == 0)
+			var paths = ResolveDeckStatsPaths(deckStatsPath)
+				.Where(path => !string.IsNullOrWhiteSpace(path) && File.Exists(path))
+				.ToList();
+			if (paths.Count == 0 || archetypes.NameToId.Count == 0)
 			{
 				return new List<LocalMatchRow>();
 			}
@@ -310,99 +414,102 @@ namespace MetaCompanion
 				return new List<LocalMatchRow>();
 			}
 
-			try
+			var minConfidence = Math.Max(0, config.LocalMetaMinConfidence);
+			var localRows = new List<LocalMatchRow>();
+			foreach (var path in paths)
 			{
-				var doc = new XmlDocument();
-				doc.Load(path);
-				var historyDays = Math.Max(1, config.LocalRecommendationHistoryDays);
-				var cutoff = now.AddDays(-historyDays);
-				var minConfidence = Math.Max(0, config.LocalMetaMinConfidence);
-				var localRows = new List<LocalMatchRow>();
-				foreach (XmlNode game in doc.SelectNodes("//Game"))
+				try
 				{
-					var startedAt = ParseDate(GetNodeText(game, "StartTime"));
-					var endedAt = ParseDate(FirstNonEmpty(
-						GetNodeText(game, "EndTime"),
-						GetNodeText(game, "StartTime")));
-					if (!startedAt.HasValue || !endedAt.HasValue || endedAt.Value < cutoff)
+					var doc = new XmlDocument();
+					doc.Load(path);
+					foreach (XmlNode game in doc.SelectNodes("//Game"))
 					{
-						continue;
+						var startedAt = ParseDate(GetNodeText(game, "StartTime"));
+						var endedAt = ParseDate(FirstNonEmpty(
+							GetNodeText(game, "EndTime"),
+							GetNodeText(game, "StartTime")));
+						if (!startedAt.HasValue || !endedAt.HasValue ||
+							endedAt.Value < sampleWindow.Start)
+						{
+							continue;
+						}
+
+						var format = GetNodeText(game, "Format");
+						var mode = GetNodeText(game, "GameMode");
+						if (!IsStandardMatch(format, mode))
+						{
+							continue;
+						}
+
+						var opponentClass = MetaRetriever.NormalizeClass(GetNodeText(game, "OpponentHero"));
+						if (string.IsNullOrWhiteSpace(opponentClass))
+						{
+							continue;
+						}
+
+						var knownOriginalCards = ParseDeckStatsKnownCards(game);
+						var evidenceCards = knownOriginalCards.Values.Sum();
+						if (evidenceCards <= 0)
+						{
+							continue;
+						}
+
+						var classDecks = decks
+							.Where(deck => MetaRetriever.NormalizeClass(deck.Class) == opponentClass)
+							.ToList();
+						var candidates = PredictionController.BuildCandidateArchetypes(
+							classDecks, knownOriginalCards, evidenceCards);
+						var bestCandidate = candidates
+							.FirstOrDefault(candidate => archetypes.NameToId.ContainsKey(candidate.Name));
+						if (bestCandidate == null || bestCandidate.ConfidencePercent < minConfidence)
+						{
+							continue;
+						}
+
+						var archetypeId = archetypes.NameToId[bestCandidate.Name];
+						var archetype = archetypes.ById.ContainsKey(archetypeId)
+							? archetypes.ById[archetypeId]
+							: new ArchetypeInfo { Id = archetypeId, Name = bestCandidate.Name };
+						var confidencePct = bestCandidate.ConfidencePercent;
+						var ageDays = Math.Max(0.0, (now - endedAt.Value).TotalDays);
+						var confidenceWeight = Clamp(confidencePct / 100.0, 0.25, 1.0);
+						var patchWeight = GetPatchWeight(startedAt.Value, sampleWindow);
+						var recencyWeight = GetRecencyWeight(endedAt.Value, now, sampleWindow);
+
+						localRows.Add(new LocalMatchRow
+						{
+							MatchId = GetNodeText(game, "GameId"),
+							StartedAt = startedAt.Value.ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture),
+							EndedAt = endedAt.Value,
+							Format = format,
+							Mode = mode,
+							Result = NormalizeResult(GetNodeText(game, "Result")),
+							OpponentClass = opponentClass,
+							ArchetypeId = archetypeId,
+							ArchetypeName = archetype.Name,
+							PlayerClass = archetype.PlayerClass,
+							ConfidencePct = confidencePct,
+							Weight = confidenceWeight * patchWeight * recencyWeight,
+							PatchWeight = patchWeight,
+							RecencyWeight = recencyWeight,
+							AgeDays = ageDays,
+							EvidenceCount = evidenceCards,
+							EvidenceCards = evidenceCards.ToString(CultureInfo.InvariantCulture),
+							CandidateArchetypes = FormatCandidateArchetypes(candidates),
+							ReplayFile = GetNodeText(game, "ReplayFile"),
+							ReplayPath = ResolveReplayPath(GetNodeText(game, "ReplayFile")),
+							HsReplayUploadId = GetNestedNodeText(game, "HsReplay/UploadId"),
+							HsReplayUrl = GetNestedNodeText(game, "HsReplay/ReplayUrl"),
+							Source = "hdt_deckstats"
+						});
 					}
-
-					var format = GetNodeText(game, "Format");
-					var mode = GetNodeText(game, "GameMode");
-					if (!IsStandardMatch(format, mode))
-					{
-						continue;
-					}
-
-					var opponentClass = MetaRetriever.NormalizeClass(GetNodeText(game, "OpponentHero"));
-					if (string.IsNullOrWhiteSpace(opponentClass))
-					{
-						continue;
-					}
-
-					var knownOriginalCards = ParseDeckStatsKnownCards(game);
-					var evidenceCards = knownOriginalCards.Values.Sum();
-					if (evidenceCards <= 0)
-					{
-						continue;
-					}
-
-					var classDecks = decks
-						.Where(deck => MetaRetriever.NormalizeClass(deck.Class) == opponentClass)
-						.ToList();
-					var candidates = PredictionController.BuildCandidateArchetypes(
-						classDecks, knownOriginalCards, evidenceCards);
-					var bestCandidate = candidates
-						.FirstOrDefault(candidate => archetypes.NameToId.ContainsKey(candidate.Name));
-					if (bestCandidate == null || bestCandidate.ConfidencePercent < minConfidence)
-					{
-						continue;
-					}
-
-					var archetypeId = archetypes.NameToId[bestCandidate.Name];
-					var archetype = archetypes.ById.ContainsKey(archetypeId)
-						? archetypes.ById[archetypeId]
-						: new ArchetypeInfo { Id = archetypeId, Name = bestCandidate.Name };
-					var confidencePct = bestCandidate.ConfidencePercent;
-					var ageDays = Math.Max(0.0, (now - endedAt.Value).TotalDays);
-					var confidenceWeight = Clamp(confidencePct / 100.0, 0.25, 1.0);
-					var recencyWeight = Math.Pow(0.5, ageDays / historyDays);
-
-					localRows.Add(new LocalMatchRow
-					{
-						MatchId = GetNodeText(game, "GameId"),
-						StartedAt = startedAt.Value.ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture),
-						EndedAt = endedAt.Value,
-						Format = format,
-						Mode = mode,
-						Result = NormalizeResult(GetNodeText(game, "Result")),
-						OpponentClass = opponentClass,
-						ArchetypeId = archetypeId,
-						ArchetypeName = archetype.Name,
-						PlayerClass = archetype.PlayerClass,
-						ConfidencePct = confidencePct,
-						Weight = confidenceWeight * recencyWeight,
-						RecencyWeight = recencyWeight,
-						AgeDays = ageDays,
-						EvidenceCount = evidenceCards,
-						EvidenceCards = evidenceCards.ToString(CultureInfo.InvariantCulture),
-						CandidateArchetypes = FormatCandidateArchetypes(candidates),
-						ReplayFile = GetNodeText(game, "ReplayFile"),
-						ReplayPath = ResolveReplayPath(GetNodeText(game, "ReplayFile")),
-						HsReplayUploadId = GetNestedNodeText(game, "HsReplay/UploadId"),
-						HsReplayUrl = GetNestedNodeText(game, "HsReplay/ReplayUrl"),
-						Source = "hdt_deckstats"
-					});
 				}
-				return localRows;
+				catch (Exception ex)
+				{
+					Log.Warn("Failed to load HDT DeckStats local meta from " + path + ": " + ex.Message);
+				}
 			}
-			catch (Exception ex)
-			{
-				Log.Warn("Failed to load HDT DeckStats local meta: " + ex.Message);
-				return new List<LocalMatchRow>();
-			}
+			return localRows;
 		}
 
 		private static string ResolveDeckStatsPath(string deckStatsPath)
@@ -412,7 +519,23 @@ namespace MetaCompanion
 				return deckStatsPath;
 			}
 
-			return Path.Combine(Hearthstone_Deck_Tracker.Config.AppDataPath, "DeckStats.xml");
+			return ResolveDeckStatsPaths(null).FirstOrDefault() ?? "";
+		}
+
+		internal static IReadOnlyList<string> ResolveDeckStatsPaths(string deckStatsPath)
+		{
+			if (!string.IsNullOrWhiteSpace(deckStatsPath))
+			{
+				return new[] { deckStatsPath };
+			}
+
+			return new[]
+			{
+				Path.Combine(Hearthstone_Deck_Tracker.Config.AppDataPath, "DeckStats.xml"),
+				Path.Combine(Hearthstone_Deck_Tracker.Config.AppDataPath, "DefaultDeckStats.xml")
+			}
+			.Distinct(StringComparer.OrdinalIgnoreCase)
+			.ToList();
 		}
 
 		private static Dictionary<string, int> ParseDeckStatsKnownCards(XmlNode game)
@@ -506,7 +629,7 @@ namespace MetaCompanion
 		{
 			var rows = group.ToList();
 			var selected = rows
-				.OrderBy(row => row.Source == "plugin_match_history" ? 0 : 1)
+				.OrderBy(row => row.Source == "hdt_deckstats" ? 0 : 1)
 				.ThenByDescending(row => row.ConfidencePct)
 				.ThenByDescending(row => row.EvidenceCount)
 				.First();
@@ -892,7 +1015,8 @@ namespace MetaCompanion
 			List<EnvironmentRow> environmentRows,
 			List<LocalMatchRow> localRows,
 			PluginConfig config,
-			DateTime now)
+			DateTime now,
+			LocalSampleWindow sampleWindow)
 		{
 			Directory.CreateDirectory(dataDirectory);
 			var environmentLines = new List<string>
@@ -938,7 +1062,7 @@ namespace MetaCompanion
 					row.ArchetypeName,
 					FormatDouble(row.ConfidencePct, 1),
 					FormatDouble(row.Weight, 4),
-					"1",
+					FormatDouble(row.PatchWeight, 4),
 					FormatDouble(row.RecencyWeight, 4),
 					FormatDouble(row.AgeDays, 3),
 					"",
@@ -962,11 +1086,22 @@ namespace MetaCompanion
 				{ "generated_at", now.ToString("o", CultureInfo.InvariantCulture) },
 				{ "history_path", MatchHistoryRecorder.GetHistoryPath(dataDirectory) },
 				{ "hdt_deck_stats_path", ResolveDeckStatsPath(null) },
+				{ "hdt_deck_stats_paths", ResolveDeckStatsPaths(null).ToArray() },
+				{ "hdt_deck_stats_existing_paths", ResolveDeckStatsPaths(null)
+					.Where(File.Exists)
+					.ToArray() },
 				{ "local_source", "hdt_deckstats_plus_plugin_match_history" },
 				{ "source_counts", sourceCounts },
 				{ "history_days", Math.Max(1, config.LocalRecommendationHistoryDays) },
-				{ "sample_window_start", now.AddDays(-Math.Max(1, config.LocalRecommendationHistoryDays)).ToString("o", CultureInfo.InvariantCulture) },
+				{ "sample_window", sampleWindow.Name },
+				{ "sample_window_start", sampleWindow.Start.ToString("o", CultureInfo.InvariantCulture) },
 				{ "min_confidence", Math.Max(0, config.LocalMetaMinConfidence) },
+				{ "patch_time", sampleWindow.PatchTime.HasValue
+					? (object)sampleWindow.PatchTime.Value.ToString("o", CultureInfo.InvariantCulture)
+					: null },
+				{ "pre_patch_weight", sampleWindow.PrePatchWeight },
+				{ "recency_half_life_days", sampleWindow.RecencyHalfLifeDays },
+				{ "patch_marker_path", GetPatchMarkerPath(dataDirectory) },
 				{ "game_count", localRows.Count },
 				{ "weighted_game_count", Round(localRows.Sum(row => row.Weight), 3) },
 				{ "games_path", GetLocalGamesPath(dataDirectory) },
@@ -994,7 +1129,8 @@ namespace MetaCompanion
 			List<RecommendationRow> recommendations,
 			PluginConfig config,
 			int localMatchCount,
-			DateTime now)
+			DateTime now,
+			LocalSampleWindow sampleWindow)
 		{
 			Directory.CreateDirectory(metaDirectory);
 			var lines = new List<string>
@@ -1024,6 +1160,12 @@ namespace MetaCompanion
 				{ "local_weight", Clamp(config.LocalRecommendationWeight, 0.0, 1.0) },
 				{ "local_source", "hdt_deckstats_plus_plugin_match_history" },
 				{ "local_match_count", localMatchCount },
+				{ "sample_window", sampleWindow.Name },
+				{ "sample_window_start", sampleWindow.Start.ToString("o", CultureInfo.InvariantCulture) },
+				{ "patch_time", sampleWindow.PatchTime.HasValue
+					? (object)sampleWindow.PatchTime.Value.ToString("o", CultureInfo.InvariantCulture)
+					: null },
+				{ "recency_half_life_days", sampleWindow.RecencyHalfLifeDays },
 				{ "min_matchup_games", MinMatchupGames },
 				{ "min_coverage_pct", MinCoveragePct },
 				{ "recommendations", recommendations.Select(row => new Dictionary<string, object>
@@ -1259,6 +1401,16 @@ namespace MetaCompanion
 			public string CorrectedResult { get; set; } = "";
 		}
 
+		private class LocalSampleWindow
+		{
+			public int HistoryDays { get; set; }
+			public string Name { get; set; } = "";
+			public DateTime Start { get; set; }
+			public DateTime? PatchTime { get; set; }
+			public double PrePatchWeight { get; set; }
+			public double RecencyHalfLifeDays { get; set; }
+		}
+
 		private class LocalMatchRow
 		{
 			public string MatchId { get; set; } = "";
@@ -1273,6 +1425,7 @@ namespace MetaCompanion
 			public string PlayerClass { get; set; } = "";
 			public double ConfidencePct { get; set; }
 			public double Weight { get; set; }
+			public double PatchWeight { get; set; } = 1.0;
 			public double RecencyWeight { get; set; }
 			public double AgeDays { get; set; }
 			public int EvidenceCount { get; set; }

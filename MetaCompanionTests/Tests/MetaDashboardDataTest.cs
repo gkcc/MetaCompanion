@@ -45,6 +45,7 @@ namespace MetaCompanionTests.Tests
 				"\"generated_at\":\"2026-06-13T00:42:46+08:00\"," +
 				"\"as_of\":\"2026-06-12T09:21:35Z\"," +
 				"\"time_range\":\"CURRENT_PATCH\"," +
+				"\"patch_version\":\"35.6.2\"," +
 				"\"game_type\":\"RANKED_STANDARD\"," +
 				"\"rank_range\":\"DIAMOND_THROUGH_LEGEND\"," +
 				"\"region\":\"ALL\"" +
@@ -53,12 +54,8 @@ namespace MetaCompanionTests.Tests
 			File.WriteAllText(
 				Path.Combine(recommendationDirectory, "manifest.json"),
 				"{" +
-				"\"selected_time_range\":\"LAST_3_DAYS\"," +
-				"\"auto_time_range_policy\":\"choose_smaller_sample_between_CURRENT_PATCH_and_LAST_3_DAYS\"," +
-				"\"candidate_sample_games\":[" +
-				"{\"time_range\":\"CURRENT_PATCH\",\"sample_games\":40986,\"summary_as_of\":\"2026-06-12T09:21:35Z\"}," +
-				"{\"time_range\":\"LAST_3_DAYS\",\"sample_games\":18765,\"summary_as_of\":\"2026-06-12T09:30:03Z\"}" +
-				"]" +
+				"\"selected_time_range\":\"CURRENT_PATCH\"," +
+				"\"patch_version\":\"35.6.2\"" +
 				"}",
 				Encoding.UTF8);
 			File.WriteAllText(
@@ -101,10 +98,9 @@ namespace MetaCompanionTests.Tests
 			Assert.AreEqual("https://hsreplay.net/uploads/upload/g1/", snapshot.LastGame.HsReplayUrl);
 			Assert.AreEqual("C:\\HDT\\Replays\\g1.hdtreplay", snapshot.LastGame.ReplayPath);
 			Assert.IsTrue(snapshot.RemoteSource.HasData);
-			Assert.AreEqual("LAST_3_DAYS", snapshot.RemoteSource.EffectiveTimeRange);
-			Assert.AreEqual(2, snapshot.RemoteSource.Candidates.Count);
-			StringAssert.Contains(snapshot.RemoteSource.SettingsText, "\u6700\u8fd13\u5929");
-			StringAssert.Contains(snapshot.RemoteSource.ToolTip, "\u5019\u9009\u6837\u672c");
+			Assert.AreEqual("CURRENT_PATCH", snapshot.RemoteSource.EffectiveTimeRange);
+			Assert.AreEqual("35.6.2", snapshot.RemoteSource.PatchVersion);
+			StringAssert.Contains(snapshot.RemoteSource.SettingsText, "35.6.2\u8865\u4e01\u540e");
 		}
 
 		[TestMethod]

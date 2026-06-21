@@ -111,7 +111,7 @@ namespace MetaCompanionTests.Tests
 				"1\t56\t\u4efb\u52a1\u7267\tPRIEST\t4\t4\t45\t95\t3\t1\t75");
 			WriteRemoteSource(
 				"CURRENT_PATCH",
-				"LAST_3_DAYS",
+				"CURRENT_PATCH",
 				40986,
 				18765);
 			var snapshot = MetaDashboardSnapshot.Load(_tempDirectory);
@@ -123,9 +123,9 @@ namespace MetaCompanionTests.Tests
 				.OfType<TextBlock>()
 				.Single(text => text.Text.Contains("\u8fdc\u7a0b"));
 			StringAssert.Contains(subtitle.Text, "\u8fdc\u7a0b");
-			StringAssert.Contains(subtitle.Text, "3\u5929");
+			StringAssert.Contains(subtitle.Text, "35.6.2\u8865\u4e01\u540e");
 			StringAssert.Contains(subtitle.ToolTip.ToString(), "HSReplay \u8fdc\u7a0b\u6570\u636e\u6e90");
-			StringAssert.Contains(subtitle.ToolTip.ToString(), "\u5019\u9009\u6837\u672c");
+			StringAssert.Contains(subtitle.ToolTip.ToString(), "35.6.2\u8865\u4e01\u540e");
 		}
 
 		[TestMethod]
@@ -184,6 +184,7 @@ namespace MetaCompanionTests.Tests
 				"\"generated_at\":\"2026-06-13T00:42:46+08:00\"," +
 				"\"as_of\":\"2026-06-12T09:21:35Z\"," +
 				"\"time_range\":\"" + summaryTimeRange + "\"," +
+				"\"patch_version\":\"35.6.2\"," +
 				"\"game_type\":\"RANKED_STANDARD\"," +
 				"\"rank_range\":\"DIAMOND_THROUGH_LEGEND\"," +
 				"\"region\":\"ALL\"" +
@@ -193,11 +194,7 @@ namespace MetaCompanionTests.Tests
 				Path.Combine(directory, "manifest.json"),
 				"{" +
 				"\"selected_time_range\":\"" + selectedTimeRange + "\"," +
-				"\"auto_time_range_policy\":\"choose_smaller_sample_between_CURRENT_PATCH_and_LAST_3_DAYS\"," +
-				"\"candidate_sample_games\":[" +
-				"{\"time_range\":\"CURRENT_PATCH\",\"sample_games\":" + currentPatchGames + "}," +
-				"{\"time_range\":\"LAST_3_DAYS\",\"sample_games\":" + last3DaysGames + "}" +
-				"]" +
+				"\"patch_version\":\"35.6.2\"" +
 				"}",
 				Encoding.UTF8);
 		}

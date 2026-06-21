@@ -243,7 +243,7 @@ namespace MetaCompanion
 			}
 
 			plan.PrimaryTimeRange = NormalizeValue(config.PostGamePrimaryTimeRange, "CURRENT_PATCH");
-			plan.MetaFallbackTimeRange = NormalizeValue(config.PostGameMetaFallbackTimeRange, "LAST_3_DAYS");
+			plan.MetaFallbackTimeRange = NormalizeValue(config.PostGameMetaFallbackTimeRange, "CURRENT_PATCH");
 			plan.PremiumFallbackTimeRange = NormalizeValue(config.PostGamePremiumFallbackTimeRange, "LAST_7_DAYS");
 			return plan;
 		}
@@ -393,7 +393,7 @@ namespace MetaCompanion
 		public bool IncludeFullDataRefresh { get; set; }
 		public bool IncludePersonalRecommendations { get; set; } = true;
 		public string PrimaryTimeRange { get; set; } = "CURRENT_PATCH";
-		public string MetaFallbackTimeRange { get; set; } = "LAST_3_DAYS";
+		public string MetaFallbackTimeRange { get; set; } = "CURRENT_PATCH";
 		public string PremiumFallbackTimeRange { get; set; } = "LAST_7_DAYS";
 
 		public bool ShouldRetryWithFallback

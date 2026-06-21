@@ -36,7 +36,7 @@ namespace MetaCompanion
 		public bool EnablePostGameDataRefresh { get; set; } = false;
 		public int PostGameDataRefreshCooldownHours { get; set; } = 24;
 		public string PostGamePrimaryTimeRange { get; set; } = "CURRENT_PATCH";
-		public string PostGameMetaFallbackTimeRange { get; set; } = "LAST_3_DAYS";
+		public string PostGameMetaFallbackTimeRange { get; set; } = "CURRENT_PATCH";
 		public string PostGamePremiumFallbackTimeRange { get; set; } = "LAST_7_DAYS";
 		public int PostGameDataRefreshMaxDecks { get; set; } = 500;
 		public int PostGamePremiumRefreshMaxDecks { get; set; } = 30;

@@ -65,7 +65,7 @@ namespace MetaCompanionTests.Tests
 				},
 				true,
 				"CURRENT_PATCH",
-				"LAST_3_DAYS",
+				"CURRENT_PATCH",
 				"LAST_7_DAYS",
 				true);
 
@@ -78,7 +78,7 @@ namespace MetaCompanionTests.Tests
 			StringAssert.Contains(args, "-Meta");
 			Assert.IsFalse(args.Contains("-Branches"));
 			StringAssert.Contains(args, "-PremiumTimeRange \"CURRENT_PATCH\"");
-			StringAssert.Contains(args, "-MetaTimeRange \"LAST_3_DAYS\"");
+			StringAssert.Contains(args, "-MetaTimeRange \"CURRENT_PATCH\"");
 			StringAssert.Contains(args, "-PremiumMaxDecks 22");
 			StringAssert.Contains(args, "-PremiumStopOnUnsupported");
 		}
@@ -130,7 +130,7 @@ namespace MetaCompanionTests.Tests
 			Assert.IsTrue(plan.IncludeFullDataRefresh);
 			Assert.IsTrue(plan.IncludePersonalRecommendations);
 			Assert.AreEqual("CURRENT_PATCH", plan.PrimaryTimeRange);
-			Assert.AreEqual("LAST_3_DAYS", plan.MetaFallbackTimeRange);
+			Assert.AreEqual("CURRENT_PATCH", plan.MetaFallbackTimeRange);
 			Assert.AreEqual("LAST_7_DAYS", plan.PremiumFallbackTimeRange);
 		}
 

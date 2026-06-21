@@ -3,6 +3,7 @@ using Hearthstone_Deck_Tracker.Hearthstone;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Text;
@@ -171,14 +172,94 @@ namespace MetaCompanionTests.Tests
 				.Skip(1)
 				.ToList();
 			Assert.AreEqual(2, localRows.Count);
-			Assert.AreEqual(1, localRows.Count(row =>
+			Assert.AreEqual(0, localRows.Count(row =>
 				row.EndsWith("\tplugin_match_history", StringComparison.Ordinal)));
-			Assert.AreEqual(1, localRows.Count(row =>
+			Assert.AreEqual(2, localRows.Count(row =>
 				row.EndsWith("\thdt_deckstats", StringComparison.Ordinal)));
 			var summary = File.ReadAllText(
 				Path.Combine(_tempDirectory, "local_meta_summary.json"), Encoding.UTF8);
-			StringAssert.Contains(summary, "\"plugin_match_history\":1");
-			StringAssert.Contains(summary, "\"hdt_deckstats\":1");
+			Assert.IsFalse(summary.Contains("\"plugin_match_history\""));
+			StringAssert.Contains(summary, "\"hdt_deckstats\":2");
+		}
+
+		[TestMethod]
+		public void ResolveDeckStatsPaths_IncludesDefaultHdtHistoryFile()
+		{
+			var paths = QuickDashboardRefresher.ResolveDeckStatsPaths(null)
+				.Select(Path.GetFileName)
+				.ToList();
+
+			CollectionAssert.Contains(paths, "DeckStats.xml");
+			CollectionAssert.Contains(paths, "DefaultDeckStats.xml");
+
+			var explicitPath = Path.Combine(_tempDirectory, "OnlyThis.xml");
+			CollectionAssert.AreEqual(
+				new[] { explicitPath },
+				QuickDashboardRefresher.ResolveDeckStatsPaths(explicitPath).ToArray());
+		}
+
+		[TestMethod]
+		public void Refresh_KeepsCurrentPatchMatchesOlderThanRecentWindowWithRecencyDecay()
+		{
+			var now = new DateTime(2026, 6, 16, 3, 0, 0);
+			var questPriest = "\u4efb\u52a1\u7267";
+			var heraldShaman = "\u5146\u793a\u8428";
+			var divineShieldPaladin = "\u5723\u76fe\u9a91";
+			WritePremiumMeta(questPriest, heraldShaman, divineShieldPaladin);
+			File.WriteAllText(
+				Path.Combine(_tempDirectory, "patch_marker.txt"),
+				"2026-06-12 03:00:00",
+				Encoding.UTF8);
+			File.WriteAllText(
+				MatchHistoryRecorder.GetHistoryPath(_tempDirectory),
+				MatchHistoryRecorder.HistoryHeader + Environment.NewLine +
+				HistoryRow(
+					"old-priest",
+					"2026-06-12 03:50:00",
+					"2026-06-12 04:00:00",
+					"Priest",
+					questPriest,
+					"100") + Environment.NewLine +
+				HistoryRow(
+					"recent-shaman",
+					"2026-06-16 01:50:00",
+					"2026-06-16 02:00:00",
+					"Shaman",
+					heraldShaman,
+					"100") + Environment.NewLine,
+				Encoding.UTF8);
+
+			var result = QuickDashboardRefresher.Refresh(
+				new PluginConfig
+				{
+					LocalRecommendationHistoryDays = 3,
+					LocalRecommendationWeight = 0.35,
+					LocalRecommendationTop = 5,
+					LocalMetaMinConfidence = 35
+				},
+				_tempDirectory,
+				now);
+
+			Assert.IsTrue(result.EnvironmentUpdated);
+			Assert.AreEqual(2, result.LocalMatchCount);
+			var rows = File.ReadAllLines(
+					Path.Combine(_tempDirectory, "local_meta_archetypes.tsv"),
+					Encoding.UTF8)
+				.Skip(1)
+				.Select(line => line.Split('\t'))
+				.ToDictionary(values => values[0]);
+			var oldWeight = double.Parse(rows["old-priest"][14], CultureInfo.InvariantCulture);
+			var recentWeight = double.Parse(rows["recent-shaman"][14], CultureInfo.InvariantCulture);
+			var oldPatchWeight = double.Parse(rows["old-priest"][15], CultureInfo.InvariantCulture);
+			var oldRecencyWeight = double.Parse(rows["old-priest"][16], CultureInfo.InvariantCulture);
+			var recentRecencyWeight = double.Parse(rows["recent-shaman"][16], CultureInfo.InvariantCulture);
+			Assert.AreEqual(1.0, oldPatchWeight, 0.001);
+			Assert.IsTrue(oldWeight < recentWeight);
+			Assert.IsTrue(oldRecencyWeight < recentRecencyWeight);
+			var summary = File.ReadAllText(
+				Path.Combine(_tempDirectory, "local_meta_summary.json"), Encoding.UTF8);
+			StringAssert.Contains(summary, "\"sample_window\":\"current_patch\"");
+			StringAssert.Contains(summary, "\"game_count\":2");
 		}
 
 		private void WritePremiumMeta(
@@ -245,6 +326,39 @@ namespace MetaCompanionTests.Tests
 					})) +
 				"</OpponentCards>" +
 				"</Game>";
+		}
+
+		private static string HistoryRow(
+			string id,
+			string startedAt,
+			string endedAt,
+			string opponentClass,
+			string archetype,
+			string confidence)
+		{
+			return string.Join("\t", new[]
+			{
+				id,
+				startedAt,
+				endedAt,
+				"Standard",
+				"Ranked",
+				"win",
+				opponentClass,
+				archetype,
+				confidence,
+				"high",
+				"1",
+				"10",
+				"20",
+				archetype,
+				archetype + ":" + confidence + "%",
+				"game_end",
+				"",
+				"",
+				"",
+				""
+			});
 		}
 
 		private static Deck BuildDeck(string playerClass, string name, params string[] cardIds)
