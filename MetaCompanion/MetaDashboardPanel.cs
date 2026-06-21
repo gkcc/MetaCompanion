@@ -38,7 +38,7 @@ namespace MetaCompanion
 		private readonly StackPanel _environmentChart;
 		private readonly StackPanel _environment;
 		private readonly Grid _header;
-		private ComboBox _correctionBox;
+		private TextBox _correctionTextBox;
 		private MetaDashboardLastGame _currentLastGame;
 
 		public MetaDashboardPanel(Action closeAction)
@@ -150,6 +150,7 @@ namespace MetaCompanion
 		private void FillLastGame(MetaDashboardLastGame item)
 		{
 			_currentLastGame = item;
+			_correctionTextBox = null;
 			_lastGame.Children.Clear();
 			if (item == null)
 			{
@@ -263,14 +264,6 @@ namespace MetaCompanion
 				_lastGame.Children.Add(links);
 			}
 
-			var correction = new WrapPanel { Margin = new Thickness(0, 6, 0, 0) };
-			_correctionBox = new ComboBox
-			{
-				IsEditable = true,
-				Width = 210,
-				MinHeight = 24,
-				ToolTip = "\u9009\u62e9\u5019\u9009\u5f62\u6001\uff0c\u6216\u76f4\u63a5\u8f93\u5165\u6b63\u786e\u5f62\u6001\u540d"
-			};
 			var names = item.Candidates == null
 				? new List<string>()
 				: item.Candidates
@@ -278,12 +271,40 @@ namespace MetaCompanion
 					.Where(name => !string.IsNullOrWhiteSpace(name))
 					.Distinct()
 					.ToList();
-			foreach (var name in names)
+
+			if (names.Count > 0)
 			{
-				_correctionBox.Items.Add(name);
+				var candidates = new WrapPanel { Margin = new Thickness(0, 6, 0, 0) };
+				foreach (var name in names.Take(3))
+				{
+					var candidateName = name;
+					var candidateButton = ActionButton(candidateName, () =>
+					{
+						if (_correctionTextBox == null)
+						{
+							return;
+						}
+
+						_correctionTextBox.Text = candidateName;
+						_correctionTextBox.CaretIndex = _correctionTextBox.Text.Length;
+						_correctionTextBox.Focus();
+					});
+					candidateButton.MinWidth = 0;
+					candidateButton.ToolTip = "\u586b\u5165\u4fee\u6b63\u5f62\u6001: " + candidateName;
+					candidates.Children.Add(candidateButton);
+				}
+				_lastGame.Children.Add(candidates);
 			}
-			_correctionBox.Text = names.Count > 0 ? names[0] : item.Title;
-			correction.Children.Add(_correctionBox);
+
+			var correction = new WrapPanel { Margin = new Thickness(0, 6, 0, 0) };
+			_correctionTextBox = new TextBox
+			{
+				Width = 210,
+				MinHeight = 24,
+				Text = names.Count > 0 ? names[0] : item.Title,
+				ToolTip = "\u8f93\u5165\u6b63\u786e\u5f62\u6001\u540d\uff1b\u4e5f\u53ef\u4ee5\u70b9\u4e0a\u65b9\u5019\u9009\u5feb\u901f\u586b\u5165"
+			};
+			correction.Children.Add(_correctionTextBox);
 
 			var button = ActionButton("\u4fee\u6b63\u672c\u5c40", ApplyCorrection);
 			button.Margin = new Thickness(6, 0, 0, 0);
@@ -315,7 +336,7 @@ namespace MetaCompanion
 				return;
 			}
 
-			var correctedArchetype = _correctionBox == null ? "" : _correctionBox.Text;
+			var correctedArchetype = _correctionTextBox == null ? "" : _correctionTextBox.Text;
 			if (string.IsNullOrWhiteSpace(correctedArchetype))
 			{
 				MessageBox.Show(

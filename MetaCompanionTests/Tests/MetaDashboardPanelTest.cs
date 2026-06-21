@@ -4,6 +4,7 @@ using System;
 using System.IO;
 using System.Linq;
 using System.Text;
+using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
 
@@ -151,6 +152,50 @@ namespace MetaCompanionTests.Tests
 			StringAssert.Contains(text, "39% score 120 branchCount 1");
 			StringAssert.Contains(text, "\u4f4e\u7f6e\u4fe1\uff0c\u4ec5\u4f9b\u53c2\u8003");
 			StringAssert.Contains(text, "\u8ff7\u4f60\u5305");
+		}
+
+		[TestMethod]
+		public void Update_CorrectionCandidateButtonsFillTextBoxAndSubmit()
+		{
+			File.WriteAllText(
+				Path.Combine(_tempDirectory, "local_meta_archetypes.tsv"),
+				"game_id\tresult\topponent_hero\tpredicted_archetype\tconfidence_pct\tcandidate_archetypes\tkey_evidence_cards" +
+				Environment.NewLine +
+				"g1\tWin\tRogue\t\u704c\u6ce8\u8d3c\t62\t" +
+				"\u704c\u6ce8\u8d3c:62% score=120 branchCount=1 / \u6d77\u76d7\u8d3c:28% score=95 branchCount=2\t" +
+				"\u8ff7\u4f60\u5305,\u9634\u5f71\u6b65" + Environment.NewLine,
+				Encoding.UTF8);
+			var snapshot = MetaDashboardSnapshot.Load(_tempDirectory);
+			var correction = "";
+			var panel = new MetaDashboardPanel(null, (matchId, archetype) =>
+			{
+				correction = matchId + ":" + archetype;
+				return false;
+			});
+
+			panel.Update("title", snapshot);
+
+			var input = panel.LastGamePanel.Children
+				.OfType<WrapPanel>()
+				.SelectMany(row => row.Children.OfType<TextBox>())
+				.Single();
+			Assert.AreEqual("\u704c\u6ce8\u8d3c", input.Text);
+			Assert.AreEqual(0, panel.LastGamePanel.Children
+				.OfType<WrapPanel>()
+				.SelectMany(row => row.Children.OfType<ComboBox>())
+				.Count());
+			var buttons = panel.LastGamePanel.Children
+				.OfType<WrapPanel>()
+				.SelectMany(row => row.Children.OfType<Button>())
+				.ToList();
+			buttons.Single(button => Convert.ToString(button.Content) == "\u6d77\u76d7\u8d3c")
+				.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+			Assert.AreEqual("\u6d77\u76d7\u8d3c", input.Text);
+
+			buttons.Single(button => Convert.ToString(button.Content) == "\u4fee\u6b63\u672c\u5c40")
+				.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+
+			Assert.AreEqual("g1:\u6d77\u76d7\u8d3c", correction);
 		}
 
 		[TestMethod]
