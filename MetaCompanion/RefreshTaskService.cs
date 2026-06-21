@@ -253,12 +253,17 @@ namespace MetaCompanion
 
 		private static string SanitizeLogLine(string line)
 		{
-			if (string.IsNullOrWhiteSpace(line))
+			return SanitizeDiagnosticText(line);
+		}
+
+		internal static string SanitizeDiagnosticText(string text)
+		{
+			if (string.IsNullOrWhiteSpace(text))
 			{
 				return "";
 			}
 
-			return CookieValueRegex.Replace(line, "$1=[redacted]");
+			return CookieValueRegex.Replace(text, "$1=[redacted]");
 		}
 
 		private static string BuildToolsStatus(RefreshTaskSnapshot snapshot)

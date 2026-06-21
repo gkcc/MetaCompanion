@@ -19,6 +19,7 @@ namespace MetaCompanion
 			_config = config;
 			_refreshTaskService = new RefreshTaskService(MetaCompanionPlugin.DataDirectory);
 			InitializeComponent();
+			MaxHeight = Math.Max(480, SystemParameters.WorkArea.Height - 40);
 			DataContext = this;
 		}
 
@@ -91,13 +92,55 @@ namespace MetaCompanion
 		private void ButtonInstallRefreshTask_Click(object sender, RoutedEventArgs e)
 		{
 			ShowRefreshLaunchResult(_refreshTaskService.StartInstallTask());
-			RefreshTaskBindings();
+			RefreshStatusBindings();
 		}
 
 		private void ButtonRunRefreshNow_Click(object sender, RoutedEventArgs e)
 		{
 			ShowRefreshLaunchResult(_refreshTaskService.StartRefreshNow());
-			RefreshTaskBindings();
+			RefreshStatusBindings();
+		}
+
+		private void ButtonRefreshStatus_Click(object sender, RoutedEventArgs e)
+		{
+			RefreshStatusBindings();
+		}
+
+		private void ButtonCopyDiagnostics_Click(object sender, RoutedEventArgs e)
+		{
+			var diagnostics = SettingsDiagnostics.BuildDiagnosticText(
+				DateTime.Now,
+				MetaCompanionPlugin.DataDirectory,
+				_refreshTaskService.LogDirectory,
+				DataStatus,
+				RecommendationStatus,
+				PremiumStatus,
+				DataHealthSnapshot,
+				RefreshTaskSnapshot);
+			try
+			{
+				Clipboard.SetText(diagnostics);
+				MessageBox.Show(
+					"诊断信息已复制到剪贴板。内容不包含 Cookie 值。",
+					"Meta Companion",
+					MessageBoxButton.OK,
+					MessageBoxImage.Information);
+			}
+			catch (Exception ex)
+			{
+				Log.Warn("Copy diagnostics failed: " + ex.Message);
+				MessageBox.Show(
+					"复制诊断信息失败: " + ex.Message,
+					"Meta Companion",
+					MessageBoxButton.OK,
+					MessageBoxImage.Warning);
+			}
+		}
+
+		private void ButtonOpenLogDirectory_Click(object sender, RoutedEventArgs e)
+		{
+			Directory.CreateDirectory(_refreshTaskService.LogDirectory);
+			System.Diagnostics.Process.Start(_refreshTaskService.LogDirectory);
 		}
 
 		private void ButtonOpenRefreshLog_Click(object sender, RoutedEventArgs e)
@@ -136,8 +179,9 @@ namespace MetaCompanion
 				result.Started ? MessageBoxImage.Information : MessageBoxImage.Warning);
 		}
 
-		private void RefreshTaskBindings()
+		private void RefreshStatusBindings()
 		{
+			_dataHealthSnapshot = null;
 			_refreshTaskSnapshot = null;
 			DataContext = null;
 			DataContext = this;

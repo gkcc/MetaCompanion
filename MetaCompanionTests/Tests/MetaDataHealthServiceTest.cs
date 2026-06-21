@@ -129,6 +129,21 @@ namespace MetaCompanionTests.Tests
 			StringAssert.Contains(details, "Run-MetaCompanionRefresh.ps1");
 		}
 
+		[TestMethod]
+		public void Inspect_CommentOnlyCookieFile_IsNotConfigured()
+		{
+			WriteFullPremiumData();
+			WriteTools();
+			WriteFile(
+				"hsreplay_cookie.txt",
+				"# paste cookie below" + Environment.NewLine +
+				"   " + Environment.NewLine);
+
+			var snapshot = Inspect();
+
+			StringAssert.Contains(Details(snapshot), "Premium Cookie \u672a\u914d\u7f6e");
+		}
+
 		private MetaDataHealthSnapshot Inspect()
 		{
 			return new MetaDataHealthService(

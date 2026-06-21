@@ -97,6 +97,7 @@
     <Compile Include="PluginConfig.cs" />
     <Compile Include="MetaCompanionPlugin.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
+    <Compile Include="SettingsDiagnostics.cs" />
     <Compile Include="SettingsWindow.xaml.cs">
       <DependentUpon>SettingsWindow.xaml</DependentUpon>
     </Compile>

@@ -11,6 +11,8 @@
 		Width="460"
 		ResizeMode="NoResize"
 		SizeToContent="Height">
+	<ScrollViewer VerticalScrollBarVisibility="Auto"
+			HorizontalScrollBarVisibility="Disabled">
 	<Grid Margin="18">
 		<Grid.RowDefinitions>
 			<RowDefinition Height="Auto"/>
@@ -83,6 +85,16 @@
 					</DataTemplate>
 				</ItemsControl.ItemTemplate>
 			</ItemsControl>
+			<WrapPanel Margin="0,8,0,0">
+				<Button Margin="0,0,8,0"
+						Padding="12,5"
+						Click="ButtonRefreshStatus_Click">刷新状态</Button>
+				<Button Margin="0,0,8,0"
+						Padding="12,5"
+						Click="ButtonCopyDiagnostics_Click">复制诊断信息</Button>
+				<Button Padding="12,5"
+						Click="ButtonOpenLogDirectory_Click">打开日志目录</Button>
+			</WrapPanel>
 		</StackPanel>
 
 		<StackPanel Grid.Row="4" Margin="0,0,0,14">
@@ -132,4 +144,5 @@
 					Click="ButtonOpenData_Click">打开数据目录</Button>
 		</WrapPanel>
 	</Grid>
+	</ScrollViewer>
 </controls:MetroWindow>

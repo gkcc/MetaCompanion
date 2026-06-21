@@ -81,7 +81,7 @@ namespace MetaCompanion
 			var recommendations = InspectRecommendationFile(GetPath(
 				"Premium", "Meta", "latest", "personal_recommendations.tsv"));
 			var localEnvironment = InspectLocalEnvironment(GetPath("local_meta_environment.tsv"));
-			var cookie = InspectCookie(GetPath("hsreplay_cookie.txt"));
+			var cookie = InspectCookie();
 			var updateTool = InspectFile(GetPath("Tools", "Update-MetaCompanionData.ps1"));
 			var refreshTool = InspectFile(GetPath("Tools", "Run-MetaCompanionRefresh.ps1"));
 
@@ -283,8 +283,9 @@ namespace MetaCompanion
 			return info;
 		}
 
-		private CookieHealthInfo InspectCookie(string path)
+		private CookieHealthInfo InspectCookie()
 		{
+			var path = GetPath("hsreplay_cookie.txt");
 			if (string.IsNullOrWhiteSpace(path) || !File.Exists(path))
 			{
 				return new CookieHealthInfo();
@@ -295,7 +296,7 @@ namespace MetaCompanion
 			{
 				Exists = true,
 				LastWriteTime = file.LastWriteTime,
-				HasValue = file.Length > 0
+				HasValue = PostGameMetaRefresher.HasPremiumCookie(_dataDirectory)
 			};
 		}
 
