@@ -86,6 +86,7 @@
     <Compile Include="OverlayInteractivityHelper.cs" />
     <Compile Include="PostGameMetaRefresher.cs" />
     <Compile Include="QuickDashboardRefresher.cs" />
+    <Compile Include="RefreshTaskService.cs" />
     <Compile Include="PredictionInfo.cs" />
     <Compile Include="PredictionController.cs" />
     <Compile Include="PredictionView.cs" />

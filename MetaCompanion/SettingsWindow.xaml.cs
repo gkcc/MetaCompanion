@@ -10,11 +10,14 @@ namespace MetaCompanion
 	public partial class SettingsWindow : MetroWindow
 	{
 		private readonly PluginConfig _config;
+		private readonly RefreshTaskService _refreshTaskService;
 		private MetaDataHealthSnapshot _dataHealthSnapshot;
+		private RefreshTaskSnapshot _refreshTaskSnapshot;
 
 		public SettingsWindow(PluginConfig config)
 		{
 			_config = config;
+			_refreshTaskService = new RefreshTaskService(MetaCompanionPlugin.DataDirectory);
 			InitializeComponent();
 			DataContext = this;
 		}
@@ -83,6 +86,61 @@ namespace MetaCompanion
 				"Meta Companion",
 				MessageBoxButton.OK,
 				MessageBoxImage.Information);
+		}
+
+		private void ButtonInstallRefreshTask_Click(object sender, RoutedEventArgs e)
+		{
+			ShowRefreshLaunchResult(_refreshTaskService.StartInstallTask());
+			RefreshTaskBindings();
+		}
+
+		private void ButtonRunRefreshNow_Click(object sender, RoutedEventArgs e)
+		{
+			ShowRefreshLaunchResult(_refreshTaskService.StartRefreshNow());
+			RefreshTaskBindings();
+		}
+
+		private void ButtonOpenRefreshLog_Click(object sender, RoutedEventArgs e)
+		{
+			var logPath = RefreshTaskSnapshot.LatestLogPath;
+			if (string.IsNullOrWhiteSpace(logPath) || !File.Exists(logPath))
+			{
+				MessageBox.Show(
+					"未找到刷新日志。运行一次立即刷新后会在日志目录生成 refresh-*.log。",
+					"Meta Companion",
+					MessageBoxButton.OK,
+					MessageBoxImage.Information);
+				return;
+			}
+
+			System.Diagnostics.Process.Start(logPath);
+		}
+
+		private void ShowRefreshLaunchResult(RefreshTaskLaunchResult result)
+		{
+			result = result ?? new RefreshTaskLaunchResult
+			{
+				Started = false,
+				Message = "脚本启动失败。"
+			};
+			var message = result.Message;
+			if (result.Started && result.ProcessId > 0)
+			{
+				message += Environment.NewLine + "进程 ID: " + result.ProcessId;
+			}
+
+			MessageBox.Show(
+				message,
+				"Meta Companion",
+				MessageBoxButton.OK,
+				result.Started ? MessageBoxImage.Information : MessageBoxImage.Warning);
+		}
+
+		private void RefreshTaskBindings()
+		{
+			_refreshTaskSnapshot = null;
+			DataContext = null;
+			DataContext = this;
 		}
 
 		private static void OpenLocalFile(string path, string header)
@@ -218,6 +276,41 @@ namespace MetaCompanion
 			get { return DataHealthSnapshot.DetailLines; }
 		}
 
+		public string RefreshToolsStatus
+		{
+			get { return RefreshTaskSnapshot.ToolsStatus; }
+		}
+
+		public string RefreshScheduledTaskStatus
+		{
+			get { return RefreshTaskSnapshot.ScheduledTaskStatus; }
+		}
+
+		public string RefreshLatestLogStatus
+		{
+			get { return RefreshTaskSnapshot.LatestLogStatus; }
+		}
+
+		public List<string> RefreshLogSummaryLines
+		{
+			get { return RefreshTaskSnapshot.LatestLogSummaryLines; }
+		}
+
+		public bool CanInstallRefreshTask
+		{
+			get { return RefreshTaskSnapshot.CanInstallTask; }
+		}
+
+		public bool CanRunRefreshNow
+		{
+			get { return RefreshTaskSnapshot.CanRunRefresh; }
+		}
+
+		public bool CanOpenRefreshLog
+		{
+			get { return RefreshTaskSnapshot.CanOpenLatestLog; }
+		}
+
 		private MetaDataHealthSnapshot DataHealthSnapshot
 		{
 			get
@@ -233,6 +326,18 @@ namespace MetaCompanion
 						staleAfter).Inspect();
 				}
 				return _dataHealthSnapshot;
+			}
+		}
+
+		private RefreshTaskSnapshot RefreshTaskSnapshot
+		{
+			get
+			{
+				if (_refreshTaskSnapshot == null)
+				{
+					_refreshTaskSnapshot = _refreshTaskService.Inspect();
+				}
+				return _refreshTaskSnapshot;
 			}
 		}
 

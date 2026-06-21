@@ -18,6 +18,7 @@
 			<RowDefinition Height="Auto"/>
 			<RowDefinition Height="Auto"/>
 			<RowDefinition Height="Auto"/>
+			<RowDefinition Height="Auto"/>
 		</Grid.RowDefinitions>
 
 		<StackPanel Grid.Row="0" Margin="0,0,0,14">
@@ -84,8 +85,47 @@
 			</ItemsControl>
 		</StackPanel>
 
+		<StackPanel Grid.Row="4" Margin="0,0,0,14">
+			<TextBlock Text="自动刷新" FontWeight="SemiBold"/>
+			<TextBlock Text="{Binding RefreshToolsStatus}"
+					TextWrapping="Wrap"
+					Foreground="#FF596773"
+					Margin="0,4,0,0"/>
+			<TextBlock Text="{Binding RefreshScheduledTaskStatus}"
+					TextWrapping="Wrap"
+					Foreground="#FF596773"
+					Margin="0,3,0,0"/>
+			<TextBlock Text="{Binding RefreshLatestLogStatus}"
+					TextWrapping="Wrap"
+					Foreground="#FF596773"
+					Margin="0,3,0,0"/>
+			<ItemsControl ItemsSource="{Binding RefreshLogSummaryLines}"
+					Margin="0,3,0,0">
+				<ItemsControl.ItemTemplate>
+					<DataTemplate>
+						<TextBlock Text="{Binding}"
+								TextWrapping="Wrap"
+								Foreground="#FF596773"
+								Margin="0,2,0,0"/>
+					</DataTemplate>
+				</ItemsControl.ItemTemplate>
+			</ItemsControl>
+			<WrapPanel Margin="0,8,0,0">
+				<Button Margin="0,0,8,0"
+						Padding="12,5"
+						IsEnabled="{Binding CanInstallRefreshTask}"
+						Click="ButtonInstallRefreshTask_Click">安装自动刷新</Button>
+				<Button Margin="0,0,8,0"
+						Padding="12,5"
+						IsEnabled="{Binding CanRunRefreshNow}"
+						Click="ButtonRunRefreshNow_Click">立即刷新</Button>
+				<Button Padding="12,5"
+						IsEnabled="{Binding CanOpenRefreshLog}"
+						Click="ButtonOpenRefreshLog_Click">打开刷新日志</Button>
+			</WrapPanel>
+		</StackPanel>
 
-		<WrapPanel Grid.Row="4" HorizontalAlignment="Right">
+		<WrapPanel Grid.Row="5" HorizontalAlignment="Right">
 			<Button Margin="0,0,8,0" Padding="12,5"
 					Click="ButtonResetLayout_Click">重置浮窗位置</Button>
 			<Button Padding="12,5"
