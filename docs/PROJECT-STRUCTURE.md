@@ -59,6 +59,6 @@
 
 - `%AppData%\HearthstoneDeckTracker\MetaCompanion`：插件数据、日志、Premium 缓存、本地环境、推荐结果和运行时工具。
 - `%AppData%\HearthstoneDeckTracker\Plugins\MetaCompanion`：已安装插件 DLL。
-- `%AppData%\HearthstoneDeckTracker\DeckStats.xml`：HDT 原生对局历史。
+- `%AppData%\HearthstoneDeckTracker\DeckStats.xml`、`%AppData%\HearthstoneDeckTracker\DefaultDeckStats.xml`：HDT 原生对局历史。
 - `%AppData%\HearthstoneDeckTracker\Replays`：本地 `.hdtreplay` 录像。
 

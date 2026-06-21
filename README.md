@@ -30,6 +30,8 @@ $cscDir="$env:USERPROFILE\.nuget\packages\microsoft.net.compilers\4.2.0\tools"
 & "$env:WINDIR\SysWOW64\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -ExecutionPolicy Bypass -File .\tools\Run-Tests.ps1
 ```
 
+`Run-Tests.ps1` 会把 HDT 的 AppData 重定向到临时目录，并校验真实 `%AppData%\HearthstoneDeckTracker\config.xml` 在测试期间没有变化。
+
 安装到 HDT。普通安装只复制插件 DLL，不会安装自动同步脚本：
 
 ```powershell

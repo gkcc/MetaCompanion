@@ -8,7 +8,7 @@ Meta Companion 是一个独立的个人向 HDT 插件项目。当前代码已经
 
 - 原 HDT Deck Predictor：对手牌组预测插件。
 - HDT.Plugins.MetaDetector：形态信息嵌入式展示思路。
-- Hearthstone Deck Tracker API、本地 `DeckStats.xml` 和本地 `.hdtreplay` 录像文件。
+- Hearthstone Deck Tracker API、本地 `DeckStats.xml`、`DefaultDeckStats.xml` 和本地 `.hdtreplay` 录像文件。
 
 Meta Companion 现在额外提供或重写了：
 
