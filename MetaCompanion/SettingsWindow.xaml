@@ -17,6 +17,7 @@
 			<RowDefinition Height="Auto"/>
 			<RowDefinition Height="Auto"/>
 			<RowDefinition Height="Auto"/>
+			<RowDefinition Height="Auto"/>
 		</Grid.RowDefinitions>
 
 		<StackPanel Grid.Row="0" Margin="0,0,0,14">
@@ -64,7 +65,27 @@
 					Margin="0,3,0,0"/>
 		</StackPanel>
 
-		<WrapPanel Grid.Row="3" HorizontalAlignment="Right">
+		<StackPanel Grid.Row="3" Margin="0,0,0,14">
+			<TextBlock Text="数据健康" FontWeight="SemiBold"/>
+			<TextBlock Text="{Binding DataHealthMessage}"
+					TextWrapping="Wrap"
+					Foreground="#FF25313B"
+					Margin="0,4,0,0"/>
+			<ItemsControl ItemsSource="{Binding DataHealthDetailLines}"
+					Margin="0,3,0,0">
+				<ItemsControl.ItemTemplate>
+					<DataTemplate>
+						<TextBlock Text="{Binding}"
+								TextWrapping="Wrap"
+								Foreground="#FF596773"
+								Margin="0,2,0,0"/>
+					</DataTemplate>
+				</ItemsControl.ItemTemplate>
+			</ItemsControl>
+		</StackPanel>
+
+
+		<WrapPanel Grid.Row="4" HorizontalAlignment="Right">
 			<Button Margin="0,0,8,0" Padding="12,5"
 					Click="ButtonResetLayout_Click">重置浮窗位置</Button>
 			<Button Padding="12,5"

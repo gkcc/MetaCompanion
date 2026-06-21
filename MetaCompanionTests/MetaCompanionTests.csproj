@@ -79,6 +79,7 @@
     <Compile Include="Tests\MatchHistoryRecorderTest.cs" />
     <Compile Include="Tests\MetaDashboardDataTest.cs" />
     <Compile Include="Tests\MetaDashboardPanelTest.cs" />
+    <Compile Include="Tests\MetaDataHealthServiceTest.cs" />
     <Compile Include="Tests\MetaRetrieverTest.cs" />
     <Compile Include="Tests\OverlayDragHelperTest.cs" />
     <Compile Include="Tests\PluginConfigTest.cs" />

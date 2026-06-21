@@ -1,5 +1,6 @@
 ﻿using MahApps.Metro.Controls;
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Windows;
@@ -9,6 +10,7 @@ namespace MetaCompanion
 	public partial class SettingsWindow : MetroWindow
 	{
 		private readonly PluginConfig _config;
+		private MetaDataHealthSnapshot _dataHealthSnapshot;
 
 		public SettingsWindow(PluginConfig config)
 		{
@@ -97,73 +99,140 @@ namespace MetaCompanion
 		{
 			get
 			{
-				var deckStatus = DescribeDeckDataFile(
-					"HSReplay 牌组库",
-					PostGameMetaRefresher.GetDeckSnapshotPath(MetaCompanionPlugin.DataDirectory),
-					false);
-				var branchStatus = DescribeDeckDataFile(
-					"代表分支兜底",
-					PostGameMetaRefresher.GetBranchSnapshotPath(MetaCompanionPlugin.DataDirectory),
-					true);
-				if (deckStatus != null && branchStatus != null)
+				try
 				{
-					return deckStatus + " | " + branchStatus;
+					return BuildDataStatus();
 				}
-				if (deckStatus != null)
+				catch (Exception ex)
 				{
-					return deckStatus;
+					Log.Warn("Settings data status check failed: " + ex.Message);
+					return "数据源: 读取失败";
 				}
-				if (branchStatus != null)
-				{
-					return "未找到 HSReplay 牌组库，当前使用 " + branchStatus;
-				}
-				return "未找到 HSReplay 牌组快照。当前仅显示已有本地缓存。";
 			}
+		}
+
+		private string BuildDataStatus()
+		{
+			var deckStatus = DescribeDeckDataFile(
+				"HSReplay 牌组库",
+				PostGameMetaRefresher.GetDeckSnapshotPath(MetaCompanionPlugin.DataDirectory),
+				false);
+			var branchStatus = DescribeDeckDataFile(
+				"代表分支兜底",
+				PostGameMetaRefresher.GetBranchSnapshotPath(MetaCompanionPlugin.DataDirectory),
+				true);
+			if (deckStatus != null && branchStatus != null)
+			{
+				return deckStatus + " | " + branchStatus;
+			}
+			if (deckStatus != null)
+			{
+				return deckStatus;
+			}
+			if (branchStatus != null)
+			{
+				return "未找到 HSReplay 牌组库，当前使用 " + branchStatus;
+			}
+			return "未找到 HSReplay 牌组快照。当前仅显示已有本地缓存。";
 		}
 
 		public string RecommendationStatus
 		{
 			get
 			{
-				var personalPath = GetPersonalRecommendationsPath();
-				var recommendationsPath = File.Exists(personalPath)
-					? personalPath
-					: GetRecommendationsPath();
-				if (!File.Exists(recommendationsPath))
+				try
 				{
-					return "推荐结果: 未生成";
+					return BuildRecommendationStatus();
 				}
-
-				var count = Math.Max(0, File.ReadLines(recommendationsPath).Count() - 1);
-				var source = recommendationsPath == personalPath ? "个人" : "HSReplay";
-				return "推荐结果: " + source + " Top " + count + " | 更新于 " +
-					File.GetLastWriteTime(recommendationsPath).ToString("yyyy-MM-dd HH:mm");
+				catch (Exception ex)
+				{
+					Log.Warn("Settings recommendation status check failed: " + ex.Message);
+					return "推荐结果: 读取失败";
+				}
 			}
+		}
+
+		private string BuildRecommendationStatus()
+		{
+			var personalPath = GetPersonalRecommendationsPath();
+			var recommendationsPath = File.Exists(personalPath)
+				? personalPath
+				: GetRecommendationsPath();
+			if (!File.Exists(recommendationsPath))
+			{
+				return "推荐结果: 未生成";
+			}
+
+			var count = Math.Max(0, File.ReadLines(recommendationsPath).Count() - 1);
+			var source = recommendationsPath == personalPath ? "个人" : "HSReplay";
+			return "推荐结果: " + source + " Top " + count + " | 更新于 " +
+				File.GetLastWriteTime(recommendationsPath).ToString("yyyy-MM-dd HH:mm");
 		}
 
 		public string PremiumStatus
 		{
 			get
 			{
-				var matrixPath = PostGameMetaRefresher.GetMetaMatrixPath(MetaCompanionPlugin.DataDirectory);
-				var summaryPath = PostGameMetaRefresher.GetMetaSummaryPath(MetaCompanionPlugin.DataDirectory);
-				var manifestPath = Path.Combine(
-					MetaCompanionPlugin.DataDirectory, "Premium", "Meta", "latest", "manifest.json");
-				if (!File.Exists(matrixPath) && !File.Exists(summaryPath))
+				try
 				{
-					return "对阵矩阵: 未同步";
+					return BuildPremiumStatus();
 				}
+				catch (Exception ex)
+				{
+					Log.Warn("Settings premium status check failed: " + ex.Message);
+					return "对阵矩阵: 读取失败";
+				}
+			}
+		}
 
-				var newest = new[] {matrixPath, summaryPath}
-					.Where(File.Exists)
-					.Select(File.GetLastWriteTime)
-					.OrderByDescending(time => time)
-					.First();
-				var remoteSource = MetaDashboardRemoteSource.Load(summaryPath, manifestPath);
-				var sourceText = remoteSource.HasData
-					? " | " + remoteSource.SettingsText
-					: "";
-				return "对阵矩阵: 更新于 " + newest.ToString("yyyy-MM-dd HH:mm") + sourceText;
+		private string BuildPremiumStatus()
+		{
+			var matrixPath = PostGameMetaRefresher.GetMetaMatrixPath(MetaCompanionPlugin.DataDirectory);
+			var summaryPath = PostGameMetaRefresher.GetMetaSummaryPath(MetaCompanionPlugin.DataDirectory);
+			var manifestPath = Path.Combine(
+				MetaCompanionPlugin.DataDirectory, "Premium", "Meta", "latest", "manifest.json");
+			if (!File.Exists(matrixPath) && !File.Exists(summaryPath))
+			{
+				return "对阵矩阵: 未同步";
+			}
+
+			var newest = new[] {matrixPath, summaryPath}
+				.Where(File.Exists)
+				.Select(File.GetLastWriteTime)
+				.OrderByDescending(time => time)
+				.First();
+			var remoteSource = MetaDashboardRemoteSource.Load(summaryPath, manifestPath);
+			var sourceText = remoteSource.HasData
+				? " | " + remoteSource.SettingsText
+				: "";
+			return "对阵矩阵: 更新于 " + newest.ToString("yyyy-MM-dd HH:mm") + sourceText;
+		}
+
+		public string DataHealthMessage
+		{
+			get { return DataHealthSnapshot.UserMessage; }
+		}
+
+		public List<string> DataHealthDetailLines
+		{
+			get { return DataHealthSnapshot.DetailLines; }
+		}
+
+		private MetaDataHealthSnapshot DataHealthSnapshot
+		{
+			get
+			{
+				if (_dataHealthSnapshot == null)
+				{
+					var staleAfter = TimeSpan.FromHours(Math.Max(
+						1,
+						_config == null ? 24 : _config.PostGameDataRefreshCooldownHours));
+					_dataHealthSnapshot = new MetaDataHealthService(
+						MetaCompanionPlugin.DataDirectory,
+						DateTime.Now,
+						staleAfter).Inspect();
+				}
+				return _dataHealthSnapshot;
 			}
 		}
 

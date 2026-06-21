@@ -79,6 +79,7 @@
     <Compile Include="MetaDashboardData.cs" />
     <Compile Include="MetaDashboardPanel.cs" />
     <Compile Include="MetaDashboardView.cs" />
+    <Compile Include="MetaDataHealthService.cs" />
     <Compile Include="Opponent.cs" />
     <Compile Include="OpponentEvidence.cs" />
     <Compile Include="OverlayDragHelper.cs" />

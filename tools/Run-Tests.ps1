@@ -4,6 +4,26 @@ param(
 )
 
 $ErrorActionPreference = "Stop"
+if ([Environment]::Is64BitProcess) {
+	$x86PowerShell = Join-Path $env:WINDIR "SysWOW64\WindowsPowerShell\v1.0\powershell.exe"
+	if (Test-Path -LiteralPath $x86PowerShell) {
+		$arguments = @(
+			"-NoProfile",
+			"-ExecutionPolicy",
+			"Bypass",
+			"-File",
+			$MyInvocation.MyCommand.Path,
+			"-AssemblyPath",
+			$AssemblyPath
+		)
+		if ($KeepTestAppData) {
+			$arguments += "-KeepTestAppData"
+		}
+		& $x86PowerShell @arguments
+		exit $LASTEXITCODE
+	}
+}
+
 $originalAppData = $env:APPDATA
 $originalLocalAppData = $env:LOCALAPPDATA
 $realHdtConfigPath = if ($originalAppData) {
