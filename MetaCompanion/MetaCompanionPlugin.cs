@@ -24,13 +24,23 @@ namespace MetaCompanion
 	internal struct GameStartDecision
 	{
 		public GameStartDecision(bool shouldTrack, GameStartDashboardAction dashboardAction)
+			: this(shouldTrack, dashboardAction, "")
+		{
+		}
+
+		public GameStartDecision(
+			bool shouldTrack,
+			GameStartDashboardAction dashboardAction,
+			string predictionUnavailableReason)
 		{
 			ShouldTrack = shouldTrack;
 			DashboardAction = dashboardAction;
+			PredictionUnavailableReason = predictionUnavailableReason ?? "";
 		}
 
 		public bool ShouldTrack { get; }
 		public GameStartDashboardAction DashboardAction { get; }
+		public string PredictionUnavailableReason { get; }
 	}
 
 	public class MetaCompanionPlugin : IPlugin
@@ -41,7 +51,11 @@ namespace MetaCompanion
 		private static readonly string LogDirectory = Path.Combine(DataDirectory, "Logs");
 
 		private PluginConfig _config;
-		private ReadOnlyCollection<Deck> _metaDecks;
+		private readonly object _metaDeckLock = new object();
+		private ReadOnlyCollection<Deck> _metaDecks =
+			new ReadOnlyCollection<Deck>(new List<Deck>());
+		private MetaDeckLoadSnapshot _metaDeckLoadSnapshot =
+			MetaDeckLoadSnapshot.Loading(DateTime.MinValue);
 		private PredictionController _controller;
 		private PredictionView _view;
 		private MetaDashboardView _metaDashboardView;
@@ -114,11 +128,7 @@ namespace MetaCompanion
 
 			Log.Info("Skipping upstream auto-update for local HSReplay data-source build.");
 
-			// Synchronously retrieve our meta decks and keep them in memory.
-			var metaRetriever = new MetaRetriever();
-			var retrieveTask =
-				Task.Run<List<Deck>>(async () => await metaRetriever.RetrieveMetaDecks(_config));
-			_metaDecks = new ReadOnlyCollection<Deck>(retrieveTask.Result);
+			StartMetaDeckLoad(new MetaRetriever());
 			_view = new PredictionView(_config);
 			_metaDashboardView = new MetaDashboardView(_config);
 			_postGameMetaRefresher = new PostGameMetaRefresher();
@@ -128,14 +138,20 @@ namespace MetaCompanion
 				{
 					var format = Hearthstone_Deck_Tracker.Core.Game.CurrentFormat;
 					var mode = Hearthstone_Deck_Tracker.Core.Game.CurrentGameMode;
-					var decision = GetGameStartDecision(format, mode, _controller != null);
+					MetaDeckLoadSnapshot metaDeckLoadSnapshot;
+					var metaDecks = GetLoadedMetaDecks(out metaDeckLoadSnapshot);
+					var decision = GetGameStartDecision(
+						format,
+						mode,
+						_controller != null,
+						metaDeckLoadSnapshot);
 					if (decision.ShouldTrack)
 					{
 						Log.Info("Enabling Meta Companion for " + format + " " + mode + " game");
 						_matchHistoryRecorder = new MatchHistoryRecorder(_config);
 						_matchHistoryRecorder.Start(format.ToString(), mode.ToString());
 						var opponent = new Opponent(Hearthstone_Deck_Tracker.Core.Game);
-						var controller = new PredictionController(opponent, _metaDecks);
+						var controller = new PredictionController(opponent, metaDecks);
 						_controller = controller;
 						_view.SetEnabled(true);
 						if (decision.DashboardAction == GameStartDashboardAction.Hide)
@@ -157,7 +173,15 @@ namespace MetaCompanion
 						}
 						else
 						{
-							Log.Info("No deck predictions for " + format + " " + mode + " game");
+							if (!string.IsNullOrWhiteSpace(decision.PredictionUnavailableReason))
+							{
+								Log.Warn("No deck predictions for " + format + " " + mode +
+									" game: " + decision.PredictionUnavailableReason);
+							}
+							else
+							{
+								Log.Info("No deck predictions for " + format + " " + mode + " game");
+							}
 						}
 					}
 				});
@@ -274,6 +298,82 @@ namespace MetaCompanion
 				});
 		}
 
+		private void StartMetaDeckLoad(IMetaRetriever metaRetriever)
+		{
+			var startedAt = DateTime.Now;
+			var loading = MetaDeckLoadSnapshot.Loading(startedAt);
+			SetMetaDeckLoadState(new List<Deck>(), loading);
+			TryWriteMetaDeckLoadStatus(loading);
+			Log.Info("Meta deck library loading started in the background.");
+
+			Task.Run(async () =>
+			{
+				try
+				{
+					var decks = await metaRetriever.RetrieveMetaDecks(_config);
+					decks = decks ?? new List<Deck>();
+					var completedAt = DateTime.Now;
+					var snapshot = MetaDeckLoadSnapshot.Ready(decks.Count, startedAt, completedAt);
+					SetMetaDeckLoadState(decks, snapshot);
+					TryWriteMetaDeckLoadStatus(snapshot);
+					if (snapshot.IsReady)
+					{
+						Log.Info("Meta deck library loaded: " + snapshot.DeckCount + " decks.");
+					}
+					else
+					{
+						Log.Warn("Meta deck library loaded no decks; predictions remain unavailable.");
+					}
+				}
+				catch (Exception ex)
+				{
+					var summary = SummarizeException(ex);
+					var snapshot = MetaDeckLoadSnapshot.Failed(summary, startedAt, DateTime.Now);
+					SetMetaDeckLoadState(new List<Deck>(), snapshot);
+					TryWriteMetaDeckLoadStatus(snapshot);
+					Log.Warn("Meta deck library load failed: " + summary);
+					Log.Error(ex);
+				}
+			});
+		}
+
+		private void SetMetaDeckLoadState(List<Deck> decks, MetaDeckLoadSnapshot snapshot)
+		{
+			lock (_metaDeckLock)
+			{
+				_metaDecks = new ReadOnlyCollection<Deck>(decks ?? new List<Deck>());
+				_metaDeckLoadSnapshot = snapshot ?? MetaDeckLoadSnapshot.Loading(DateTime.Now);
+			}
+		}
+
+		private ReadOnlyCollection<Deck> GetLoadedMetaDecks(out MetaDeckLoadSnapshot snapshot)
+		{
+			lock (_metaDeckLock)
+			{
+				snapshot = _metaDeckLoadSnapshot;
+				return _metaDecks;
+			}
+		}
+
+		private static void TryWriteMetaDeckLoadStatus(MetaDeckLoadSnapshot snapshot)
+		{
+			try
+			{
+				MetaDeckLoadStatusStore.Write(DataDirectory, snapshot);
+			}
+			catch (Exception ex)
+			{
+				Log.Warn("Unable to write meta deck load status: " + ex.Message);
+			}
+		}
+
+		internal static string SummarizeException(Exception ex)
+		{
+			return ex == null
+				? "Unknown error"
+				: ex.GetType().Name + ": " + ex.Message;
+		}
+
 		public void OnUnload()
 		{
 			if (_settingsWindow != null)
@@ -319,6 +419,29 @@ namespace MetaCompanion
 			return new GameStartDecision(
 				shouldTrack,
 				shouldTrack ? GameStartDashboardAction.Hide : GameStartDashboardAction.None);
+		}
+
+		internal static GameStartDecision GetGameStartDecision(
+			Format? format,
+			GameMode mode,
+			bool alreadyTracking,
+			MetaDeckLoadSnapshot metaDeckLoadSnapshot)
+		{
+			if (!ShouldStartTrackingGame(format, mode, alreadyTracking))
+			{
+				return new GameStartDecision(false, GameStartDashboardAction.None);
+			}
+
+			var snapshot = metaDeckLoadSnapshot ?? MetaDeckLoadSnapshot.Loading(DateTime.Now);
+			if (!snapshot.IsReady)
+			{
+				return new GameStartDecision(
+					false,
+					GameStartDashboardAction.None,
+					snapshot.UserMessage);
+			}
+
+			return new GameStartDecision(true, GameStartDashboardAction.Hide);
 		}
 
 		internal static bool ShouldShowStandardRecommendations(

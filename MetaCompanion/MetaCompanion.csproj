@@ -76,9 +76,11 @@
     <Compile Include="IOpponent.cs" />
     <Compile Include="KnownOriginalCardCounter.cs" />
     <Compile Include="MatchHistoryRecorder.cs" />
+    <Compile Include="IMetaRetriever.cs" />
     <Compile Include="MetaDashboardData.cs" />
     <Compile Include="MetaDashboardPanel.cs" />
     <Compile Include="MetaDashboardView.cs" />
+    <Compile Include="MetaDeckLoadSnapshot.cs" />
     <Compile Include="MetaDataHealthService.cs" />
     <Compile Include="Opponent.cs" />
     <Compile Include="OpponentEvidence.cs" />

@@ -144,6 +144,26 @@ namespace MetaCompanionTests.Tests
 			StringAssert.Contains(Details(snapshot), "Premium Cookie \u672a\u914d\u7f6e");
 		}
 
+		[TestMethod]
+		public void Inspect_MetaDeckLoadFailure_ShowsFailureSummary()
+		{
+			WriteFullPremiumData();
+			WriteTools();
+			MetaDeckLoadStatusStore.Write(
+				_tempDirectory,
+				MetaDeckLoadSnapshot.Failed(
+					"InvalidDataException: broken snapshot",
+					_now.AddSeconds(-3),
+					_now));
+
+			var snapshot = Inspect();
+
+			Assert.AreEqual(MetaDataHealthOverallStatus.Error, snapshot.OverallStatus);
+			StringAssert.Contains(snapshot.UserMessage, "牌组库加载失败");
+			StringAssert.Contains(snapshot.UserMessage, "broken snapshot");
+			StringAssert.Contains(Details(snapshot), "InvalidDataException: broken snapshot");
+		}
+
 		private MetaDataHealthSnapshot Inspect()
 		{
 			return new MetaDataHealthService(

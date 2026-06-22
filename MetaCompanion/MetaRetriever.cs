@@ -10,7 +10,7 @@ using Hearthstone_Deck_Tracker.Hearthstone;
 
 namespace MetaCompanion
 {
-	class MetaRetriever
+	class MetaRetriever : IMetaRetriever
 	{
 		private static readonly string MetaFilePath =
 				Path.Combine(MetaCompanionPlugin.DataDirectory, @"metaDecks.xml");

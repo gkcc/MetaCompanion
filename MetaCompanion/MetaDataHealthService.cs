@@ -82,6 +82,7 @@ namespace MetaCompanion
 				"Premium", "Meta", "latest", "personal_recommendations.tsv"));
 			var localEnvironment = InspectLocalEnvironment(GetPath("local_meta_environment.tsv"));
 			var cookie = InspectCookie();
+			var metaDeckLoad = InspectMetaDeckLoad();
 			var updateTool = InspectFile(GetPath("Tools", "Update-MetaCompanionData.ps1"));
 			var refreshTool = InspectFile(GetPath("Tools", "Run-MetaCompanionRefresh.ps1"));
 
@@ -107,7 +108,17 @@ namespace MetaCompanion
 				IsStale(recommendations) ||
 				IsStale(localEnvironment);
 
-			if (!hasAnyData)
+			if (metaDeckLoad != null && metaDeckLoad.Status == MetaDeckLoadStatus.Failed)
+			{
+				snapshot.OverallStatus = MetaDataHealthOverallStatus.Error;
+			}
+			else if (metaDeckLoad != null &&
+				(metaDeckLoad.Status == MetaDeckLoadStatus.Loading ||
+					metaDeckLoad.Status == MetaDeckLoadStatus.Empty))
+			{
+				snapshot.OverallStatus = MetaDataHealthOverallStatus.Partial;
+			}
+			else if (!hasAnyData)
 			{
 				snapshot.OverallStatus = MetaDataHealthOverallStatus.Empty;
 			}
@@ -127,7 +138,7 @@ namespace MetaCompanion
 				snapshot.OverallStatus = MetaDataHealthOverallStatus.Partial;
 			}
 
-			snapshot.UserMessage = BuildUserMessage(snapshot, toolsAvailable);
+			snapshot.UserMessage = BuildUserMessage(snapshot, toolsAvailable, metaDeckLoad);
 			snapshot.DetailLines = BuildDetailLines(
 				deck,
 				summary,
@@ -136,6 +147,7 @@ namespace MetaCompanion
 				recommendations,
 				localEnvironment,
 				cookie,
+				metaDeckLoad,
 				updateTool,
 				refreshTool);
 			return snapshot;
@@ -300,6 +312,21 @@ namespace MetaCompanion
 			};
 		}
 
+		private MetaDeckLoadSnapshot InspectMetaDeckLoad()
+		{
+			try
+			{
+				return MetaDeckLoadStatusStore.Read(_dataDirectory);
+			}
+			catch (Exception ex)
+			{
+				return MetaDeckLoadSnapshot.Failed(
+					MetaCompanionPlugin.SummarizeException(ex),
+					_now,
+					_now);
+			}
+		}
+
 		private bool IsStale(FileHealthInfo info)
 		{
 			return info != null &&
@@ -317,6 +344,7 @@ namespace MetaCompanion
 			FileHealthInfo recommendations,
 			FileHealthInfo localEnvironment,
 			CookieHealthInfo cookie,
+			MetaDeckLoadSnapshot metaDeckLoad,
 			FileHealthInfo updateTool,
 			FileHealthInfo refreshTool)
 		{
@@ -327,6 +355,11 @@ namespace MetaCompanion
 				BuildPresenceLine("Premium \u5bf9\u9635\u77e9\u9635", matrix),
 				BuildPresenceLine("Premium manifest.json", manifest)
 			};
+
+			if (metaDeckLoad != null)
+			{
+				lines.Add(metaDeckLoad.UserMessage);
+			}
 
 			if (manifest.Exists)
 			{
@@ -357,8 +390,22 @@ namespace MetaCompanion
 
 		private static string BuildUserMessage(
 			MetaDataHealthSnapshot snapshot,
-			bool toolsAvailable)
+			bool toolsAvailable,
+			MetaDeckLoadSnapshot metaDeckLoad)
 		{
+			if (metaDeckLoad != null && metaDeckLoad.Status == MetaDeckLoadStatus.Failed)
+			{
+				return metaDeckLoad.UserMessage;
+			}
+			if (metaDeckLoad != null && metaDeckLoad.Status == MetaDeckLoadStatus.Loading)
+			{
+				return "牌组库加载中，预测暂不可用";
+			}
+			if (metaDeckLoad != null && metaDeckLoad.Status == MetaDeckLoadStatus.Empty)
+			{
+				return metaDeckLoad.UserMessage;
+			}
+
 			switch (snapshot.OverallStatus)
 			{
 				case MetaDataHealthOverallStatus.Empty:

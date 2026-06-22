@@ -1,6 +1,7 @@
 using MetaCompanion;
 using Hearthstone_Deck_Tracker.Enums;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
+using System;
 using HsMode = Hearthstone_Deck_Tracker.Enums.Hearthstone.Mode;
 
 namespace MetaCompanionTests.Tests
@@ -53,6 +54,64 @@ namespace MetaCompanionTests.Tests
 			Assert.AreEqual(GameStartDashboardAction.None, unsupportedMode.DashboardAction);
 			Assert.IsFalse(duplicateStart.ShouldTrack);
 			Assert.AreEqual(GameStartDashboardAction.None, duplicateStart.DashboardAction);
+		}
+
+		[TestMethod]
+		public void GetGameStartDecision_LoadingMetaDecks_DoesNotEnablePrediction()
+		{
+			var decision = MetaCompanionPlugin.GetGameStartDecision(
+				Format.Standard,
+				GameMode.Ranked,
+				false,
+				MetaDeckLoadSnapshot.Loading(DateTime.Now));
+
+			Assert.IsFalse(decision.ShouldTrack);
+			Assert.AreEqual(GameStartDashboardAction.None, decision.DashboardAction);
+			StringAssert.Contains(decision.PredictionUnavailableReason, "牌组库加载中");
+		}
+
+		[TestMethod]
+		public void GetGameStartDecision_LoadedMetaDecks_EnablesPrediction()
+		{
+			var now = DateTime.Now;
+			var decision = MetaCompanionPlugin.GetGameStartDecision(
+				Format.Standard,
+				GameMode.Ranked,
+				false,
+				MetaDeckLoadSnapshot.Ready(12, now.AddSeconds(-1), now));
+
+			Assert.IsTrue(decision.ShouldTrack);
+			Assert.AreEqual(GameStartDashboardAction.Hide, decision.DashboardAction);
+			Assert.AreEqual("", decision.PredictionUnavailableReason);
+		}
+
+		[TestMethod]
+		public void GetGameStartDecision_FailedMetaDeckLoad_DowngradesPrediction()
+		{
+			var now = DateTime.Now;
+			var decision = MetaCompanionPlugin.GetGameStartDecision(
+				Format.Standard,
+				GameMode.Ranked,
+				false,
+				MetaDeckLoadSnapshot.Failed("InvalidDataException: broken snapshot", now.AddSeconds(-1), now));
+
+			Assert.IsFalse(decision.ShouldTrack);
+			StringAssert.Contains(decision.PredictionUnavailableReason, "牌组库加载失败");
+			StringAssert.Contains(decision.PredictionUnavailableReason, "broken snapshot");
+		}
+
+		[TestMethod]
+		public void GetGameStartDecision_EmptyMetaDeckLoad_DoesNotCrashOrEnablePrediction()
+		{
+			var now = DateTime.Now;
+			var decision = MetaCompanionPlugin.GetGameStartDecision(
+				Format.Standard,
+				GameMode.Ranked,
+				false,
+				MetaDeckLoadSnapshot.Ready(0, now.AddSeconds(-1), now));
+
+			Assert.IsFalse(decision.ShouldTrack);
+			StringAssert.Contains(decision.PredictionUnavailableReason, "牌组库不可用");
 		}
 
 		[TestMethod]
