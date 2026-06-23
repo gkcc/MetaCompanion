@@ -1,4 +1,4 @@
-param(
+﻿param(
 	[string]$BuildPath = "$PSScriptRoot\..\MetaCompanion\bin\x86\Release\MetaCompanion.dll",
 	[string]$ArtifactsDirectory = "$PSScriptRoot\..\artifacts\client-smoke",
 	[switch]$LaunchHearthstone,
@@ -71,9 +71,9 @@ function Read-SmokeCheckpoint([string]$Prompt) {
 		return "MANUAL"
 	}
 	Write-Host ""
-	Write-Host "[manual checkpoint] $Prompt"
-	Write-Host "Type y for pass, n for fail, or s to mark manual/not-run."
-	$answer = Read-Host "Result"
+	Write-Host "[人工检查项] $Prompt"
+	Write-Host "输入 y 表示通过，n 表示失败，s 表示保留人工确认/未运行。"
+	$answer = Read-Host "结果"
 	return Convert-SmokeCheckpointAnswer $answer
 }
 
@@ -108,6 +108,59 @@ function Test-SmokeSensitiveText([string]$Text) {
 	return $hits
 }
 
+function Convert-SmokeAutomaticCheckName([string]$Name) {
+	switch ($Name) {
+		"hdt-started" { return "HDT 已启动" }
+		"meta-deck-load-status" { return "牌组库加载状态" }
+		"installed-dll-hash" { return "已安装 DLL 哈希" }
+		"plugin-enabled" { return "插件已启用" }
+		"config-xml-unchanged" { return "HDT config.xml 未被异常改动" }
+		default { return $Name }
+	}
+}
+
+function Format-SmokeAutomaticCheckDetails([string]$Name, [string]$Details) {
+	if ([string]::IsNullOrWhiteSpace($Details)) {
+		return ""
+	}
+	$value = Protect-SmokeText $Details
+	switch ($Name) {
+		"hdt-started" {
+			if ($value -match "^pid=(.+)$") { return "进程 ID=$($matches[1])" }
+			if ($value -eq "HDT did not start after install.") { return "安装后 HDT 未能启动。" }
+		}
+		"meta-deck-load-status" {
+			if ($value -match "^status=(.+)$") { return "状态=$($matches[1])" }
+		}
+		"installed-dll-hash" {
+			if ($value -match "^(\d+) targets match build hash$") { return "$($matches[1]) 个目标与构建哈希一致" }
+			if ($value -match "^hash mismatch: (.+)$") { return "哈希不一致：$($matches[1])" }
+			if ($value -match "^missing: (.+)$") { return "缺失：$($matches[1])" }
+		}
+		"plugin-enabled" {
+			if ($value -eq "plugins.xml entry enabled") { return "plugins.xml 条目已启用" }
+			if ($value -eq "Meta Companion is not enabled in plugins.xml.") { return "plugins.xml 中未启用 Meta Companion。" }
+		}
+		"config-xml-unchanged" {
+			if ($value -match "^hash=(.+)$") { return "哈希=$($matches[1])" }
+			if ($value -match "^config\.xml changed during smoke; review before=(.+) after=(.+)$") {
+				return "config.xml 在烟测期间发生变化；请复核变更前=$($matches[1]) 变更后=$($matches[2])"
+			}
+			if ($value -eq "config.xml missing before and after") { return "变更前后均未发现 config.xml" }
+			if ($value -eq "config.xml presence changed") { return "config.xml 存在状态发生变化" }
+		}
+	}
+	return $value
+}
+
+function Convert-SmokeFileStatus([string]$Status) {
+	switch ($Status) {
+		"present" { return "存在" }
+		"missing" { return "缺失" }
+		default { return $Status }
+	}
+}
+
 function Add-SmokeCheck(
 	[System.Collections.Generic.List[object]]$Rows,
 	[System.Collections.Generic.List[string]]$Failures,
@@ -121,7 +174,7 @@ function Add-SmokeCheck(
 		Details = Protect-SmokeText $Details
 	})
 	if ($Result -eq "FAIL") {
-		$Failures.Add("Automatic check failed: ${Name}: $Details")
+		$Failures.Add("自动检查失败：$(Convert-SmokeAutomaticCheckName $Name)：$(Format-SmokeAutomaticCheckDetails $Name $Details)")
 	}
 }
 
@@ -156,8 +209,8 @@ function Get-SmokeExitCode([string]$OverallResult, [bool]$RequireManualPassValue
 
 function Update-SmokeResultLine([System.Collections.Generic.List[string]]$Report, [string]$OverallResult) {
 	for ($index = 0; $index -lt $Report.Count; $index++) {
-		if ($Report[$index].StartsWith("- Result:")) {
-			$Report[$index] = "- Result: $OverallResult"
+		if ($Report[$index].StartsWith("- 总结果:") -or $Report[$index].StartsWith("- Result:")) {
+			$Report[$index] = "- 总结果: $OverallResult"
 			return
 		}
 	}
@@ -209,7 +262,7 @@ function Invoke-SmokeSelfTest {
 
 function Add-SmokeLogTail([System.Collections.Generic.List[string]]$Report, [string]$Directory) {
 	if (-not (Test-Path -LiteralPath $Directory)) {
-		$Report.Add("- Missing log directory: $Directory")
+		$Report.Add("- 日志目录缺失：$Directory")
 		return
 	}
 	$files = Get-ChildItem -LiteralPath $Directory -File -ErrorAction SilentlyContinue |
@@ -407,26 +460,26 @@ $keyFiles = @(
 )
 
 $checkpoints = @(
-	@{ Name = "hdt-startup"; Prompt = "Confirm HDT starts normally, Meta Companion is enabled, and no plugin crash dialog appears." },
-	@{ Name = "meta-deck-loading-state"; Prompt = "Confirm Settings/Data Health can show the deck library loading or unavailable state immediately after startup or when status is Loading." },
-	@{ Name = "meta-deck-ready-state"; Prompt = "Confirm a Ready deck library state enables predictions for the next eligible Standard game." },
-	@{ Name = "meta-deck-empty-state"; Prompt = "With no deck snapshots available, confirm Settings/Data Health reports deck library unavailable and HDT keeps running." },
-	@{ Name = "meta-deck-failed-state"; Prompt = "With a deliberately broken snapshot/status, confirm Settings/Data Health and logs show a failure summary without sensitive values." },
-	@{ Name = "standard-game-start"; Prompt = "Start or spectate an eligible Standard game. Confirm Meta Companion enables prediction only after the deck library is Ready." },
-	@{ Name = "non-standard-not-enabled"; Prompt = "Open or observe a non-Standard, Tavern Brawl, or Battlegrounds context. Confirm Meta Companion does not enable PredictionController." },
-	@{ Name = "settings-data-health"; Prompt = "Open Meta Companion Settings. Confirm Data Health shows source status, deck load status, and readable detail lines." },
-	@{ Name = "auto-refresh-entry"; Prompt = "In Settings, confirm the Auto Refresh area shows tool/task/log status and buttons degrade safely when Tools are missing." },
-	@{ Name = "copy-diagnostics"; Prompt = "Click Copy Diagnostics. Confirm clipboard text includes health/refresh/log summaries and no authentication secret values." },
-	@{ Name = "recent-game-explanation"; Prompt = "After a recorded game, confirm Recent Game Explanation shows Top 3 candidates, confidence, score, branchCount, and key evidence cards." },
-	@{ Name = "correct-current-game"; Prompt = "Use candidate buttons or text input to correct the latest game archetype. Confirm match_corrections.tsv appends one legal row." },
-	@{ Name = "correction-refresh"; Prompt = "After correction, confirm local environment refreshes or Settings/dashboard indicates the refreshed local meta on the next game." }
+	@{ Name = "hdt-startup"; Title = "HDT 启动"; Prompt = "确认 HDT 正常启动，Meta Companion 已启用，且没有出现插件崩溃对话框。" },
+	@{ Name = "meta-deck-loading-state"; Title = "牌组库 Loading 状态"; Prompt = "确认刚启动后或状态为 Loading 时，设置/数据健康能显示牌组库加载中或不可用状态。" },
+	@{ Name = "meta-deck-ready-state"; Title = "牌组库 Ready 状态"; Prompt = "确认 Ready 的牌组库状态会在下一场符合条件的标准模式对局中启用预测。" },
+	@{ Name = "meta-deck-empty-state"; Title = "牌组库 Empty 状态"; Prompt = "在没有牌组快照时，确认设置/数据健康显示牌组库不可用，并且 HDT 继续运行。" },
+	@{ Name = "meta-deck-failed-state"; Title = "牌组库 Failed 状态"; Prompt = "使用故意损坏的快照或状态时，确认设置/数据健康和日志显示失败摘要，且不包含敏感值。" },
+	@{ Name = "standard-game-start"; Title = "标准模式对局开始"; Prompt = "开始或旁观一场符合条件的标准模式对局，确认只有牌组库 Ready 后 Meta Companion 才启用预测。" },
+	@{ Name = "non-standard-not-enabled"; Title = "非标准模式不启用"; Prompt = "打开或观察非标准、乱斗或战棋场景，确认 Meta Companion 不启用 PredictionController。" },
+	@{ Name = "settings-data-health"; Title = "设置页数据健康"; Prompt = "打开 Meta Companion 设置页，确认数据健康显示来源状态、牌组加载状态和可读详情。" },
+	@{ Name = "auto-refresh-entry"; Title = "自动刷新入口"; Prompt = "在设置页确认自动刷新区域显示工具、计划任务和日志状态；缺少 Tools 时按钮能安全降级。" },
+	@{ Name = "copy-diagnostics"; Title = "复制诊断信息"; Prompt = "点击复制诊断信息，确认剪贴板文本包含健康、刷新和日志摘要，并且没有认证密钥类敏感值。" },
+	@{ Name = "recent-game-explanation"; Title = "最近一局解释"; Prompt = "记录一局后，确认最近一局解释显示 Top 3 候选、置信度、score、branchCount 和关键证据牌。" },
+	@{ Name = "correct-current-game"; Title = "修正本局形态"; Prompt = "使用候选按钮或文本输入修正最近一局形态，确认 match_corrections.tsv 追加一行合法记录。" },
+	@{ Name = "correction-refresh"; Title = "修正后刷新"; Prompt = "修正后，确认本地环境已刷新，或设置页/仪表板提示下一局后会使用刷新后的本地环境。" }
 )
 $checkpointRows = New-Object System.Collections.Generic.List[object]
 foreach ($checkpoint in $checkpoints) {
 	$result = Read-SmokeCheckpoint $checkpoint.Prompt
-	$checkpointRows.Add([pscustomobject]@{ Name = $checkpoint.Name; Result = $result; Prompt = $checkpoint.Prompt })
+	$checkpointRows.Add([pscustomobject]@{ Name = $checkpoint.Name; Title = $checkpoint.Title; Result = $result; Prompt = $checkpoint.Prompt })
 	if ($result -eq "FAIL") {
-		$failures.Add("Manual checkpoint failed: $($checkpoint.Name)")
+		$failures.Add("人工检查失败：$($checkpoint.Title)")
 	}
 }
 
@@ -435,58 +488,58 @@ foreach ($row in $automaticRows) { $resultRows.Add($row) }
 foreach ($row in $checkpointRows) { $resultRows.Add($row) }
 $overallResult = Resolve-SmokeOverallResult $resultRows $failures
 
-$report.Add("# Meta Companion HDT Client Smoke")
+$report.Add("# Meta Companion HDT 客户端烟测报告")
 $report.Add("")
-$report.Add("- Run: $runId")
-$report.Add("- Build DLL: $resolvedBuildPath")
-$report.Add("- Build SHA256: $($buildHash.Hash)")
-$report.Add("- HDT: $hdtPath")
-$report.Add("- HDT process: " + ($(if ($newHdtProcess) { "$($newHdtProcess.Id)" } else { "missing" })))
-$report.Add("- Result: $overallResult")
+$report.Add("- 运行编号: $runId")
+$report.Add("- 构建 DLL: $resolvedBuildPath")
+$report.Add("- 构建 SHA256: $($buildHash.Hash)")
+$report.Add("- HDT 路径: $hdtPath")
+$report.Add("- HDT 进程 ID: " + ($(if ($newHdtProcess) { "$($newHdtProcess.Id)" } else { "缺失" })))
+$report.Add("- 总结果: $overallResult")
 $report.Add("")
-$report.Add("## Result Legend")
-$report.Add("- PASS: all automated checks passed and all manual checkpoints were confirmed.")
-$report.Add("- MANUAL_PENDING: no failures were detected, but at least one manual checkpoint still requires confirmation.")
-$report.Add("- FAIL: automated check or manual checkpoint failed.")
-$report.Add("- MANUAL: human confirmation or review is still required.")
+$report.Add("## 结果说明")
+$report.Add("- PASS: 所有自动检查通过，且所有人工检查项都已确认通过。")
+$report.Add("- MANUAL_PENDING: 未检测到失败，但至少有一个人工检查项仍需人工确认。")
+$report.Add("- FAIL: 自动检查或人工检查项失败。")
+$report.Add("- MANUAL: 需要人工确认或复核。")
 $report.Add("")
-$report.Add("## Automatic Checks")
+$report.Add("## 自动检查")
 foreach ($row in $automaticRows) {
-	$report.Add("- $($row.Result) $($row.Name): $($row.Details)")
+	$report.Add("- $($row.Result) $(Convert-SmokeAutomaticCheckName $row.Name)：$(Format-SmokeAutomaticCheckDetails $row.Name $row.Details)")
 }
 $report.Add("")
-$report.Add("## Installed DLLs")
+$report.Add("## 已安装 DLL")
 foreach ($row in $hashRows) { $report.Add("- $row") }
 $report.Add("")
-$report.Add("## Plugin State")
-$report.Add("- plugins.xml: $pluginsXmlPath")
-$report.Add("- enabled: $pluginEnabled")
+$report.Add("## 插件状态")
+$report.Add("- plugins.xml 路径: $pluginsXmlPath")
+$report.Add("- 已启用: $pluginEnabled")
 $report.Add("")
-$report.Add("## HDT Config Guard")
-$report.Add("- Path: $hdtConfigPath")
-$report.Add("- Before: " + ($(if ($hdtConfigBefore) { $hdtConfigBefore.Hash } else { "missing" })))
-$report.Add("- After: " + ($(if ($hdtConfigAfter) { $hdtConfigAfter.Hash } else { "missing" })))
+$report.Add("## HDT 配置保护")
+$report.Add("- 路径: $hdtConfigPath")
+$report.Add("- 变更前: " + ($(if ($hdtConfigBefore) { $hdtConfigBefore.Hash } else { "缺失" })))
+$report.Add("- 变更后: " + ($(if ($hdtConfigAfter) { $hdtConfigAfter.Hash } else { "缺失" })))
 $report.Add("")
-$report.Add("## Meta Deck Load Status")
-$report.Add("- Path: $($metaDeckStatus.Path)")
-$report.Add("- Status: $($metaDeckStatus.Status)")
+$report.Add("## 牌组库加载状态")
+$report.Add("- 路径: $($metaDeckStatus.Path)")
+$report.Add("- 状态: $($metaDeckStatus.Status)")
 foreach ($line in $metaDeckStatus.Lines) {
 	$report.Add("- $line")
 }
 $report.Add("")
-$report.Add("## Key Data Files")
+$report.Add("## 关键数据文件")
 foreach ($file in $keyFiles) {
 	$path = Join-Path $dataDirectory $file
 	$status = Get-SmokeFileStatus $path
-	$report.Add("- $($file): $($status.Status); length=$($status.Length); updated=$($status.LastWriteTime); sha256=$($status.SHA256)")
+	$report.Add("- $($file): $(Convert-SmokeFileStatus $status.Status)；长度=$($status.Length)；更新时间=$($status.LastWriteTime)；SHA256=$($status.SHA256)")
 }
 $report.Add("")
-$report.Add("## Manual Checkpoints")
+$report.Add("## 人工检查项")
 foreach ($row in $checkpointRows) {
-	$report.Add("- $($row.Result) $($row.Name): $($row.Prompt)")
+	$report.Add("- $($row.Result) $($row.Title)：$($row.Prompt)")
 }
 $report.Add("")
-$report.Add("## Log Tails")
+$report.Add("## 日志尾部")
 Add-SmokeLogTail $report (Join-Path $dataDirectory "Logs")
 Add-SmokeLogTail $report (Join-Path $env:APPDATA "HearthstoneDeckTracker\Logs")
 $report.Add("")
@@ -499,9 +552,9 @@ foreach ($hit in $sensitiveHits) {
 $overallResult = Resolve-SmokeOverallResult $resultRows $failures
 Update-SmokeResultLine $report $overallResult
 
-$report.Add("## Failures")
+$report.Add("## 失败项")
 if ($failures.Count -eq 0) {
-	$report.Add("- None")
+	$report.Add("- 无")
 } else {
 	foreach ($failure in $failures) { $report.Add("- $(Protect-SmokeText $failure)") }
 }
@@ -516,12 +569,13 @@ if ($exitCode -ne 0) {
 		if ($failures.Count -gt 0) {
 			$failures | ForEach-Object { Write-Error $_ }
 		} else {
-			Write-Error "Smoke result is FAIL."
+			Write-Error "烟测总结果为 FAIL。"
 		}
 	} elseif ($overallResult -eq "MANUAL_PENDING") {
-		Write-Error "Manual checkpoints are pending and -RequireManualPass was specified."
+		Write-Error "存在待人工确认的检查项，且已指定 -RequireManualPass。"
 	}
 	exit $exitCode
 }
 
 Write-Host "HDT CLIENT SMOKE $overallResult"
+

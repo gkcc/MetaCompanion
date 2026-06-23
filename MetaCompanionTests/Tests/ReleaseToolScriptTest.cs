@@ -1,4 +1,4 @@
-using Microsoft.VisualStudio.TestTools.UnitTesting;
+﻿using Microsoft.VisualStudio.TestTools.UnitTesting;
 using System;
 using System.Diagnostics;
 using System.IO;
@@ -50,6 +50,20 @@ namespace MetaCompanionTests.Tests
 			StringAssert.Contains(script, "Resolve-SmokeOverallResult");
 			StringAssert.Contains(script, "Convert-SmokeCheckpointAnswer");
 			StringAssert.Contains(script, "MANUAL_PENDING");
+			StringAssert.Contains(script, "Meta Companion HDT 客户端烟测报告");
+			StringAssert.Contains(script, "总结果");
+			StringAssert.Contains(script, "结果说明");
+			StringAssert.Contains(script, "自动检查");
+			StringAssert.Contains(script, "已安装 DLL");
+			StringAssert.Contains(script, "插件状态");
+			StringAssert.Contains(script, "HDT 配置保护");
+			StringAssert.Contains(script, "牌组库加载状态");
+			StringAssert.Contains(script, "关键数据文件");
+			StringAssert.Contains(script, "人工检查项");
+			StringAssert.Contains(script, "日志尾部");
+			StringAssert.Contains(script, "失败项");
+			StringAssert.Contains(script, "HDT 已启动");
+			StringAssert.Contains(script, "确认 HDT 正常启动");
 			Assert.IsFalse(script.Contains("Start Ranked"), script);
 			Assert.IsFalse(script.Contains("Click Play"), script);
 		}
@@ -230,3 +244,4 @@ namespace MetaCompanionTests.Tests
 		}
 	}
 }
+
