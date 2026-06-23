@@ -28,10 +28,23 @@ namespace MetaCompanionTests.Tests
 			var script = File.ReadAllText(
 				Path.Combine(repoRoot, "tools", "Invoke-HdtClientSmoke.ps1"));
 
-			StringAssert.Contains(script, "standard-menu-dashboard");
-			StringAssert.Contains(script, "gameplay-hide-dashboard");
-			StringAssert.Contains(script, "remaining-cards-panel");
-			StringAssert.Contains(script, "post-game-refresh");
+			StringAssert.Contains(script, "hdt-startup");
+			StringAssert.Contains(script, "meta-deck-loading-state");
+			StringAssert.Contains(script, "meta-deck-ready-state");
+			StringAssert.Contains(script, "meta-deck-empty-state");
+			StringAssert.Contains(script, "meta-deck-failed-state");
+			StringAssert.Contains(script, "standard-game-start");
+			StringAssert.Contains(script, "non-standard-not-enabled");
+			StringAssert.Contains(script, "settings-data-health");
+			StringAssert.Contains(script, "auto-refresh-entry");
+			StringAssert.Contains(script, "copy-diagnostics");
+			StringAssert.Contains(script, "recent-game-explanation");
+			StringAssert.Contains(script, "correct-current-game");
+			StringAssert.Contains(script, "correction-refresh");
+			StringAssert.Contains(script, "meta_deck_load_status.tsv");
+			StringAssert.Contains(script, "config-xml-unchanged");
+			StringAssert.Contains(script, "Protect-SmokeText");
+			StringAssert.Contains(script, "Test-SmokeSensitiveText");
 			StringAssert.Contains(script, "Read-SmokeCheckpoint");
 			Assert.IsFalse(script.Contains("Start Ranked"), script);
 			Assert.IsFalse(script.Contains("Click Play"), script);

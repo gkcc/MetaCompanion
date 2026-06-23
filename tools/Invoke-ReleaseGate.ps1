@@ -85,7 +85,7 @@ function Get-ReleaseGateTextFileExtensions {
 
 function Search-ReleaseGateRepoSecrets([string]$RepoRoot) {
 	$matches = New-Object System.Collections.Generic.List[object]
-	$files = & git -C $RepoRoot ls-files 2>$null
+	$files = & git -c core.quotepath=false -C $RepoRoot ls-files 2>$null
 	if ($LASTEXITCODE -ne 0 -or -not $files) {
 		$files = Get-ChildItem -LiteralPath $RepoRoot -Recurse -File |
 			Where-Object { $_.FullName -notmatch "\\(bin|obj|\.git|artifacts|dist)\\" } |
@@ -94,7 +94,11 @@ function Search-ReleaseGateRepoSecrets([string]$RepoRoot) {
 
 	foreach ($relative in $files) {
 		$path = Join-Path $RepoRoot $relative
-		if (-not (Test-Path -LiteralPath $path -PathType Leaf)) { continue }
+		try {
+			if (-not (Test-Path -LiteralPath $path -PathType Leaf)) { continue }
+		} catch {
+			continue
+		}
 		if ((Get-Item -LiteralPath $path).Length -gt 1048576) { continue }
 		$extension = [IO.Path]::GetExtension($path)
 		if ((Get-ReleaseGateTextFileExtensions) -notcontains $extension -and $extension -ne "") { continue }
