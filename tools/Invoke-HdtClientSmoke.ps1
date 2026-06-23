@@ -3,7 +3,9 @@ param(
 	[string]$ArtifactsDirectory = "$PSScriptRoot\..\artifacts\client-smoke",
 	[switch]$LaunchHearthstone,
 	[switch]$IncludeTools,
-	[switch]$NonInteractive
+	[switch]$NonInteractive,
+	[switch]$RequireManualPass,
+	[switch]$SelfTest
 )
 
 $ErrorActionPreference = "Stop"
@@ -53,6 +55,17 @@ function Get-SmokeHearthstonePath {
 	return $candidates | Where-Object { Test-Path -LiteralPath $_ } | Select-Object -First 1
 }
 
+function Convert-SmokeCheckpointAnswer([string]$Answer) {
+	$normalized = if ($null -eq $Answer) { "" } else { $Answer.ToLowerInvariant() }
+	switch ($normalized) {
+		"y" { return "PASS" }
+		"yes" { return "PASS" }
+		"s" { return "MANUAL" }
+		"skip" { return "MANUAL" }
+		default { return "FAIL" }
+	}
+}
+
 function Read-SmokeCheckpoint([string]$Prompt) {
 	if ($NonInteractive) {
 		return "MANUAL"
@@ -61,13 +74,7 @@ function Read-SmokeCheckpoint([string]$Prompt) {
 	Write-Host "[manual checkpoint] $Prompt"
 	Write-Host "Type y for pass, n for fail, or s to mark manual/not-run."
 	$answer = Read-Host "Result"
-	switch ($answer.ToLowerInvariant()) {
-		"y" { return "PASS" }
-		"yes" { return "PASS" }
-		"s" { return "MANUAL" }
-		"skip" { return "MANUAL" }
-		default { return "FAIL" }
-	}
+	return Convert-SmokeCheckpointAnswer $answer
 }
 
 function Protect-SmokeText([string]$Text) {
@@ -118,13 +125,86 @@ function Add-SmokeCheck(
 	}
 }
 
-function Update-SmokeResultLine([System.Collections.Generic.List[string]]$Report, [System.Collections.Generic.List[string]]$Failures) {
+function Test-SmokeRowsHaveResult($Rows, [string]$Result) {
+	foreach ($row in $Rows) {
+		if ($row.Result -eq $Result) {
+			return $true
+		}
+	}
+	return $false
+}
+
+function Resolve-SmokeOverallResult($Rows, [System.Collections.Generic.List[string]]$Failures) {
+	if ($Failures.Count -gt 0 -or (Test-SmokeRowsHaveResult $Rows "FAIL")) {
+		return "FAIL"
+	}
+	if (Test-SmokeRowsHaveResult $Rows "MANUAL") {
+		return "MANUAL_PENDING"
+	}
+	return "PASS"
+}
+
+function Get-SmokeExitCode([string]$OverallResult, [bool]$RequireManualPassValue) {
+	if ($OverallResult -eq "FAIL") {
+		return 1
+	}
+	if ($OverallResult -eq "MANUAL_PENDING" -and $RequireManualPassValue) {
+		return 1
+	}
+	return 0
+}
+
+function Update-SmokeResultLine([System.Collections.Generic.List[string]]$Report, [string]$OverallResult) {
 	for ($index = 0; $index -lt $Report.Count; $index++) {
 		if ($Report[$index].StartsWith("- Result:")) {
-			$Report[$index] = "- Result: " + ($(if ($Failures.Count -eq 0) { "PASS" } else { "FAIL" }))
+			$Report[$index] = "- Result: $OverallResult"
 			return
 		}
 	}
+}
+
+function Assert-SmokeSelfTest([bool]$Condition, [string]$Message) {
+	if (-not $Condition) {
+		throw $Message
+	}
+}
+
+function Invoke-SmokeSelfTest {
+	$emptyFailures = New-Object System.Collections.Generic.List[string]
+	$oneFailure = New-Object System.Collections.Generic.List[string]
+	$oneFailure.Add("simulated failure")
+
+	$passRows = @(
+		[pscustomobject]@{ Name = "automatic"; Result = "PASS" },
+		[pscustomobject]@{ Name = "manual"; Result = "PASS" }
+	)
+	$manualRows = @(
+		[pscustomobject]@{ Name = "automatic"; Result = "PASS" },
+		[pscustomobject]@{ Name = "manual"; Result = "MANUAL" }
+	)
+	$failRows = @(
+		[pscustomobject]@{ Name = "automatic"; Result = "PASS" },
+		[pscustomobject]@{ Name = "manual"; Result = "FAIL" }
+	)
+
+	Assert-SmokeSelfTest ((Resolve-SmokeOverallResult $passRows $emptyFailures) -eq "PASS") "All PASS rows should produce PASS."
+	Assert-SmokeSelfTest ((Resolve-SmokeOverallResult $manualRows $emptyFailures) -eq "MANUAL_PENDING") "MANUAL rows without failures should produce MANUAL_PENDING."
+	Assert-SmokeSelfTest ((Resolve-SmokeOverallResult $failRows $emptyFailures) -eq "FAIL") "FAIL rows should produce FAIL."
+	Assert-SmokeSelfTest ((Resolve-SmokeOverallResult $passRows $oneFailure) -eq "FAIL") "Failure list should produce FAIL."
+	Assert-SmokeSelfTest ((Get-SmokeExitCode "PASS" $false) -eq 0) "PASS should exit 0."
+	Assert-SmokeSelfTest ((Get-SmokeExitCode "MANUAL_PENDING" $false) -eq 0) "MANUAL_PENDING should exit 0 by default."
+	Assert-SmokeSelfTest ((Get-SmokeExitCode "MANUAL_PENDING" $true) -eq 1) "MANUAL_PENDING should exit 1 with RequireManualPass."
+	Assert-SmokeSelfTest ((Get-SmokeExitCode "FAIL" $false) -eq 1) "FAIL should exit 1."
+	Assert-SmokeSelfTest ((Convert-SmokeCheckpointAnswer "y") -eq "PASS") "Manual y should produce PASS."
+	Assert-SmokeSelfTest ((Convert-SmokeCheckpointAnswer "yes") -eq "PASS") "Manual yes should produce PASS."
+	Assert-SmokeSelfTest ((Convert-SmokeCheckpointAnswer "s") -eq "MANUAL") "Manual s should produce MANUAL."
+	Assert-SmokeSelfTest ((Convert-SmokeCheckpointAnswer "n") -eq "FAIL") "Manual n should produce FAIL."
+
+	Write-Host "SELFTEST PASS: all pass => PASS"
+	Write-Host "SELFTEST PASS: manual pending => MANUAL_PENDING"
+	Write-Host "SELFTEST PASS: fail => FAIL"
+	Write-Host "SELFTEST PASS: RequireManualPass + manual => exit 1"
+	Write-Host "SELFTEST PASS: manual y => PASS and n => FAIL"
 }
 
 function Add-SmokeLogTail([System.Collections.Generic.List[string]]$Report, [string]$Directory) {
@@ -195,6 +275,11 @@ function Wait-SmokeMetaDeckStatus([string]$DataDirectory, [int]$TimeoutSeconds =
 		Start-Sleep -Milliseconds 500
 	} while ((Get-Date) -lt $deadline)
 	return Read-SmokeMetaDeckStatus $DataDirectory
+}
+
+if ($SelfTest) {
+	Invoke-SmokeSelfTest
+	exit 0
 }
 
 $resolvedBuildPath = (Resolve-Path $BuildPath).Path
@@ -345,6 +430,11 @@ foreach ($checkpoint in $checkpoints) {
 	}
 }
 
+$resultRows = New-Object System.Collections.Generic.List[object]
+foreach ($row in $automaticRows) { $resultRows.Add($row) }
+foreach ($row in $checkpointRows) { $resultRows.Add($row) }
+$overallResult = Resolve-SmokeOverallResult $resultRows $failures
+
 $report.Add("# Meta Companion HDT Client Smoke")
 $report.Add("")
 $report.Add("- Run: $runId")
@@ -352,10 +442,11 @@ $report.Add("- Build DLL: $resolvedBuildPath")
 $report.Add("- Build SHA256: $($buildHash.Hash)")
 $report.Add("- HDT: $hdtPath")
 $report.Add("- HDT process: " + ($(if ($newHdtProcess) { "$($newHdtProcess.Id)" } else { "missing" })))
-$report.Add("- Result: " + ($(if ($failures.Count -eq 0) { "PASS" } else { "FAIL" })))
+$report.Add("- Result: $overallResult")
 $report.Add("")
 $report.Add("## Result Legend")
-$report.Add("- PASS: automated check passed or manual checkpoint was confirmed.")
+$report.Add("- PASS: all automated checks passed and all manual checkpoints were confirmed.")
+$report.Add("- MANUAL_PENDING: no failures were detected, but at least one manual checkpoint still requires confirmation.")
 $report.Add("- FAIL: automated check or manual checkpoint failed.")
 $report.Add("- MANUAL: human confirmation or review is still required.")
 $report.Add("")
@@ -405,7 +496,8 @@ $sensitiveHits = Test-SmokeSensitiveText $safePreview
 foreach ($hit in $sensitiveHits) {
 	$failures.Add("Sensitive value in smoke report after sanitization: $hit")
 }
-Update-SmokeResultLine $report $failures
+$overallResult = Resolve-SmokeOverallResult $resultRows $failures
+Update-SmokeResultLine $report $overallResult
 
 $report.Add("## Failures")
 if ($failures.Count -eq 0) {
@@ -418,9 +510,18 @@ $reportPath = Join-Path $runDirectory "hdt-client-smoke.md"
 $report | ForEach-Object { Protect-SmokeText $_ } | Set-Content -LiteralPath $reportPath -Encoding UTF8
 Write-Host "Smoke report: $reportPath"
 
-if ($failures.Count -gt 0) {
-	$failures | ForEach-Object { Write-Error $_ }
-	exit 1
+$exitCode = Get-SmokeExitCode $overallResult $RequireManualPass.IsPresent
+if ($exitCode -ne 0) {
+	if ($overallResult -eq "FAIL") {
+		if ($failures.Count -gt 0) {
+			$failures | ForEach-Object { Write-Error $_ }
+		} else {
+			Write-Error "Smoke result is FAIL."
+		}
+	} elseif ($overallResult -eq "MANUAL_PENDING") {
+		Write-Error "Manual checkpoints are pending and -RequireManualPass was specified."
+	}
+	exit $exitCode
 }
 
-Write-Host "HDT CLIENT SMOKE PASS"
+Write-Host "HDT CLIENT SMOKE $overallResult"

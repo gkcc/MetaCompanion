@@ -46,8 +46,29 @@ namespace MetaCompanionTests.Tests
 			StringAssert.Contains(script, "Protect-SmokeText");
 			StringAssert.Contains(script, "Test-SmokeSensitiveText");
 			StringAssert.Contains(script, "Read-SmokeCheckpoint");
+			StringAssert.Contains(script, "RequireManualPass");
+			StringAssert.Contains(script, "Resolve-SmokeOverallResult");
+			StringAssert.Contains(script, "Convert-SmokeCheckpointAnswer");
+			StringAssert.Contains(script, "MANUAL_PENDING");
 			Assert.IsFalse(script.Contains("Start Ranked"), script);
 			Assert.IsFalse(script.Contains("Click Play"), script);
+		}
+
+		[TestMethod]
+		public void InvokeHdtClientSmoke_SelfTestCoversOverallResultSemantics()
+		{
+			var repoRoot = FindRepoRoot();
+			var result = RunPowerShell(
+				repoRoot,
+				Path.Combine(repoRoot, "tools", "Invoke-HdtClientSmoke.ps1"),
+				"-SelfTest");
+
+			Assert.AreEqual(0, result.ExitCode, result.Output);
+			StringAssert.Contains(result.Output, "all pass => PASS");
+			StringAssert.Contains(result.Output, "manual pending => MANUAL_PENDING");
+			StringAssert.Contains(result.Output, "fail => FAIL");
+			StringAssert.Contains(result.Output, "RequireManualPass + manual => exit 1");
+			StringAssert.Contains(result.Output, "manual y => PASS and n => FAIL");
 		}
 
 		[TestMethod]
