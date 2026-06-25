@@ -172,11 +172,13 @@ namespace MetaCompanion
 							.ThenByDescending(cardInfo => cardInfo.Card.Count)
 							.First()
 							.Card,
-						Count = Math.Min(2, Math.Min(
-							group.Max(cardInfo => cardInfo.UnplayedCount),
-							group
-								.SelectMany(cardInfo => cardInfo.Probabilities.Skip(cardInfo.NumPlayed))
-								.Count())),
+						Count = Math.Min(
+							KnownOriginalCardCounter.GetConstructedCopyLimit(group.First().Card),
+							Math.Min(
+								group.Max(cardInfo => cardInfo.UnplayedCount),
+								group
+									.SelectMany(cardInfo => cardInfo.Probabilities.Skip(cardInfo.NumPlayed))
+									.Count())),
 						Probabilities = group
 							.SelectMany(cardInfo => cardInfo.Probabilities.Skip(cardInfo.NumPlayed))
 							.OrderByDescending(probability => probability)

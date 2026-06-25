@@ -386,6 +386,24 @@ namespace MetaCompanionTests.Tests
 		}
 
 		[TestMethod]
+		public void VisiblePredictedCards_CapsLegendaryPredictionsAtOne()
+		{
+			var opponent = new MockOpponent("Hunter");
+			AddMetaDeck("Hunter",
+				new List<string> {"King Krush"},
+				new List<int> {2});
+			var controller = new PredictionController(opponent, _metaDecks.AsReadOnly());
+
+			var info = GetPredictionInfo(controller);
+			var kingKrush = info.PredictedCards.Single(cardInfo =>
+				cardInfo.Card.Name == "King Krush");
+
+			Assert.AreEqual(Rarity.LEGENDARY, kingKrush.Card.Rarity);
+			Assert.AreEqual(1, kingKrush.Card.Count);
+			Assert.AreEqual(1, info.NumVisiblePredictedCards);
+		}
+
+		[TestMethod]
 		public void VisiblePredictedCards_CapsDuplicatedKnownCardsFromReplay()
 		{
 			var opponent = new MockOpponent("Hunter");
@@ -643,6 +661,27 @@ namespace MetaCompanionTests.Tests
 
 			Assert.AreEqual(1, cards.Count);
 			Assert.AreEqual("Deadly Shot", cards[0].Name);
+		}
+
+		[TestMethod]
+		public void NativePredictionCards_CapsLegendaryPredictionsAtOne()
+		{
+			var kingKrush = Database.GetCardFromName("King Krush");
+			kingKrush.Count = 2;
+			var info = new PredictionInfo(
+				1, 2, 1, 1,
+				new List<PredictionInfo.CardInfo>
+				{
+					new PredictionInfo.CardInfo(kingKrush, new List<decimal> {1m, 1m}, 0)
+				},
+				new List<PredictionInfo.CardInfo>(),
+				evidenceCards: 1);
+
+			var cards = PredictionView.BuildNativePredictionCards(info);
+
+			Assert.AreEqual(1, cards.Count);
+			Assert.AreEqual("King Krush", cards[0].Name);
+			Assert.AreEqual(Rarity.LEGENDARY, cards[0].Rarity);
 		}
 
 		[TestMethod]

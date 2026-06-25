@@ -158,20 +158,23 @@ namespace MetaCompanion
 					// Find a played card that started in the original deck
 					var playedCardInfo = cardInfos.FirstOrDefault(cardInfo => cardInfo.Card.Id == group.Key
 						&& cardInfo.Card.Collectible && !cardInfo.Card.IsCreated);
+					var card = Database.GetCardFromId(group.Key);
+					var copyLimit = KnownOriginalCardCounter.GetConstructedCopyLimit(card);
 					var probabilities = group
 						.Select(predictedCard => predictedCard.Probability)
-						.Take(2)
+						.Take(copyLimit)
 						.ToList();
 					int numPredictedCards = probabilities.Count;
 					if (playedCardInfo != null)
 					{
-						playedCardInfo.Card.Count = Math.Max(numPredictedCards, playedCardInfo.Card.Count);
+						playedCardInfo.Card.Count = Math.Min(
+							copyLimit,
+							Math.Max(numPredictedCards, playedCardInfo.Card.Count));
 						playedCardInfo.Probabilities.AddRange(probabilities);
 					}
 					else
 					{
 						// This predicted card hasn't been played yet.
-						var card = Database.GetCardFromId(group.Key);
 						card.Count = numPredictedCards;
 						cardInfos.Add(new PredictionInfo.CardInfo(card, probabilities, 0));
 					}
@@ -232,8 +235,9 @@ namespace MetaCompanion
 							return null;
 						}
 
+						var copyLimit = KnownOriginalCardCounter.GetConstructedCopyLimit(playedCard);
 						var rawCount = group.Sum(card => Math.Max(1, card.Count));
-						var knownCount = group.Key.IsCreated ? 1 : Math.Min(2, rawCount);
+						var knownCount = group.Key.IsCreated ? 1 : Math.Min(copyLimit, rawCount);
 						var nonJoustedCount = group
 							.Where(card => !card.Jousted)
 							.Sum(card => Math.Max(1, card.Count));
@@ -241,7 +245,7 @@ namespace MetaCompanion
 						playedCard.IsCreated = group.Key.IsCreated;
 						var numPlayed = Math.Min(knownCount,
 							group.Key.IsCreated ? Math.Min(1, nonJoustedCount) :
-							Math.Min(2, nonJoustedCount));
+							Math.Min(copyLimit, nonJoustedCount));
 						return new PredictionInfo.CardInfo(playedCard, numPlayed);
 					})
 				.Where(cardInfo => cardInfo != null)
