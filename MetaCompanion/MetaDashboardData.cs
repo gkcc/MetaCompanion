@@ -235,9 +235,9 @@ namespace MetaCompanion
 
 		private static MetaDashboardLastGame LoadLastGame(string localMetaPath, string hdtHistoryPath)
 		{
-			var localRow = ReadTsv(localMetaPath).LastOrDefault();
+			var localRow = GetLatestMatchRow(ReadTsv(localMetaPath));
 			var hdtRows = ReadTsv(hdtHistoryPath);
-			var latestHdtRow = hdtRows.LastOrDefault();
+			var latestHdtRow = GetLatestMatchRow(hdtRows);
 			var hdtRow = FindMatchingHdtRow(hdtRows, localRow);
 			if (latestHdtRow != null && hdtRow == null && !IsLocalRowNewer(localRow, latestHdtRow))
 			{
@@ -443,6 +443,39 @@ namespace MetaCompanion
 					Get(hdtRow, "start_time"), Get(hdtRow, "started_at")),
 				out hdtTime);
 			return hasLocalTime && hasHdtTime && localTime > hdtTime;
+		}
+
+		private static Dictionary<string, string> GetLatestMatchRow(
+			List<Dictionary<string, string>> rows)
+		{
+			if (rows == null || rows.Count == 0)
+			{
+				return null;
+			}
+
+			var datedRows = rows
+				.Select((row, index) => new
+				{
+					Row = row,
+					Index = index,
+					Timestamp = ParseMatchTimestamp(row)
+				})
+				.Where(item => item.Timestamp.HasValue)
+				.OrderBy(item => item.Timestamp.Value)
+				.ThenBy(item => item.Index)
+				.ToList();
+			return datedRows.Count > 0 ? datedRows.Last().Row : rows.Last();
+		}
+
+		private static DateTime? ParseMatchTimestamp(Dictionary<string, string> row)
+		{
+			DateTime timestamp;
+			return DateTime.TryParse(
+				FirstNonEmpty(Get(row, "end_time"), Get(row, "ended_at"),
+					Get(row, "start_time"), Get(row, "started_at")),
+				out timestamp)
+				? (DateTime?)timestamp
+				: null;
 		}
 
 		private static string ResolveReplayPath(string replayFile)

@@ -220,6 +220,33 @@ namespace MetaCompanionTests.Tests
 			Assert.AreEqual("https://hsreplay.net/new", snapshot.LastGame.HsReplayUrl);
 		}
 
+		[TestMethod]
+		public void Load_SelectsLatestGameByTimestampWhenMergedRowsAreOutOfOrder()
+		{
+			File.WriteAllText(
+				Path.Combine(_tempDirectory, "local_meta_archetypes.tsv"),
+				"game_id\tend_time\tresult\topponent_hero\tpredicted_archetype\tconfidence_pct" +
+				Environment.NewLine +
+				"new-rogue\t2026-07-12T09:36:59+08:00\tLoss\tRogue\t\u6253\u4e8c\u8d3c\t94" +
+				Environment.NewLine +
+				"old-shaman\t2026-07-10T20:37:26+08:00\tWin\tShaman\t\u6cd5\u672f\u8428\t95" +
+				Environment.NewLine,
+				Encoding.UTF8);
+			File.WriteAllText(
+				Path.Combine(_tempDirectory, "hdt_opponent_history.tsv"),
+				"game_id\tend_time\tresult\topponent_hero" + Environment.NewLine +
+				"new-rogue\t2026-07-12T09:36:59+08:00\tLoss\tRogue" + Environment.NewLine +
+				"old-shaman\t2026-07-10T20:37:26+08:00\tWin\tShaman" + Environment.NewLine,
+				Encoding.UTF8);
+
+			var snapshot = MetaDashboardSnapshot.Load(_tempDirectory);
+
+			Assert.AreEqual("\u6253\u4e8c\u8d3c", snapshot.LastGame.Title);
+			StringAssert.Contains(snapshot.LastGame.Detail, "Loss vs \u6f5c\u884c\u8005");
+			Assert.AreEqual(94, snapshot.LastGame.ConfidencePercent);
+			Assert.AreEqual("new-rogue", snapshot.LastGame.MatchId);
+		}
+
 		private void WriteEnvironmentRows(params string[] rows)
 		{
 			File.WriteAllText(
