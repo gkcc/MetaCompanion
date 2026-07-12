@@ -122,6 +122,27 @@ namespace MetaCompanionTests.Tests
 		}
 
 		[TestMethod]
+		public void OnTurnStart_RebuildsPredictionWhenOpponentClassChanges()
+		{
+			var opponent = new MockOpponent("Priest");
+			AddMetaDeck("Priest", new List<string> {"Holy Nova"});
+			_metaDecks[0].Name = "Control Priest";
+			AddMetaDeck("Rogue", new List<string> {"Backstab"});
+			_metaDecks[1].Name = "Tempo Rogue";
+			var controller = new PredictionController(opponent, _metaDecks.AsReadOnly());
+
+			var info = GetPredictionInfo(controller);
+			Assert.AreEqual("Control Priest", info.CandidateDeckNames[0]);
+
+			opponent.Class = "Rogue";
+			controller.OnTurnStart(ActivePlayer.Player);
+
+			info = GetPredictionInfo(controller);
+			Assert.AreEqual("Tempo Rogue", info.CandidateDeckNames[0]);
+			Assert.AreEqual(1, info.NumPossibleDecks);
+		}
+
+		[TestMethod]
 		public void UpdatesWithCandidateArchetypeName()
 		{
 			var opponent = new MockOpponent("Hunter");

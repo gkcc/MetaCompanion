@@ -66,7 +66,7 @@ namespace MetaCompanionTests.Tests
 				true,
 				"CURRENT_PATCH",
 				"CURRENT_PATCH",
-				"LAST_7_DAYS",
+				"CURRENT_PATCH",
 				true);
 
 			StringAssert.Contains(args,
@@ -76,9 +76,10 @@ namespace MetaCompanionTests.Tests
 			StringAssert.Contains(args, "-Parallelism 3");
 			StringAssert.Contains(args, "-Premium");
 			StringAssert.Contains(args, "-Meta");
-			Assert.IsFalse(args.Contains("-Branches"));
+			StringAssert.Contains(args, "-Branches");
 			StringAssert.Contains(args, "-PremiumTimeRange \"CURRENT_PATCH\"");
 			StringAssert.Contains(args, "-MetaTimeRange \"CURRENT_PATCH\"");
+			StringAssert.Contains(args, "-BranchCandidateTimeRange \"CURRENT_PATCH\"");
 			StringAssert.Contains(args, "-PremiumMaxDecks 22");
 			StringAssert.Contains(args, "-PremiumStopOnUnsupported");
 		}
@@ -130,7 +131,7 @@ namespace MetaCompanionTests.Tests
 			Assert.IsTrue(plan.IncludeFullDataRefresh);
 			Assert.IsTrue(plan.IncludePersonalRecommendations);
 			Assert.AreEqual("CURRENT_PATCH", plan.PrimaryTimeRange);
-			Assert.AreEqual("CURRENT_PATCH", plan.MetaFallbackTimeRange);
+			Assert.AreEqual("LAST_1_DAY", plan.MetaFallbackTimeRange);
 			Assert.AreEqual("LAST_7_DAYS", plan.PremiumFallbackTimeRange);
 		}
 
@@ -179,6 +180,24 @@ namespace MetaCompanionTests.Tests
 				now);
 
 			Assert.IsFalse(plan.IncludeFullDataRefresh);
+		}
+
+		[TestMethod]
+		public void BuildRefreshPlan_RequestsFullDataRefreshWhenBranchSnapshotIsStaleWithCookie()
+		{
+			var now = new DateTime(2026, 6, 12, 12, 0, 0);
+			WritePremiumCookie();
+			WriteTrackedFiles(now.AddHours(-2));
+			File.SetLastWriteTime(
+				PostGameMetaRefresher.GetBranchSnapshotPath(_tempDirectory),
+				now.AddHours(-25));
+
+			var plan = PostGameMetaRefresher.BuildRefreshPlan(
+				RefreshEnabledConfig(),
+				_tempDirectory,
+				now);
+
+			Assert.IsTrue(plan.IncludeFullDataRefresh);
 		}
 
 		[TestMethod]

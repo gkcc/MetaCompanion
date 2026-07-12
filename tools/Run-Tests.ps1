@@ -1,12 +1,13 @@
 param(
-	[string]$AssemblyPath = "$PSScriptRoot\..\MetaCompanionTests\bin\x86\Release\MetaCompanionTests.dll",
-	[switch]$KeepTestAppData
+	[string]$AssemblyPath = "$PSScriptRoot\..\MetaCompanionTests\bin\Release\MetaCompanionTests.dll",
+	[switch]$KeepTestAppData,
+	[switch]$SkipFreshnessCheck
 )
 
 $ErrorActionPreference = "Stop"
-if ([Environment]::Is64BitProcess) {
-	$x86PowerShell = Join-Path $env:WINDIR "SysWOW64\WindowsPowerShell\v1.0\powershell.exe"
-	if (Test-Path -LiteralPath $x86PowerShell) {
+if ($PSVersionTable.PSEdition -ne "Desktop") {
+	$windowsPowerShell = Join-Path $env:WINDIR "System32\WindowsPowerShell\v1.0\powershell.exe"
+	if (Test-Path -LiteralPath $windowsPowerShell) {
 		$arguments = @(
 			"-NoProfile",
 			"-ExecutionPolicy",
@@ -19,9 +20,96 @@ if ([Environment]::Is64BitProcess) {
 		if ($KeepTestAppData) {
 			$arguments += "-KeepTestAppData"
 		}
-		& $x86PowerShell @arguments
+		if ($SkipFreshnessCheck) {
+			$arguments += "-SkipFreshnessCheck"
+		}
+		& $windowsPowerShell @arguments
 		exit $LASTEXITCODE
 	}
+}
+
+if (-not [Environment]::Is64BitProcess -and [Environment]::Is64BitOperatingSystem) {
+	$nativePowerShell = Join-Path $env:WINDIR "sysnative\WindowsPowerShell\v1.0\powershell.exe"
+	if (Test-Path -LiteralPath $nativePowerShell) {
+		$arguments = @(
+			"-NoProfile",
+			"-ExecutionPolicy",
+			"Bypass",
+			"-File",
+			$MyInvocation.MyCommand.Path,
+			"-AssemblyPath",
+			$AssemblyPath
+		)
+		if ($KeepTestAppData) {
+			$arguments += "-KeepTestAppData"
+		}
+		if ($SkipFreshnessCheck) {
+			$arguments += "-SkipFreshnessCheck"
+		}
+		& $nativePowerShell @arguments
+		exit $LASTEXITCODE
+	}
+}
+
+function Assert-TestAssemblyFresh {
+	param(
+		[string]$AssemblyPath,
+		[string]$RepoRoot
+	)
+
+	$assembly = Get-Item -LiteralPath $AssemblyPath
+	$sourceFiles = New-Object System.Collections.Generic.List[object]
+	$sourceExtensions = @(".cs", ".xaml", ".csproj", ".png")
+	$generatedDirectoryNames = @("bin", "obj")
+	foreach ($sourceRootName in @("MetaCompanion", "MetaCompanionTests")) {
+		$sourceRoot = Join-Path $RepoRoot $sourceRootName
+		if (-not (Test-Path -LiteralPath $sourceRoot)) {
+			continue
+		}
+		foreach ($sourceFile in Get-ChildItem -LiteralPath $sourceRoot -Recurse -File) {
+			$relativePath = $sourceFile.FullName.Substring($sourceRoot.Length).TrimStart("\", "/")
+			$relativeParts = $relativePath -split "[\\/]"
+			if ($sourceExtensions -notcontains $sourceFile.Extension) {
+				continue
+			}
+			if (@($relativeParts | Where-Object { $generatedDirectoryNames -contains $_ }).Count -gt 0) {
+				continue
+			}
+			$sourceFiles.Add($sourceFile)
+		}
+	}
+	if ($sourceFiles.Count -eq 0) {
+		return
+	}
+
+	$newestSource = $sourceFiles |
+		Sort-Object LastWriteTimeUtc -Descending |
+		Select-Object -First 1
+	if ($newestSource.LastWriteTimeUtc -le $assembly.LastWriteTimeUtc) {
+		return
+	}
+
+	$relativeSource = $newestSource.FullName
+	if ($relativeSource.StartsWith($RepoRoot, [StringComparison]::OrdinalIgnoreCase)) {
+		$relativeSource = $relativeSource.Substring($RepoRoot.Length).TrimStart("\", "/")
+	}
+
+	throw "Test assembly is older than source file '$relativeSource'. Run tools\Build-MetaCompanion.ps1 before tools\Run-Tests.ps1, or pass -SkipFreshnessCheck to use the existing assembly."
+}
+
+function Resolve-TestAssemblyPath {
+	param([string]$Path)
+
+	if ([string]::IsNullOrWhiteSpace($Path) -or -not (Test-Path -LiteralPath $Path -PathType Leaf)) {
+		throw "Test assembly not found: $Path. Run tools\Build-MetaCompanion.ps1 before tools\Run-Tests.ps1."
+	}
+	return (Resolve-Path -LiteralPath $Path).Path
+}
+
+$repoRoot = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
+$assemblyPath = Resolve-TestAssemblyPath $AssemblyPath
+if (-not $SkipFreshnessCheck) {
+	Assert-TestAssemblyFresh $assemblyPath $repoRoot
 }
 
 $originalAppData = $env:APPDATA
@@ -41,7 +129,6 @@ $testAppData = Join-Path $testRoot "Roaming"
 $testLocalAppData = Join-Path $testRoot "Local"
 New-Item -ItemType Directory -Force -Path $testAppData, $testLocalAppData | Out-Null
 
-$assemblyPath = (Resolve-Path $AssemblyPath).Path
 $assemblyDirectory = Split-Path -Parent $assemblyPath
 Set-Location $assemblyDirectory
 
@@ -83,6 +170,25 @@ function Assert-RealHdtConfigUnchanged {
 	}
 }
 
+function Get-TestFailureMessage {
+	param([object]$ErrorValue)
+
+	$exception = if ($ErrorValue -is [System.Management.Automation.ErrorRecord]) {
+		$ErrorValue.Exception
+	} elseif ($ErrorValue -is [Exception]) {
+		$ErrorValue
+	} else {
+		$null
+	}
+	if ($exception) {
+		while ($exception.InnerException) {
+			$exception = $exception.InnerException
+		}
+		return $exception.Message
+	}
+	return [string]$ErrorValue
+}
+
 try {
 	$env:APPDATA = $testAppData
 	$env:LOCALAPPDATA = $testLocalAppData
@@ -98,38 +204,49 @@ try {
 	$failed = 0
 	foreach ($type in $assembly.GetTypes() | Where-Object {
 		@($_.GetCustomAttributes($true) | ForEach-Object { $_.GetType().FullName }) -contains $testClassAttribute
-	}) {
+	} | Sort-Object FullName) {
 		$initializeMethods = @($type.GetMethods() | Where-Object {
 			@($_.GetCustomAttributes($true) | ForEach-Object { $_.GetType().FullName }) -contains $initializeAttribute
-		})
+		} | Sort-Object Name)
 		$cleanupMethods = @($type.GetMethods() | Where-Object {
 			@($_.GetCustomAttributes($true) | ForEach-Object { $_.GetType().FullName }) -contains $cleanupAttribute
-		})
+		} | Sort-Object Name)
 		$testMethods = @($type.GetMethods() | Where-Object {
 			@($_.GetCustomAttributes($true) | ForEach-Object { $_.GetType().FullName }) -contains $testMethodAttribute
-		})
+		} | Sort-Object Name)
 
 		foreach ($method in $testMethods) {
-			$instance = [Activator]::CreateInstance($type)
 			$name = "$($type.Name).$($method.Name)"
+			$failureMessages = New-Object System.Collections.Generic.List[string]
+			$instance = $null
 			try {
+				$instance = [Activator]::CreateInstance($type)
 				foreach ($initialize in $initializeMethods) {
 					$initialize.Invoke($instance, @()) | Out-Null
 				}
 				$method.Invoke($instance, @()) | Out-Null
+			} catch {
+				if ($instance -eq $null) {
+					$failureMessages.Add("Constructor failed: " + (Get-TestFailureMessage $_))
+				} else {
+					$failureMessages.Add((Get-TestFailureMessage $_))
+				}
+			}
+			if ($instance -ne $null) {
+				foreach ($cleanup in $cleanupMethods) {
+					try {
+						$cleanup.Invoke($instance, @()) | Out-Null
+					} catch {
+						$failureMessages.Add("Cleanup failed: " + (Get-TestFailureMessage $_))
+					}
+				}
+			}
+			if ($failureMessages.Count -gt 0) {
+				Write-Host "FAIL $name :: $([string]::Join('; ', $failureMessages))"
+				$failed++
+			} else {
 				Write-Host "PASS $name"
 				$passed++
-			} catch {
-				$errorMessage = $_.Exception.Message
-				if ($_.Exception.InnerException) {
-					$errorMessage = $_.Exception.InnerException.Message
-				}
-				Write-Host "FAIL $name :: $errorMessage"
-				$failed++
-			} finally {
-				foreach ($cleanup in $cleanupMethods) {
-					$cleanup.Invoke($instance, @()) | Out-Null
-				}
 			}
 		}
 	}

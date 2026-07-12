@@ -53,6 +53,52 @@ function Try-ParseDate([string]$Value) {
 	return $null
 }
 
+function Try-ParseDateTimeOffset([string]$Value) {
+	$result = [DateTimeOffset]::MinValue
+	if ([DateTimeOffset]::TryParse($Value, [ref]$result)) {
+		return $result
+	}
+	return $null
+}
+
+function Test-CurrentPatchBranchSnapshot([string]$Path) {
+	if ([string]::IsNullOrWhiteSpace($Path) -or -not (Test-Path -LiteralPath $Path)) {
+		return $false
+	}
+
+	$candidateTimeRange = ""
+	$candidateAsOf = $null
+	foreach ($rawLine in (Get-Content -LiteralPath $Path -Encoding UTF8 -TotalCount 32)) {
+		$line = $rawLine.Trim()
+		if ($line.StartsWith("# CandidateTimeRange:", [StringComparison]::OrdinalIgnoreCase)) {
+			$candidateTimeRange = $line.Substring("# CandidateTimeRange:".Length).Trim()
+		} elseif ($line.StartsWith("# CandidateAsOf:", [StringComparison]::OrdinalIgnoreCase)) {
+			$candidateAsOf = Try-ParseDateTimeOffset $line.Substring("# CandidateAsOf:".Length).Trim()
+		} elseif (-not $line.StartsWith("#") -and $line.Length -gt 0) {
+			break
+		}
+	}
+
+	if (-not [string]::Equals($candidateTimeRange, "CURRENT_PATCH", [StringComparison]::OrdinalIgnoreCase)) {
+		return $false
+	}
+
+	if ([string]::IsNullOrWhiteSpace($PatchMarkerPath) -or -not (Test-Path -LiteralPath $PatchMarkerPath)) {
+		return $true
+	}
+
+	$patchMarker = Try-ParseDateTimeOffset ((Get-Content -LiteralPath $PatchMarkerPath -Raw -Encoding UTF8).Trim())
+	if (-not $patchMarker) {
+		return $true
+	}
+
+	if ($candidateAsOf) {
+		return $candidateAsOf -ge $patchMarker
+	}
+
+	return ([DateTimeOffset](Get-Item -LiteralPath $Path).LastWriteTime) -ge $patchMarker
+}
+
 function Resolve-HearthstoneExePath {
 	$process = Get-Process -Name "Hearthstone" -ErrorAction SilentlyContinue | Select-Object -First 1
 	if ($process -and -not [string]::IsNullOrWhiteSpace($process.Path) -and
@@ -61,6 +107,7 @@ function Resolve-HearthstoneExePath {
 	}
 
 	$candidates = @(
+		"F:\Hearthstone\Hearthstone.exe",
 		"C:\Program Files (x86)\Hearthstone\Hearthstone.exe",
 		"C:\Program Files\Hearthstone\Hearthstone.exe"
 	)
@@ -247,7 +294,10 @@ $resolvedHdtAppPath = Resolve-HdtAppPath
 
 $libraryPath = ""
 $librarySource = ""
-if (-not [string]::IsNullOrWhiteSpace($DeckCodePath) -and (Test-Path $DeckCodePath)) {
+if (Test-CurrentPatchBranchSnapshot $BranchPath) {
+	$libraryPath = $BranchPath
+	$librarySource = "current_patch_branch"
+} elseif (-not [string]::IsNullOrWhiteSpace($DeckCodePath) -and (Test-Path $DeckCodePath)) {
 	$libraryPath = $DeckCodePath
 	$librarySource = "deckcodes"
 } elseif (-not [string]::IsNullOrWhiteSpace($BranchPath) -and (Test-Path $BranchPath)) {
@@ -276,8 +326,8 @@ foreach ($line in Get-Content -Path $libraryPath -Encoding UTF8) {
 		$winRate = 0.0
 		$pageDeckName = ""
 
-		if ($librarySource -eq "branch_fallback") {
-			if ($parts.Count -lt 6 -or $parts[1] -notmatch "AA[A-Za-z0-9+/=]+") {
+		if ($librarySource -eq "current_patch_branch" -or $librarySource -eq "branch_fallback") {
+			if ($parts.Count -lt 6 -or $parts[1] -cnotmatch "AAE[A-Za-z0-9+/=]{20,}") {
 				continue
 			}
 			$name = [string]$parts[0]
@@ -290,7 +340,7 @@ foreach ($line in Get-Content -Path $libraryPath -Encoding UTF8) {
 			$winRate = if ($parts.Count -gt 7 -and $parts[7] -match "^-?\d+(\.\d+)?$") { [double]$parts[7] } else { 0.0 }
 			$pageDeckName = if ($parts.Count -gt 11) { [string]$parts[11] } else { "" }
 		} else {
-			if ($parts.Count -ge 2 -and $parts[1] -match "^AA[A-Za-z0-9+/=]+$") {
+			if ($parts.Count -ge 2 -and $parts[1] -cmatch "^AAE[A-Za-z0-9+/=]{20,}$") {
 				$name = [string]$parts[0]
 				$deckCode = [string]$parts[1]
 				$deckId = if ($parts.Count -gt 2) { [string]$parts[2] } else { "" }
@@ -299,7 +349,7 @@ foreach ($line in Get-Content -Path $libraryPath -Encoding UTF8) {
 					continue
 				}
 			} else {
-				$deckCodeMatch = [regex]::Match($line, "AA[A-Za-z0-9+/=]+")
+				$deckCodeMatch = [regex]::Match($line, "AAE[A-Za-z0-9+/=]{20,}")
 				if (-not $deckCodeMatch.Success) {
 					continue
 				}

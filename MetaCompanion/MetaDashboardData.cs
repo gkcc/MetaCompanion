@@ -236,7 +236,16 @@ namespace MetaCompanion
 		private static MetaDashboardLastGame LoadLastGame(string localMetaPath, string hdtHistoryPath)
 		{
 			var localRow = ReadTsv(localMetaPath).LastOrDefault();
-			var hdtRow = FindMatchingHdtRow(hdtHistoryPath, localRow);
+			var hdtRows = ReadTsv(hdtHistoryPath);
+			var latestHdtRow = hdtRows.LastOrDefault();
+			var hdtRow = FindMatchingHdtRow(hdtRows, localRow);
+			if (latestHdtRow != null && hdtRow == null && !IsLocalRowNewer(localRow, latestHdtRow))
+			{
+				// The derived local-meta cache can lag behind HDT immediately after a game. Never
+				// combine the previous prediction with the latest HDT opponent in that window.
+				localRow = null;
+				hdtRow = latestHdtRow;
+			}
 			if (localRow == null && hdtRow == null)
 			{
 				return null;
@@ -244,7 +253,11 @@ namespace MetaCompanion
 
 			var archetype = Get(localRow, "predicted_archetype");
 			var result = FirstNonEmpty(Get(localRow, "result"), Get(hdtRow, "result"));
-			var opponent = FirstNonEmpty(Get(localRow, "opponent_hero"), Get(hdtRow, "opponent_hero"));
+			var opponent = FirstNonEmpty(
+				Get(localRow, "opponent_class"),
+				Get(localRow, "opponent_hero"),
+				Get(hdtRow, "opponent_class"),
+				Get(hdtRow, "opponent_hero"));
 			var confidence = Get(localRow, "confidence_pct");
 			var candidates = ParseCandidateArchetypes(Get(localRow, "candidate_archetypes"));
 			if (candidates.Count == 0 && !string.IsNullOrWhiteSpace(archetype))
@@ -256,11 +269,16 @@ namespace MetaCompanion
 				});
 			}
 			var keyEvidenceCards = ParseList(Get(localRow, "key_evidence_cards"));
-			var title = string.IsNullOrWhiteSpace(archetype) ? "\u6700\u8fd1\u4e00\u5c40" : archetype;
+			var opponentClassName = GetClassDisplayName(opponent);
+			var title = string.IsNullOrWhiteSpace(archetype)
+				? string.IsNullOrWhiteSpace(opponent)
+					? "\u6700\u8fd1\u4e00\u5c40"
+					: opponentClassName + " \u672a\u8bc6\u522b"
+				: archetype;
 			var detailParts = new List<string>();
 			if (!string.IsNullOrWhiteSpace(result) || !string.IsNullOrWhiteSpace(opponent))
 			{
-				detailParts.Add((result + " vs " + opponent).Trim());
+				detailParts.Add((result + " vs " + opponentClassName).Trim());
 			}
 			if (!string.IsNullOrWhiteSpace(confidence))
 			{
@@ -268,7 +286,11 @@ namespace MetaCompanion
 			}
 
 			var confidenceValue = ParseInt(confidence);
-			var toolTip = BuildLastGameToolTip(candidates, keyEvidenceCards, confidenceValue);
+			var toolTip = BuildLastGameToolTip(
+				candidates,
+				keyEvidenceCards,
+				confidenceValue,
+				string.IsNullOrWhiteSpace(archetype) && !string.IsNullOrWhiteSpace(opponent));
 			return new MetaDashboardLastGame(
 				title,
 				string.Join(" / ", detailParts.Where(part => !string.IsNullOrWhiteSpace(part))),
@@ -350,9 +372,14 @@ namespace MetaCompanion
 		private static string BuildLastGameToolTip(
 			List<MetaDashboardCandidate> candidates,
 			List<string> keyEvidenceCards,
-			int confidencePercent)
+			int confidencePercent,
+			bool unidentified = false)
 		{
 			var lines = new List<string> { LastGameToolTip };
+			if (unidentified)
+			{
+				lines.Add("\u672a\u8bc6\u522b\u5230\u7a33\u5b9a\u5f62\u6001\uff0c\u4ec5\u663e\u793a\u5bf9\u624b\u804c\u4e1a\u3002");
+			}
 			if (confidencePercent > 0 && confidencePercent < 40)
 			{
 				lines.Add("\u4f4e\u7f6e\u4fe1\uff0c\u4ec5\u4f9b\u53c2\u8003\u3002");
@@ -376,10 +403,9 @@ namespace MetaCompanion
 		}
 
 		private static Dictionary<string, string> FindMatchingHdtRow(
-			string hdtHistoryPath, Dictionary<string, string> localRow)
+			List<Dictionary<string, string>> rows, Dictionary<string, string> localRow)
 		{
-			var rows = ReadTsv(hdtHistoryPath);
-			if (rows.Count == 0)
+			if (rows == null || rows.Count == 0 || localRow == null)
 			{
 				return null;
 			}
@@ -394,7 +420,29 @@ namespace MetaCompanion
 				}
 			}
 
-			return rows.LastOrDefault();
+			return null;
+		}
+
+		private static bool IsLocalRowNewer(
+			Dictionary<string, string> localRow,
+			Dictionary<string, string> hdtRow)
+		{
+			if (localRow == null)
+			{
+				return false;
+			}
+
+			DateTime localTime;
+			DateTime hdtTime;
+			var hasLocalTime = DateTime.TryParse(
+				FirstNonEmpty(Get(localRow, "end_time"), Get(localRow, "ended_at"),
+					Get(localRow, "start_time"), Get(localRow, "started_at")),
+				out localTime);
+			var hasHdtTime = DateTime.TryParse(
+				FirstNonEmpty(Get(hdtRow, "end_time"), Get(hdtRow, "ended_at"),
+					Get(hdtRow, "start_time"), Get(hdtRow, "started_at")),
+				out hdtTime);
+			return hasLocalTime && hasHdtTime && localTime > hdtTime;
 		}
 
 		private static string ResolveReplayPath(string replayFile)

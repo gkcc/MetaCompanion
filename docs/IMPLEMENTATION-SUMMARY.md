@@ -19,10 +19,10 @@
 
 ## 验证
 
-- 构建命令：`MetaCompanion.sln` Release x86。
+- 构建命令：`MetaCompanion.sln` Release AnyCPU。
 - 测试命令：`tools\Run-Tests.ps1`。
 - 当前测试覆盖：预测、后期剩余牌、原始牌多来源扣减、配置保存、赛后数据读取、推荐读取。
-- 当前 DLL SHA256：`6C5FC6B0CACF150FC69CF1D7EFFD8CAF0A9E992136982345CDE30381509FE48F`。
+- 当前 DLL SHA256 与字节大小：以 `artifacts\release-gate\<timestamp>\release-gate.md` 的 `Build Artifact` 为准，避免文档内固定哈希过期。
 
 ## 手动验收
 

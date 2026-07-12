@@ -194,7 +194,7 @@ namespace MetaCompanionTests.Tests
 			WriteFile(
 				"hsreplay_deckcodes.txt",
 				"# Count: 1" + Environment.NewLine +
-				"Quest Priest | AAECAf0GAA==" + Environment.NewLine);
+				"Quest Priest | AAECAfHhBAqSgwfDgweDigeCmAf0qgeosQfisQfQvwfqyQeb1AcKh/YE1J4G2OUGgf0Gl4IHupUHkasHj74HmsUH0MUHAAA=" + Environment.NewLine);
 		}
 
 		private void WriteTools()

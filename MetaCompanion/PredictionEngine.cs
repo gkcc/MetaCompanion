@@ -16,6 +16,7 @@ namespace MetaCompanion
 	{
 		private const int DeckSize = 30;
 
+		private readonly List<Deck> _metaDecks;
 		private List<Deck> _classDecks;
 		private List<Deck> _possibleDecks;
 		private int _numIgnoredCards;
@@ -25,13 +26,15 @@ namespace MetaCompanion
 		private List<CardInfo> _nextPredictedCards;
 		private IOpponent _opponent;
 		private bool _classDetected;
+		private string _detectedClass;
 		private CardProximityRanker _proximityRanker;
 
 		public PredictionEngine(IOpponent opponent, ReadOnlyCollection<Deck> metaDecks)
 		{
 			Log.Debug("Copying possible decks from the meta");
-			_classDecks = new List<Deck>(metaDecks);
-			_possibleDecks = new List<Deck>(metaDecks);
+			_metaDecks = new List<Deck>(metaDecks);
+			_classDecks = new List<Deck>(_metaDecks);
+			_possibleDecks = new List<Deck>(_metaDecks);
 			_opponent = opponent;
 			CheckOpponentClass();
 			CheckOpponentMana();
@@ -83,22 +86,33 @@ namespace MetaCompanion
 
 		public void CheckOpponentClass()
 		{
-			if (_classDetected)
+			var opponentClass = MetaRetriever.NormalizeClass(_opponent.Class);
+			if (string.IsNullOrWhiteSpace(opponentClass))
 			{
 				return;
 			}
-			if (string.IsNullOrEmpty(_opponent.Class))
+
+			if (_classDetected &&
+				string.Equals(_detectedClass, opponentClass, StringComparison.OrdinalIgnoreCase))
 			{
 				return;
 			}
+
+			var previousClass = _detectedClass;
 			// Only want decks for the opponent's class.
 			_classDetected = true;
-			var opponentClass = MetaRetriever.NormalizeClass(_opponent.Class);
-			_classDecks = _possibleDecks
+			_detectedClass = opponentClass;
+			_numIgnoredCards = 0;
+			_classDecks = _metaDecks
 				.Where(deck => MetaRetriever.NormalizeClass(deck.Class) == opponentClass)
 				.ToList();
 			_proximityRanker = new CardProximityRanker(_classDecks);
 			_possibleDecks = new List<Deck>(_classDecks);
+			if (!string.IsNullOrWhiteSpace(previousClass))
+			{
+				Log.Warn("Opponent class changed from " + previousClass + " to " + opponentClass +
+					"; rebuilding deck candidates");
+			}
 			Log.Info(_possibleDecks.Count + " possible decks for class " + opponentClass +
 				" (raw: " + _opponent.Class + ")");
 			UpdatePredictedCards();
@@ -106,6 +120,7 @@ namespace MetaCompanion
 
 		public void CheckOpponentCards()
 		{
+			CheckOpponentClass();
 			if (!_classDetected)
 			{
 				Log.Warn("Cannot CheckOpponentCards before opponent class has been detected");

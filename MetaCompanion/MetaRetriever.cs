@@ -55,8 +55,9 @@ namespace MetaCompanion
 		internal static List<Deck> LoadDeckCodeDecks(string dataDirectory)
 		{
 			var deckCodeFilePaths = BuildDeckCodeFilePaths(dataDirectory);
+			var existingDeckCodeFilePaths = deckCodeFilePaths.Where(File.Exists).ToList();
 			var existingFiles = SelectDeckCodeFilePaths(
-				deckCodeFilePaths.Where(File.Exists),
+				existingDeckCodeFilePaths,
 				dataDirectory);
 			if (existingFiles.Count == 0)
 			{
@@ -67,9 +68,28 @@ namespace MetaCompanion
 
 			HearthDb.Cards.LoadBaseData();
 
+			var decks = ImportDeckCodeFiles(existingFiles);
+			if (decks.Count == 0 &&
+				existingFiles.Any(path => IsHsReplayDeckCodeFile(path, dataDirectory)))
+			{
+				var fallbackFiles = SelectDeckCodeFallbackFilePaths(existingDeckCodeFilePaths, dataDirectory);
+				if (fallbackFiles.Count > 0)
+				{
+					Log.Warn("No valid decks were imported from HSReplay deck-code snapshot; trying fallback sources: " +
+						string.Join(", ", fallbackFiles));
+					decks = ImportDeckCodeFiles(fallbackFiles);
+				}
+			}
+
+			return decks;
+		}
+
+		private static List<Deck> ImportDeckCodeFiles(IEnumerable<string> filePaths)
+		{
+			var deckCodeFiles = filePaths.ToList();
 			var decks = new List<Deck>();
 			var unknownCardDbfIds = new Dictionary<int, int>();
-			var deckCodeEntries = existingFiles
+			var deckCodeEntries = deckCodeFiles
 				.SelectMany(File.ReadAllLines)
 				.Select(ParseDeckCodeEntry)
 				.Where(entry => entry != null)
@@ -104,6 +124,33 @@ namespace MetaCompanion
 			return decks;
 		}
 
+		private static bool IsHsReplayDeckCodeFile(string path, string dataDirectory)
+		{
+			return string.Equals(
+				path,
+				Path.Combine(dataDirectory, "hsreplay_deckcodes.txt"),
+				StringComparison.OrdinalIgnoreCase);
+		}
+
+		private static List<string> SelectDeckCodeFallbackFilePaths(
+			IEnumerable<string> existingFiles, string dataDirectory)
+		{
+			var existing = new HashSet<string>(existingFiles, StringComparer.OrdinalIgnoreCase);
+			var selected = new List<string>();
+			var hsGuruDeckCodeFilePath = Path.Combine(dataDirectory, "hsguru_deckcodes.txt");
+			var archetypeBranchDeckCodeFilePath = Path.Combine(dataDirectory, "archetype_deck_branches.tsv");
+			if (existing.Contains(hsGuruDeckCodeFilePath))
+			{
+				selected.Add(hsGuruDeckCodeFilePath);
+			}
+
+			if (existing.Contains(archetypeBranchDeckCodeFilePath))
+			{
+				selected.Add(archetypeBranchDeckCodeFilePath);
+			}
+			return selected;
+		}
+
 		private static string[] BuildDeckCodeFilePaths(string dataDirectory)
 		{
 			return new[]
@@ -134,6 +181,13 @@ namespace MetaCompanion
 				selected.Add(manualDeckCodeFilePath);
 			}
 
+			if (existing.Contains(archetypeBranchDeckCodeFilePath) &&
+				IsCurrentPatchBranchSnapshot(archetypeBranchDeckCodeFilePath, dataDirectory))
+			{
+				selected.Add(archetypeBranchDeckCodeFilePath);
+				return selected;
+			}
+
 			if (existing.Contains(hsReplayDeckCodeFilePath))
 			{
 				selected.Add(hsReplayDeckCodeFilePath);
@@ -143,7 +197,6 @@ namespace MetaCompanion
 			if (existing.Contains(hsGuruDeckCodeFilePath))
 			{
 				selected.Add(hsGuruDeckCodeFilePath);
-				return selected;
 			}
 
 			if (existing.Contains(archetypeBranchDeckCodeFilePath))
@@ -151,6 +204,74 @@ namespace MetaCompanion
 				selected.Add(archetypeBranchDeckCodeFilePath);
 			}
 			return selected;
+		}
+
+		private static bool IsCurrentPatchBranchSnapshot(string path, string dataDirectory)
+		{
+			try
+			{
+				var candidateTimeRange = "";
+				DateTimeOffset? candidateAsOf = null;
+				foreach (var rawLine in File.ReadLines(path).Take(32))
+				{
+					var line = rawLine.Trim();
+					if (line.StartsWith("# CandidateTimeRange:", StringComparison.OrdinalIgnoreCase))
+					{
+						candidateTimeRange = line.Substring("# CandidateTimeRange:".Length).Trim();
+					}
+					else if (line.StartsWith("# CandidateAsOf:", StringComparison.OrdinalIgnoreCase))
+					{
+						candidateAsOf = ParseDateTimeOffset(line.Substring("# CandidateAsOf:".Length).Trim());
+					}
+					else if (!line.StartsWith("#", StringComparison.Ordinal) && line.Length > 0)
+					{
+						break;
+					}
+				}
+
+				if (!string.Equals(candidateTimeRange, "CURRENT_PATCH", StringComparison.OrdinalIgnoreCase))
+				{
+					return false;
+				}
+
+				var patchTime = ReadPatchMarkerTime(dataDirectory);
+				if (!patchTime.HasValue)
+				{
+					return true;
+				}
+
+				if (candidateAsOf.HasValue)
+				{
+					return candidateAsOf.Value >= patchTime.Value;
+				}
+
+				return new DateTimeOffset(File.GetLastWriteTime(path)) >= patchTime.Value;
+			}
+			catch (Exception ex)
+			{
+				Log.Warn("Ignoring current-patch branch snapshot preference: " + ex.Message);
+				return false;
+			}
+		}
+
+		private static DateTimeOffset? ReadPatchMarkerTime(string dataDirectory)
+		{
+			var markerPath = Path.Combine(dataDirectory, "patch_marker.txt");
+			if (!File.Exists(markerPath))
+			{
+				return null;
+			}
+			return ParseDateTimeOffset(File.ReadAllText(markerPath).Trim());
+		}
+
+		private static DateTimeOffset? ParseDateTimeOffset(string value)
+		{
+			DateTimeOffset parsed;
+			if (DateTimeOffset.TryParse(value, out parsed))
+			{
+				return parsed;
+			}
+			return null;
 		}
 
 		internal static DeckCodeEntry ParseDeckCodeEntry(string line)
@@ -166,7 +287,7 @@ namespace MetaCompanion
 				return null;
 			}
 
-			var match = Regex.Match(line, @"AA[A-Za-z0-9+/=]+");
+			var match = Regex.Match(line, @"AAE[A-Za-z0-9+/=]{20,}");
 			if (!match.Success)
 			{
 				return null;

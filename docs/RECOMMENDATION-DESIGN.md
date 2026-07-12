@@ -6,7 +6,7 @@
 
 - 远端环境：HSReplay Premium 的形态热度和形态对阵胜率。
 - 本地环境：HDT `DeckStats.xml` 和 `DefaultDeckStats.xml` 导出的当前补丁对局，再用 HSReplay 牌组库匹配对手形态。
-- 牌组库：`%AppData%\HearthstoneDeckTracker\MetaCompanion\hsreplay_deckcodes.txt`。`archetype_deck_branches.tsv` 仅作为旧数据兜底。
+- 牌组库：当前补丁优先读取 `%AppData%\HearthstoneDeckTracker\MetaCompanion\archetype_deck_branches.tsv`；只有它不是 `CandidateTimeRange: CURRENT_PATCH` 或早于本地补丁标记时，才回退到 `%AppData%\HearthstoneDeckTracker\MetaCompanion\hsreplay_deckcodes.txt`。
 
 ## 当前评分
 

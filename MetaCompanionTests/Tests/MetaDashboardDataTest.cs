@@ -195,6 +195,31 @@ namespace MetaCompanionTests.Tests
 			StringAssert.Contains(snapshot.LastGame.ToolTip, "\u4f4e\u7f6e\u4fe1");
 		}
 
+		[TestMethod]
+		public void Load_DoesNotCombineStaleArchetypeWithLatestHdtOpponent()
+		{
+			File.WriteAllText(
+				Path.Combine(_tempDirectory, "local_meta_archetypes.tsv"),
+				"game_id\tresult\topponent_hero\tpredicted_archetype\tconfidence_pct" +
+				Environment.NewLine +
+				"old-shaman\tWin\tShaman\t\u6cd5\u672f\u8428\t91" + Environment.NewLine,
+				Encoding.UTF8);
+			File.WriteAllText(
+				Path.Combine(_tempDirectory, "hdt_opponent_history.tsv"),
+				"game_id\tresult\topponent_hero\treplay_path\thsreplay_url" + Environment.NewLine +
+				"new-rogue\tLoss\tRogue\tC:\\HDT\\Replays\\new.hdtreplay\thttps://hsreplay.net/new" +
+				Environment.NewLine,
+				Encoding.UTF8);
+
+			var snapshot = MetaDashboardSnapshot.Load(_tempDirectory);
+
+			Assert.AreEqual("\u6f5c\u884c\u8005 \u672a\u8bc6\u522b", snapshot.LastGame.Title);
+			StringAssert.Contains(snapshot.LastGame.Detail, "Loss vs \u6f5c\u884c\u8005");
+			Assert.AreEqual(0, snapshot.LastGame.ConfidencePercent);
+			Assert.AreEqual(0, snapshot.LastGame.Candidates.Count);
+			Assert.AreEqual("https://hsreplay.net/new", snapshot.LastGame.HsReplayUrl);
+		}
+
 		private void WriteEnvironmentRows(params string[] rows)
 		{
 			File.WriteAllText(

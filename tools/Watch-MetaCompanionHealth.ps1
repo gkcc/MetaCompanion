@@ -4,7 +4,7 @@
 	[switch]$Once,
 	[string]$DataRoot = "$env:APPDATA\HearthstoneDeckTracker\MetaCompanion",
 	[string]$HdtRoot = "$env:APPDATA\HearthstoneDeckTracker",
-	[string]$ExpectedDllHash = "6C5FC6B0CACF150FC69CF1D7EFFD8CAF0A9E992136982345CDE30381509FE48F",
+	[string]$ExpectedDllHash = "",
 	[int]$PredictionStaleMinutes = 5,
 	[int]$MaxPredictedCards = 24,
 	[int]$MaxPossibleCardsAfterEvidence = 35

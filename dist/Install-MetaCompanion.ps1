@@ -5,21 +5,199 @@
 
 $ErrorActionPreference = "Stop"
 
+$refreshTaskName = "Meta Companion Remote Cache Refresh"
+$requiredToolScripts = @(
+	"Run-MetaCompanionRefresh.ps1",
+	"Install-MetaCompanionRefreshTask.ps1",
+	"Update-MetaCompanionData.ps1",
+	"Update-MetaCompanionPatchState.ps1",
+	"Sync-HSReplayDeckCodes.ps1",
+	"Sync-HSReplayPremiumData.ps1",
+	"Sync-HSReplayMetaData.ps1",
+	"Sync-HSReplayArchetypeDecks.ps1",
+	"Export-HdtOpponentHistory.ps1",
+	"Measure-HdtLocalMeta.ps1",
+	"Get-MetaArchetypeRecommendations.ps1",
+	"Get-PersonalMetaRecommendations.ps1",
+	"Verify-DeckCodeImport.ps1"
+)
+
+function Resolve-ToolSourceDirectory([string[]]$RequiredScripts) {
+	$candidates = @(
+		$PSScriptRoot,
+		(Join-Path $PSScriptRoot "..\tools")
+	)
+	foreach ($candidate in ($candidates | Select-Object -Unique)) {
+		if (-not (Test-Path -LiteralPath $candidate)) {
+			continue
+		}
+		$resolved = (Resolve-Path -LiteralPath $candidate).Path
+		$missing = @($RequiredScripts | Where-Object {
+			-not (Test-Path -LiteralPath (Join-Path $resolved $_))
+		})
+		if ($missing.Count -eq 0) {
+			return $resolved
+		}
+	}
+	throw "Refresh tool source scripts were not found. Run this installer from the source checkout, or install without -IncludeTools for the community DLL-only mode."
+}
+
+function Remove-MetaCompanionRefreshTask([string]$TaskName) {
+	if (-not (Get-Command Get-ScheduledTask -ErrorAction SilentlyContinue)) {
+		return
+	}
+	$task = Get-ScheduledTask -TaskName $TaskName -ErrorAction SilentlyContinue
+	if (-not $task) {
+		return
+	}
+	try {
+		Unregister-ScheduledTask -TaskName $TaskName -Confirm:$false
+		Write-Host "Removed refresh scheduled task: $TaskName"
+	} catch {
+		Write-Warning "Could not remove refresh scheduled task '$TaskName': $($_.Exception.Message)"
+	}
+}
+
 if ([string]::IsNullOrWhiteSpace($BuildPath)) {
 	$packagedDll = Join-Path $PSScriptRoot "MetaCompanion.dll"
 	$distDll = Join-Path $PSScriptRoot "..\dist\MetaCompanion.dll"
-	$repositoryDll = Join-Path $PSScriptRoot "..\MetaCompanion\bin\x86\Release\MetaCompanion.dll"
+	$repositoryDll = Join-Path $PSScriptRoot "..\MetaCompanion\bin\Release\MetaCompanion.dll"
 	$BuildPath = if (Test-Path $packagedDll) {
 		$packagedDll
 	} elseif (Test-Path $distDll) {
 		$distDll
-	} else {
+	} elseif (Test-Path $repositoryDll) {
 		$repositoryDll
+	} else {
+		""
+	}
+	if ([string]::IsNullOrWhiteSpace($BuildPath)) {
+		throw "MetaCompanion.dll was not found in the packaged folder, dist, or MetaCompanion\bin\Release. Run tools\Build-MetaCompanion.ps1 from the repo root, or pass -BuildPath explicitly."
 	}
 }
 if (-not (Test-Path $BuildPath)) {
 	throw "MetaCompanion.dll was not found at $BuildPath"
 }
+$BuildPath = (Resolve-Path -LiteralPath $BuildPath).Path
+
+function Read-UInt16([byte[]]$Bytes, [int]$Offset) {
+	return [BitConverter]::ToUInt16($Bytes, $Offset)
+}
+
+function Read-UInt32([byte[]]$Bytes, [int]$Offset) {
+	return [BitConverter]::ToUInt32($Bytes, $Offset)
+}
+
+function ConvertFrom-PeMachine([int]$Machine) {
+	switch ($Machine) {
+		0x014c { return "I386" }
+		0x8664 { return "AMD64" }
+		0xaa64 { return "ARM64" }
+		default { return ("0x{0:X4}" -f $Machine) }
+	}
+}
+
+function ConvertTo-PeFileOffset([byte[]]$Bytes, [int]$Rva, [int]$SectionOffset, [int]$SectionCount) {
+	for ($index = 0; $index -lt $SectionCount; $index++) {
+		$offset = $SectionOffset + ($index * 40)
+		$virtualSize = Read-UInt32 $Bytes ($offset + 8)
+		$virtualAddress = Read-UInt32 $Bytes ($offset + 12)
+		$rawSize = Read-UInt32 $Bytes ($offset + 16)
+		$rawPointer = Read-UInt32 $Bytes ($offset + 20)
+		$span = [Math]::Max($virtualSize, $rawSize)
+		if ($Rva -ge $virtualAddress -and $Rva -lt ($virtualAddress + $span)) {
+			return [int]($rawPointer + ($Rva - $virtualAddress))
+		}
+	}
+	return -1
+}
+
+function Get-PeAssemblyInfo([string]$Path) {
+	$bytes = [IO.File]::ReadAllBytes($Path)
+	if ($bytes.Length -lt 0x40) {
+		throw "Invalid PE file: $Path"
+	}
+	$peOffset = [int](Read-UInt32 $bytes 0x3c)
+	$machine = Read-UInt16 $bytes ($peOffset + 4)
+	$sectionCount = Read-UInt16 $bytes ($peOffset + 6)
+	$optionalHeaderSize = Read-UInt16 $bytes ($peOffset + 20)
+	$optionalHeaderOffset = $peOffset + 24
+	$magic = Read-UInt16 $bytes $optionalHeaderOffset
+	$dataDirectoryOffset = if ($magic -eq 0x20b) {
+		$optionalHeaderOffset + 112
+	} else {
+		$optionalHeaderOffset + 96
+	}
+	$clrDirectoryOffset = $dataDirectoryOffset + (14 * 8)
+	$clrRva = Read-UInt32 $bytes $clrDirectoryOffset
+	$sectionOffset = $optionalHeaderOffset + $optionalHeaderSize
+	$corFlags = $null
+	if ($clrRva -ne 0) {
+		$clrOffset = ConvertTo-PeFileOffset $bytes $clrRva $sectionOffset $sectionCount
+		if ($clrOffset -ge 0) {
+			$corFlags = Read-UInt32 $bytes ($clrOffset + 16)
+		}
+	}
+	return [pscustomobject]@{
+		Path = $Path
+		Machine = ConvertFrom-PeMachine $machine
+		CorFlags = $corFlags
+		Is32BitRequired = ($corFlags -ne $null -and (($corFlags -band 0x2) -ne 0))
+	}
+}
+
+function Get-MetaCompanionFileHash([string]$Path) {
+	if (Get-Command Get-FileHash -ErrorAction SilentlyContinue) {
+		return Get-FileHash -LiteralPath $Path -Algorithm SHA256
+	}
+
+	$sha256 = [System.Security.Cryptography.SHA256]::Create()
+	$stream = [IO.File]::OpenRead($Path)
+	try {
+		$hash = $sha256.ComputeHash($stream)
+	} finally {
+		$stream.Dispose()
+		if ($sha256 -is [IDisposable]) {
+			$sha256.Dispose()
+		}
+	}
+	return [pscustomobject]@{
+		Algorithm = "SHA256"
+		Hash = ([BitConverter]::ToString($hash) -replace "-", "")
+		Path = $Path
+	}
+}
+
+function Get-LatestHdtExecutablePath {
+	$hdtLocalPath = "$env:LOCALAPPDATA\HearthstoneDeckTracker"
+	if (-not (Test-Path -LiteralPath $hdtLocalPath)) {
+		return $null
+	}
+	$latest = Get-ChildItem -LiteralPath $hdtLocalPath -Directory -Filter "app-*" |
+		Where-Object { Test-Path -LiteralPath (Join-Path $_.FullName "HearthstoneDeckTracker.exe") } |
+		Sort-Object @{Expression = {
+			try { [version]$_.Name.Substring(4) } catch { [version]"0.0" }
+		}; Descending = $true} |
+		Select-Object -First 1
+	if (-not $latest) {
+		return $null
+	}
+	return (Join-Path $latest.FullName "HearthstoneDeckTracker.exe")
+}
+
+function Assert-BuildCompatibleWithLatestHdt([string]$PluginPath) {
+	$hdtExe = Get-LatestHdtExecutablePath
+	if (-not $hdtExe) {
+		return
+	}
+	$hdtInfo = Get-PeAssemblyInfo $hdtExe
+	$pluginInfo = Get-PeAssemblyInfo $PluginPath
+	if ($hdtInfo.Machine -eq "AMD64" -and $pluginInfo.Is32BitRequired) {
+		throw "The latest HDT is 64-bit ($hdtExe), but $PluginPath is x86-only. Build Release AnyCPU and install MetaCompanion\bin\Release\MetaCompanion.dll."
+	}
+}
+
+Assert-BuildCompatibleWithLatestHdt $BuildPath
 
 $process = Get-Process HearthstoneDeckTracker -ErrorAction SilentlyContinue
 if ($process) {
@@ -81,13 +259,17 @@ if (Test-Path -LiteralPath $legacyDataDirectory) {
 	Write-Host "Removed legacy data directory: $legacyDataDirectory"
 }
 if ($IncludeTools) {
+	$toolSourceDirectory = Resolve-ToolSourceDirectory $requiredToolScripts
 	New-Item -ItemType Directory -Force -Path $toolTargetDirectory | Out-Null
-	Get-ChildItem -Path $PSScriptRoot -Filter "*.ps1" -File | ForEach-Object {
+	Get-ChildItem -Path $toolSourceDirectory -Filter "*.ps1" -File | ForEach-Object {
 		Copy-Item -LiteralPath $_.FullName -Destination (Join-Path $toolTargetDirectory $_.Name) -Force
 	}
-} elseif (Test-Path -LiteralPath $toolTargetDirectory) {
-	Remove-Item -LiteralPath $toolTargetDirectory -Recurse -Force
-	Write-Host "Removed bundled refresh tools: $toolTargetDirectory"
+} else {
+	if (Test-Path -LiteralPath $toolTargetDirectory) {
+		Remove-Item -LiteralPath $toolTargetDirectory -Recurse -Force
+		Write-Host "Removed bundled refresh tools: $toolTargetDirectory"
+	}
+	Remove-MetaCompanionRefreshTask $refreshTaskName
 }
 
 $configPath = Join-Path $dataTargetDirectory "config.xml"
@@ -152,11 +334,11 @@ if (Test-Path $pluginsXmlPath) {
 }
 
 @($BuildPath) + $targets | ForEach-Object {
-	Get-FileHash $_ -Algorithm SHA256
+	Get-MetaCompanionFileHash $_
 }
 if ($IncludeTools) {
 	Write-Host "Tools copied to $toolTargetDirectory"
 } else {
-	Write-Host "Refresh tools were not installed. Re-run with -IncludeTools for development or advanced manual sync."
+	Write-Host "Refresh tools and scheduled task were not installed. Re-run with -IncludeTools for development or advanced manual sync."
 }
 

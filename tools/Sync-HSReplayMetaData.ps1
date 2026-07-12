@@ -10,6 +10,7 @@ param(
 	[string]$Locale = "zh-hans",
 	[int]$TopOverall = 20,
 	[int]$TopPerClass = 5,
+	[string]$UserAgent = "",
 	[int]$TimeoutSeconds = 30,
 	[int]$Retries = 2
 )
@@ -19,6 +20,31 @@ $ErrorActionPreference = "Stop"
 if (-not (Get-Command curl.exe -ErrorAction SilentlyContinue)) {
 	throw "curl.exe was not found."
 }
+
+function Get-DefaultBrowserUserAgent([string]$PreferredUserAgent) {
+	if (-not [string]::IsNullOrWhiteSpace($PreferredUserAgent)) {
+		return $PreferredUserAgent
+	}
+
+	$chromePaths = @(
+		"$env:ProgramFiles\Google\Chrome\Application\chrome.exe",
+		"${env:ProgramFiles(x86)}\Google\Chrome\Application\chrome.exe",
+		"$env:LOCALAPPDATA\Google\Chrome\Application\chrome.exe"
+	)
+	foreach ($path in $chromePaths) {
+		if (-not (Test-Path -LiteralPath $path)) {
+			continue
+		}
+		$version = (Get-Item -LiteralPath $path).VersionInfo.ProductVersion
+		if (-not [string]::IsNullOrWhiteSpace($version)) {
+			return "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/$version Safari/537.36"
+		}
+	}
+
+	return "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+}
+
+$effectiveUserAgent = Get-DefaultBrowserUserAgent $UserAgent
 
 New-Item -ItemType Directory -Force -Path $OutputDirectory | Out-Null
 
@@ -60,6 +86,43 @@ function Get-HSReplayCookieArgs {
 		$cookieHeader = $cookieHeader.Substring("Cookie:".Length).Trim()
 	}
 	return @("-H", "Cookie: $cookieHeader")
+}
+
+function Format-HSReplayResponseBody([string]$Body) {
+	if ([string]::IsNullOrWhiteSpace($Body)) {
+		return "empty response body"
+	}
+
+	$decoded = [System.Net.WebUtility]::HtmlDecode($Body)
+	$oneLine = ($decoded -replace "\s+", " ").Trim()
+	if ($decoded -match "(?is)<title>\s*(?<title>.*?)\s*</title>") {
+		$title = (($Matches["title"] -replace "\s+", " ").Trim())
+		if ($title -match "(?i)^Just a moment") {
+			return "Cloudflare challenge page (title: $title). Refresh the HSReplay Premium cookie from a logged-in browser session, then retry. If it persists, HSReplay may be blocking scripted access temporarily."
+		}
+		return "HTML response (title: $title)"
+	}
+	if ($decoded -match "(?i)cloudflare|challenges\.cloudflare\.com") {
+		return "Cloudflare challenge page. Refresh the HSReplay Premium cookie from a logged-in browser session, then retry. If it persists, HSReplay may be blocking scripted access temporarily."
+	}
+	if ($oneLine.StartsWith("<")) {
+		return "HTML response without a title"
+	}
+	if ($oneLine.Length -gt 500) {
+		return $oneLine.Substring(0, 500) + "... [truncated]"
+	}
+	return $oneLine
+}
+
+function New-HSReplayHttpError([int]$StatusCode, [string]$Name, [string]$Body, [bool]$AuthenticationFailure) {
+	$response = Format-HSReplayResponseBody $Body
+	if ($AuthenticationFailure -and $response -match "(?i)Cloudflare challenge") {
+		return "HSReplay returned HTTP $StatusCode for $Name. HSReplay returned a Cloudflare challenge page instead of JSON. Refresh the HSReplay Premium cookie from a logged-in browser session, then retry. If it persists, HSReplay may be blocking scripted access temporarily."
+	}
+	if ($AuthenticationFailure) {
+		return "HSReplay returned HTTP $StatusCode for $Name. The cookie is missing, expired, or does not have an active Premium subscription. Response: $response"
+	}
+	return "HSReplay returned HTTP $StatusCode for $Name. Response: $response"
 }
 
 function Normalize-HearthstonePatchVersion([string]$Value) {
@@ -128,7 +191,7 @@ function Invoke-HSReplayJson([string]$Url, [string]$Name, [object[]]$CookieArgs)
 	for ($attempt = 1; $attempt -le $Retries; $attempt++) {
 		$bodyPath = [System.IO.Path]::GetTempFileName()
 		try {
-			$statusText = & curl.exe -s -L -A "Mozilla/5.0" -H "Accept: application/json" @CookieArgs `
+			$statusText = & curl.exe -s -L -A $effectiveUserAgent -H "Accept: application/json" @CookieArgs `
 				--connect-timeout 10 --max-time $TimeoutSeconds -w "%{http_code}" -o $bodyPath $Url 2>$null
 			$statusText = (@($statusText) -join "").Trim()
 			$body = if (Test-Path $bodyPath) {
@@ -161,18 +224,18 @@ function Invoke-HSReplayJson([string]$Url, [string]$Name, [object[]]$CookieArgs)
 		}
 
 		if ($statusCode -eq 401 -or $statusCode -eq 403) {
-			throw "HSReplay returned HTTP $statusCode for $Name. The cookie is missing, expired, or does not have an active Premium subscription. Body: $body"
+			throw (New-HSReplayHttpError $statusCode $Name $body $true)
 		}
 
 		if ($statusCode -eq 400) {
-			throw "HSReplay rejected $Name parameters with HTTP 400. Body: $body"
+			throw "HSReplay rejected $Name parameters with HTTP 400. Response: $(Format-HSReplayResponseBody $body)"
 		}
 
 		if ($attempt -lt $Retries) {
 			Start-Sleep -Milliseconds (500 * $attempt)
 			continue
 		}
-		throw "HSReplay returned HTTP $statusCode for $Name. Body: $body"
+		throw (New-HSReplayHttpError $statusCode $Name $body $false)
 	}
 }
 

@@ -26,7 +26,7 @@ param(
 	[int]$LocalMetaMinConfidence = 35,
 	[datetime]$PatchTime = [datetime]::MinValue,
 	[double]$PrePatchWeight = 0.35,
-	[string]$BranchCandidateTimeRange = "LAST_7_DAYS",
+	[string]$BranchCandidateTimeRange = "CURRENT_PATCH",
 	[int]$BranchesPerArchetype = 5,
 	[int]$BranchMinGames = 100,
 	[string]$OutputPath = "$env:APPDATA\HearthstoneDeckTracker\MetaCompanion\hsreplay_deckcodes.txt"
@@ -38,6 +38,7 @@ $syncScript = Join-Path $PSScriptRoot "Sync-HSReplayDeckCodes.ps1"
 $premiumSyncScript = Join-Path $PSScriptRoot "Sync-HSReplayPremiumData.ps1"
 $metaSyncScript = Join-Path $PSScriptRoot "Sync-HSReplayMetaData.ps1"
 $branchSyncScript = Join-Path $PSScriptRoot "Sync-HSReplayArchetypeDecks.ps1"
+$patchStateScript = Join-Path $PSScriptRoot "Update-MetaCompanionPatchState.ps1"
 $hdtHistoryExportScript = Join-Path $PSScriptRoot "Export-HdtOpponentHistory.ps1"
 $localMetaScript = Join-Path $PSScriptRoot "Measure-HdtLocalMeta.ps1"
 $recommendationScript = Join-Path $PSScriptRoot "Get-MetaArchetypeRecommendations.ps1"
@@ -46,6 +47,11 @@ $verifyScript = Join-Path $PSScriptRoot "Verify-DeckCodeImport.ps1"
 $recommendationsOnly = ($Recommendations -or $PersonalRecommendations -or $LocalMeta) -and
 	-not $Full -and -not $Premium -and -not $Meta -and
 	-not $Branches -and $RankRanges.Count -eq 0
+$dataDirectory = Split-Path -Parent $OutputPath
+
+if (Test-Path -LiteralPath $patchStateScript) {
+	. $patchStateScript
+}
 
 function Try-ParseDate([string]$Value) {
 	$result = [DateTime]::MinValue
@@ -80,7 +86,7 @@ function Resolve-EffectivePatchTime {
 		return $PatchTime
 	}
 
-	$patchMarkerPath = "$env:APPDATA\HearthstoneDeckTracker\MetaCompanion\patch_marker.txt"
+	$patchMarkerPath = Join-Path $dataDirectory "patch_marker.txt"
 	if (Test-Path -LiteralPath $patchMarkerPath) {
 		$markerTime = Try-ParseDate ((Get-Content -LiteralPath $patchMarkerPath -Raw -Encoding UTF8).Trim())
 		if ($markerTime) {
@@ -93,6 +99,13 @@ function Resolve-EffectivePatchTime {
 		return (Get-Item -LiteralPath $exePath).LastWriteTime
 	}
 	return $null
+}
+
+if (Get-Command Update-MetaCompanionPatchState -ErrorAction SilentlyContinue) {
+	$patchState = Update-MetaCompanionPatchState -DataDirectory $dataDirectory -PatchTime $PatchTime
+	if ($patchState.PatchChanged) {
+		Write-Host "Detected new Hearthstone patch $($patchState.PatchVersion); archived $($patchState.ArchivedFileCount) active local data files."
+	}
 }
 
 if ($recommendationsOnly) {
@@ -147,6 +160,7 @@ if (-not $recommendationsOnly) {
 		-MaxDecks $maxDecks `
 		-DeckPageTimeoutSeconds $DeckPageTimeoutSeconds `
 		-Parallelism $Parallelism `
+		-CookiePath $PremiumCookiePath `
 		-OutputPath $OutputPath
 
 	$hdtRoot = Join-Path $env:LOCALAPPDATA "HearthstoneDeckTracker"
@@ -236,22 +250,28 @@ if ($LocalMeta -or $PersonalRecommendations) {
 		Write-Host "Measuring local HDT opponent meta..."
 		$effectivePatchTime = Resolve-EffectivePatchTime
 		$historyExportArgs = @{}
-		if ($MetaTimeRange -eq "CURRENT_PATCH" -and $effectivePatchTime) {
+		if ($effectivePatchTime) {
 			$historyExportArgs.Since = $effectivePatchTime
 		} else {
 			$historyExportArgs.Days = $PersonalRecommendationHistoryDays
 		}
-		& $hdtHistoryExportScript @historyExportArgs
-		$localMetaArgs = @{
-			DeckCodePath = $OutputPath
-			Days = $PersonalRecommendationHistoryDays
-			MinConfidence = $LocalMetaMinConfidence
-			PrePatchWeight = $PrePatchWeight
+		try {
+			& $hdtHistoryExportScript @historyExportArgs
+			$localMetaArgs = @{
+				DeckCodePath = $OutputPath
+				BranchPath = (Join-Path $dataDirectory "archetype_deck_branches.tsv")
+				Days = $PersonalRecommendationHistoryDays
+				MinConfidence = $LocalMetaMinConfidence
+				PrePatchWeight = $PrePatchWeight
+				PatchMarkerPath = (Join-Path $dataDirectory "patch_marker.txt")
+			}
+			if ($effectivePatchTime) {
+				$localMetaArgs.PatchTime = $effectivePatchTime
+			}
+			& $localMetaScript @localMetaArgs
+		} catch {
+			Write-Warning "Skipping local HDT meta measurement after failure: $($_.Exception.Message)"
 		}
-		if ($effectivePatchTime) {
-			$localMetaArgs.PatchTime = $effectivePatchTime
-		}
-		& $localMetaScript @localMetaArgs
 	} else {
 		Write-Warning "Skipping local HDT meta measurement; required scripts or deck-code snapshot are missing."
 	}

@@ -17,11 +17,12 @@
    ```
 
 3. 必须满足：
-   - Release x86 构建通过。
+   - Release AnyCPU 构建通过。
    - `tools\Run-Tests.ps1` 全部通过。
+   - 报告中 `Test result` 记录测试摘要，未跳过测试时必须为 `passed=... failed=0`。
    - 敏感信息扫描 0 命中。
    - 社区 zip 包不包含 `tools\*.ps1`、cookie、Premium 缓存、本地对局历史、`bin/obj`。
-   - 报告中记录 DLL 和 zip 的 SHA256。
+   - 报告中记录 DLL 和 zip 的 SHA256 与字节大小。
 
 ## 真实客户端烟测
 

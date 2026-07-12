@@ -1,5 +1,5 @@
 ﻿param(
-	[string]$BuildPath = "$PSScriptRoot\..\MetaCompanion\bin\x86\Release\MetaCompanion.dll",
+	[string]$BuildPath = "$PSScriptRoot\..\MetaCompanion\bin\Release\MetaCompanion.dll",
 	[string]$ArtifactsDirectory = "$PSScriptRoot\..\artifacts\client-smoke",
 	[switch]$LaunchHearthstone,
 	[switch]$IncludeTools,
@@ -359,12 +359,15 @@ if ($hdtProcess) {
 }
 
 $installScript = Join-Path $PSScriptRoot "Install-MetaCompanion.ps1"
-$ps32 = Join-Path $env:WINDIR "SysWOW64\WindowsPowerShell\v1.0\powershell.exe"
+$installPowerShell = Join-Path $env:WINDIR "System32\WindowsPowerShell\v1.0\powershell.exe"
+if (-not (Test-Path -LiteralPath $installPowerShell)) {
+	$installPowerShell = "powershell.exe"
+}
 $installArgs = @("-NoProfile", "-ExecutionPolicy", "Bypass", "-File", $installScript, "-BuildPath", $resolvedBuildPath)
 if ($IncludeTools) {
 	$installArgs += "-IncludeTools"
 }
-& $ps32 @installArgs
+& $installPowerShell @installArgs
 if ($LASTEXITCODE -ne 0) {
 	throw "Install-MetaCompanion.ps1 failed with exit code $LASTEXITCODE."
 }

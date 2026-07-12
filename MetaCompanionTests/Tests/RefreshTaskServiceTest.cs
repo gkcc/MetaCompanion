@@ -67,6 +67,17 @@ namespace MetaCompanionTests.Tests
 		}
 
 		[TestMethod]
+		public void Inspect_TaskInstalledButNoTools_ShowsSplitState()
+		{
+			var snapshot = CreateService(true).Inspect();
+
+			Assert.AreEqual("高级刷新脚本未安装", snapshot.ToolsStatus);
+			Assert.AreEqual("自动刷新计划任务已安装，但设置页脚本未安装", snapshot.ScheduledTaskStatus);
+			Assert.IsFalse(snapshot.CanInstallTask);
+			Assert.IsFalse(snapshot.CanRunRefresh);
+		}
+
+		[TestMethod]
 		public void Inspect_ToolsPresentButNoScheduledTask_ShowsNotInstalled()
 		{
 			WriteToolScripts();
@@ -80,6 +91,27 @@ namespace MetaCompanionTests.Tests
 			Assert.AreEqual("自动刷新未安装", snapshot.ScheduledTaskStatus);
 			Assert.IsTrue(snapshot.CanInstallTask);
 			Assert.IsTrue(snapshot.CanRunRefresh);
+		}
+
+		[TestMethod]
+		public void Inspect_ScheduledTaskPointingElsewhere_AsksForReinstall()
+		{
+			WriteToolScripts();
+			var service = new RefreshTaskService(
+				_tempDirectory,
+				name => new RefreshScheduledTaskInfo
+				{
+					Installed = true,
+					Arguments = "-NoProfile -File \"C:\\Old\\Run-MetaCompanionRefresh.ps1\""
+				},
+				StartProcess);
+
+			var snapshot = service.Inspect();
+
+			Assert.IsTrue(snapshot.ScheduledTaskInstalled);
+			Assert.IsTrue(snapshot.ScheduledTaskActionKnown);
+			Assert.IsFalse(snapshot.ScheduledTaskUsesInstalledScript);
+			Assert.AreEqual("自动刷新已安装，但指向旧脚本路径；请重新安装", snapshot.ScheduledTaskStatus);
 		}
 
 		[TestMethod]
@@ -102,12 +134,54 @@ namespace MetaCompanionTests.Tests
 			Assert.AreEqual(newLog, snapshot.LatestLogPath);
 			Assert.AreNotEqual(oldLog, snapshot.LatestLogPath);
 			Assert.AreEqual(_now, snapshot.LatestLogTime);
-			Assert.AreEqual("最近刷新日志: 2026-06-22 09:00", snapshot.LatestLogStatus);
+			Assert.AreEqual("最近刷新日志: 2026-06-22 09:00（状态未知）", snapshot.LatestLogStatus);
 			Assert.AreEqual(8, snapshot.LatestLogSummaryLines.Count);
 			StringAssert.Contains(summary, "line 3");
 			StringAssert.Contains(summary, "Cookie=[redacted]");
 			Assert.IsFalse(summary.Contains("secret-cookie-value"));
 			Assert.IsTrue(snapshot.CanOpenLatestLog);
+		}
+
+		[TestMethod]
+		public void Inspect_CondensesHtmlErrorBodiesInRefreshLogTail()
+		{
+			WriteToolScripts();
+			var htmlError =
+				"PS>TerminatingError(): \"HSReplay returned HTTP 403 for list_decks_by_win_rate_v2. " +
+				"Body: <!DOCTYPE html><html><head><title>Just a moment...</title></head>" +
+				"<body><script src=\"https://challenges.cloudflare.com/test.js\"></script></body></html>\"";
+			WriteLog("refresh-20260622-080500.log", htmlError, _now);
+
+			var snapshot = CreateService(true).Inspect();
+			var summary = string.Join("\n", snapshot.LatestLogSummaryLines.ToArray());
+
+			StringAssert.Contains(summary, "HSReplay returned HTTP 403");
+			StringAssert.Contains(summary, "响应正文已省略: Cloudflare 验证页");
+			Assert.AreEqual("最近刷新日志: 2026-06-22 09:00（失败）", snapshot.LatestLogStatus);
+			Assert.IsTrue(snapshot.LatestLogFailed);
+			Assert.IsFalse(snapshot.LatestLogSucceeded);
+			Assert.IsFalse(summary.Contains("<!DOCTYPE html"));
+			Assert.IsFalse(summary.Contains("<script"));
+			Assert.IsFalse(summary.Contains("challenges.cloudflare.com"));
+		}
+
+		[TestMethod]
+		public void Inspect_LogStatusMentionsMissingScriptWhenOnlyOldLogExists()
+		{
+			WriteLog(
+				"refresh-20260622-080500.log",
+				"Remote cache already refreshed today; skipping. Use -Force to refresh anyway." +
+				Environment.NewLine +
+				"Windows PowerShell 脚本结束",
+				_now);
+
+			var snapshot = CreateService(false).Inspect();
+
+			Assert.AreEqual(
+				"最近刷新日志: 2026-06-22 09:00（完成；设置页脚本未安装）",
+				snapshot.LatestLogStatus);
+			Assert.IsTrue(snapshot.LatestLogSucceeded);
+			Assert.IsFalse(snapshot.LatestLogFailed);
 		}
 
 		[TestMethod]
@@ -124,13 +198,54 @@ namespace MetaCompanionTests.Tests
 			Assert.IsNotNull(_lastStartInfo);
 			StringAssert.Contains(_lastStartInfo.FileName, "powershell.exe");
 			StringAssert.Contains(_lastStartInfo.Arguments, "-NoProfile");
+			StringAssert.Contains(_lastStartInfo.Arguments, "-NoExit");
 			StringAssert.Contains(_lastStartInfo.Arguments, "-ExecutionPolicy Bypass");
 			StringAssert.Contains(_lastStartInfo.Arguments, "-File \"" + service.RefreshScriptPath + "\"");
 			StringAssert.Contains(_lastStartInfo.Arguments, "-DataDirectory \"" + service.DataDirectory + "\"");
 			Assert.AreEqual(service.ToolsDirectory, _lastStartInfo.WorkingDirectory);
-			Assert.IsFalse(_lastStartInfo.UseShellExecute);
-			Assert.IsTrue(_lastStartInfo.CreateNoWindow);
+			Assert.IsTrue(_lastStartInfo.UseShellExecute);
+			Assert.IsFalse(_lastStartInfo.CreateNoWindow);
 			Assert.IsFalse(_lastStartInfo.Arguments.IndexOf("cookie", StringComparison.OrdinalIgnoreCase) >= 0);
+		}
+
+		[TestMethod]
+		public void Inspect_LockedRefreshLog_ShowsFriendlyInProgressStatus()
+		{
+			WriteToolScripts();
+			var path = WriteLog(
+				"refresh-20260622-080500.log",
+				"refresh still running",
+				_now);
+
+			using (new FileStream(path, FileMode.Open, FileAccess.ReadWrite, FileShare.None))
+			{
+				var snapshot = CreateService(true).Inspect();
+				var summary = string.Join("\n", snapshot.LatestLogSummaryLines.ToArray());
+
+				Assert.IsTrue(snapshot.LatestLogBusy);
+				Assert.AreEqual("最近刷新日志: 2026-06-22 09:00（刷新中）", snapshot.LatestLogStatus);
+				StringAssert.Contains(summary, "刷新正在运行");
+				Assert.IsFalse(summary.Contains("日志摘要读取失败"));
+			}
+		}
+
+		[TestMethod]
+		public void StartInstallTask_WithScripts_RequestsElevationForScheduledTaskRegistration()
+		{
+			WriteToolScripts();
+			var service = CreateService(false);
+
+			var result = service.StartInstallTask();
+
+			Assert.IsTrue(result.Started);
+			Assert.AreEqual(1234, result.ProcessId);
+			Assert.AreEqual(1, _startCount);
+			Assert.IsNotNull(_lastStartInfo);
+			StringAssert.Contains(_lastStartInfo.Arguments, "-File \"" + service.InstallScriptPath + "\"");
+			StringAssert.Contains(_lastStartInfo.Arguments, "-DataDirectory \"" + service.DataDirectory + "\"");
+			Assert.AreEqual("runas", _lastStartInfo.Verb);
+			Assert.IsTrue(_lastStartInfo.UseShellExecute);
+			Assert.IsFalse(_lastStartInfo.CreateNoWindow);
 		}
 
 		[TestMethod]
@@ -149,7 +264,10 @@ namespace MetaCompanionTests.Tests
 			WriteToolScripts();
 			var service = new RefreshTaskService(
 				_tempDirectory,
-				name => { throw new InvalidOperationException("access denied to task scheduler"); },
+				(Func<string, RefreshScheduledTaskInfo>)(name =>
+				{
+					throw new InvalidOperationException("access denied to task scheduler");
+				}),
 				StartProcess);
 
 			var snapshot = service.Inspect();

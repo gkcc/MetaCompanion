@@ -14,7 +14,7 @@ $importedDecks = 0
 $invalidDecks = 0
 
 foreach ($line in Get-Content $DeckCodePath) {
-	if ($line -notmatch "AA[A-Za-z0-9+/=]+") {
+	if ($line -cnotmatch "AAE[A-Za-z0-9+/=]{20,}") {
 		continue
 	}
 

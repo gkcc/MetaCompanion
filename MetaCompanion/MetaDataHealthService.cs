@@ -32,7 +32,7 @@ namespace MetaCompanion
 	internal class MetaDataHealthService
 	{
 		private static readonly Regex DeckCodeRegex =
-			new Regex(@"AA[A-Za-z0-9+/=]+", RegexOptions.Compiled);
+			new Regex(@"AAE[A-Za-z0-9+/=]{20,}", RegexOptions.Compiled);
 
 		private readonly string _dataDirectory;
 		private readonly DateTime _now;

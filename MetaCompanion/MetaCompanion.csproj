@@ -12,7 +12,30 @@
     <TargetFrameworkVersion>v4.7.2</TargetFrameworkVersion>
     <FrameworkPathOverride Condition="'$(FrameworkPathOverride)' == '' and !Exists('$(ProgramFiles(x86))\Reference Assemblies\Microsoft\Framework\.NETFramework\$(TargetFrameworkVersion)\mscorlib.dll') and Exists('$(WINDIR)\Microsoft.NET\Framework\v4.0.30319\mscorlib.dll')">$(WINDIR)\Microsoft.NET\Framework\v4.0.30319</FrameworkPathOverride>
     <FileAlignment>512</FileAlignment>
-    <HdtAppPath Condition="'$(HdtAppPath)' == ''">$(LOCALAPPDATA)\HearthstoneDeckTracker\app-1.52.20</HdtAppPath>
+    <HdtAppPath Condition="'$(HdtAppPath)' == '' and '$(HDT_APP_PATH)' != ''">$(HDT_APP_PATH)</HdtAppPath>
+    <HdtAppPath Condition="'$(HdtAppPath)' == ''">$(LOCALAPPDATA)\HearthstoneDeckTracker\app-1.53.0</HdtAppPath>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)' == 'Debug|AnyCPU'">
+    <DebugSymbols>true</DebugSymbols>
+    <OutputPath>bin\Debug\</OutputPath>
+    <DefineConstants>DEBUG;TRACE</DefineConstants>
+    <DebugType>full</DebugType>
+    <PlatformTarget>AnyCPU</PlatformTarget>
+    <Prefer32Bit>false</Prefer32Bit>
+    <ResolveAssemblyWarnOrErrorOnTargetArchitectureMismatch>None</ResolveAssemblyWarnOrErrorOnTargetArchitectureMismatch>
+    <ErrorReport>prompt</ErrorReport>
+    <CodeAnalysisRuleSet>MinimumRecommendedRules.ruleset</CodeAnalysisRuleSet>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)' == 'Release|AnyCPU'">
+    <OutputPath>bin\Release\</OutputPath>
+    <DefineConstants>TRACE</DefineConstants>
+    <Optimize>true</Optimize>
+    <DebugType>pdbonly</DebugType>
+    <PlatformTarget>AnyCPU</PlatformTarget>
+    <Prefer32Bit>false</Prefer32Bit>
+    <ResolveAssemblyWarnOrErrorOnTargetArchitectureMismatch>None</ResolveAssemblyWarnOrErrorOnTargetArchitectureMismatch>
+    <ErrorReport>prompt</ErrorReport>
+    <CodeAnalysisRuleSet>MinimumRecommendedRules.ruleset</CodeAnalysisRuleSet>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)' == 'Debug|x86'">
     <DebugSymbols>true</DebugSymbols>
@@ -33,7 +56,7 @@
     <CodeAnalysisRuleSet>MinimumRecommendedRules.ruleset</CodeAnalysisRuleSet>
   </PropertyGroup>
   <ItemGroup>
-    <Reference Include="HearthDb, Version=7.1.1.17994, Culture=neutral, processorArchitecture=x86">
+    <Reference Include="HearthDb">
       <SpecificVersion>False</SpecificVersion>
       <HintPath>$(HdtAppPath)\HearthDb.dll</HintPath>
       <Private>False</Private>
@@ -41,7 +64,7 @@
     <Reference Include="HearthMirror">
       <HintPath>$(HdtAppPath)\HearthMirror.dll</HintPath>
     </Reference>
-    <Reference Include="HearthstoneDeckTracker, Version=1.1.7.0, Culture=neutral, processorArchitecture=x86">
+    <Reference Include="HearthstoneDeckTracker">
       <SpecificVersion>False</SpecificVersion>
       <HintPath>$(HdtAppPath)\HearthstoneDeckTracker.exe</HintPath>
       <Private>False</Private>
@@ -86,6 +109,7 @@
     <Compile Include="OpponentEvidence.cs" />
     <Compile Include="OverlayDragHelper.cs" />
     <Compile Include="OverlayInteractivityHelper.cs" />
+    <Compile Include="PatchStateService.cs" />
     <Compile Include="PostGameMetaRefresher.cs" />
     <Compile Include="QuickDashboardRefresher.cs" />
     <Compile Include="RefreshTaskService.cs" />

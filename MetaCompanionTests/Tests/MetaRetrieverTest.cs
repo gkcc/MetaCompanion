@@ -53,40 +53,92 @@ namespace MetaCompanionTests.Tests
 		}
 
 		[TestMethod]
-		public void SelectDeckCodeFilePaths_PrefersHsReplayOverBranchFallback()
+		public void ParseDeckCodeEntry_IgnoresHsReplayDeckIdsThatLookLikeDeckCodes()
 		{
-			var manualPath = DataPath("deckcodes.txt");
-			var branchPath = DataPath("archetype_deck_branches.tsv");
-			var hsReplayPath = DataPath("hsreplay_deckcodes.txt");
-			var hsGuruPath = DataPath("hsguru_deckcodes.txt");
+			var entry = MetaRetriever.ParseDeckCodeEntry(
+				"HSReplay deck\tAA0iwEekbHmF238T5wJtvFbAzwKLiYPsypLM2HpzTeW5sTI8Iz6uxvDtl0twoOz4hL\tCfFnh5jtDmuU7WFjdgzsc");
 
-			var selected = MetaRetriever.SelectDeckCodeFilePaths(new[]
+			Assert.IsNull(entry);
+		}
+
+		[TestMethod]
+		public void SelectDeckCodeFilePaths_PrefersCurrentPatchBranchOverUnscopedHsReplay()
+		{
+			WithTempDirectory(tempDirectory =>
+			{
+				var manualPath = Path.Combine(tempDirectory, "deckcodes.txt");
+				var branchPath = Path.Combine(tempDirectory, "archetype_deck_branches.tsv");
+				var hsReplayPath = Path.Combine(tempDirectory, "hsreplay_deckcodes.txt");
+				var hsGuruPath = Path.Combine(tempDirectory, "hsguru_deckcodes.txt");
+				File.WriteAllText(Path.Combine(tempDirectory, "patch_marker.txt"), "2026-07-07T19:16:55+08:00");
+				File.WriteAllText(branchPath,
+					"# CandidateAsOf: 2026-07-08T07:58:37Z\n" +
+					"# CandidateTimeRange: CURRENT_PATCH\n");
+
+				var selected = MetaRetriever.SelectDeckCodeFilePaths(new[]
 				{
 					manualPath,
 					branchPath,
 					hsReplayPath,
 					hsGuruPath
-				});
+				}, tempDirectory);
 
-			CollectionAssert.AreEqual(new[] {manualPath, hsReplayPath}, selected);
+				CollectionAssert.AreEqual(new[] {manualPath, branchPath}, selected);
+			});
 		}
 
 		[TestMethod]
-		public void SelectDeckCodeFilePaths_FallsBackToHsGuruThenBranch()
+		public void SelectDeckCodeFilePaths_PrefersHsReplayOverNonCurrentBranchFallback()
 		{
-			var branchPath = DataPath("archetype_deck_branches.tsv");
-			var hsReplayPath = DataPath("hsreplay_deckcodes.txt");
-			var hsGuruPath = DataPath("hsguru_deckcodes.txt");
+			WithTempDirectory(tempDirectory =>
+			{
+				var manualPath = Path.Combine(tempDirectory, "deckcodes.txt");
+				var branchPath = Path.Combine(tempDirectory, "archetype_deck_branches.tsv");
+				var hsReplayPath = Path.Combine(tempDirectory, "hsreplay_deckcodes.txt");
+				File.WriteAllText(branchPath, "# CandidateTimeRange: LAST_7_DAYS\n");
 
-			CollectionAssert.AreEqual(
-				new[] {hsReplayPath},
-				MetaRetriever.SelectDeckCodeFilePaths(new[] {hsReplayPath, hsGuruPath}));
-			CollectionAssert.AreEqual(
-				new[] {hsGuruPath},
-				MetaRetriever.SelectDeckCodeFilePaths(new[] {hsGuruPath}));
-			CollectionAssert.AreEqual(
-				new[] {branchPath},
-				MetaRetriever.SelectDeckCodeFilePaths(new[] {branchPath}));
+				var selected = MetaRetriever.SelectDeckCodeFilePaths(new[]
+				{
+					manualPath,
+					branchPath,
+					hsReplayPath
+				}, tempDirectory);
+
+				CollectionAssert.AreEqual(new[] {manualPath, hsReplayPath}, selected);
+			});
+		}
+
+		[TestMethod]
+		public void SelectDeckCodeFilePaths_FallsBackToHsGuruAndBranch()
+		{
+			var tempDirectory = Path.Combine(Path.GetTempPath(), "MetaCompanionTests", Path.GetRandomFileName());
+			Directory.CreateDirectory(tempDirectory);
+			try
+			{
+				var branchPath = Path.Combine(tempDirectory, "archetype_deck_branches.tsv");
+				var hsReplayPath = Path.Combine(tempDirectory, "hsreplay_deckcodes.txt");
+				var hsGuruPath = Path.Combine(tempDirectory, "hsguru_deckcodes.txt");
+
+				CollectionAssert.AreEqual(
+					new[] {hsReplayPath},
+					MetaRetriever.SelectDeckCodeFilePaths(new[] {hsReplayPath, hsGuruPath}, tempDirectory));
+				CollectionAssert.AreEqual(
+					new[] {hsGuruPath, branchPath},
+					MetaRetriever.SelectDeckCodeFilePaths(new[] {hsGuruPath, branchPath}, tempDirectory));
+				CollectionAssert.AreEqual(
+					new[] {hsGuruPath},
+					MetaRetriever.SelectDeckCodeFilePaths(new[] {hsGuruPath}, tempDirectory));
+				CollectionAssert.AreEqual(
+					new[] {branchPath},
+					MetaRetriever.SelectDeckCodeFilePaths(new[] {branchPath}, tempDirectory));
+			}
+			finally
+			{
+				if (Directory.Exists(tempDirectory))
+				{
+					Directory.Delete(tempDirectory, true);
+				}
+			}
 		}
 
 		[TestMethod]
@@ -97,9 +149,50 @@ namespace MetaCompanionTests.Tests
 			Assert.AreEqual(0, selected.Count);
 		}
 
-		private static string DataPath(string fileName)
+		[TestMethod]
+		public void LoadDeckCodeDecks_FallsBackWhenHsReplaySnapshotHasNoValidDeckStrings()
 		{
-			return Path.Combine(MetaCompanionPlugin.DataDirectory, fileName);
+			var tempDirectory = Path.Combine(Path.GetTempPath(), "MetaCompanionTests", Path.GetRandomFileName());
+			Directory.CreateDirectory(tempDirectory);
+			try
+			{
+				File.WriteAllText(
+					Path.Combine(tempDirectory, "hsreplay_deckcodes.txt"),
+					"HSReplay deck\tAA0iwEekbHmF238T5wJtvFbAzwKLiYPsypLM2HpzTeW5sTI8Iz6uxvDtl0twoOz4hL");
+				File.WriteAllText(
+					Path.Combine(tempDirectory, "archetype_deck_branches.tsv"),
+					"Herald Death Knight\t" + HeraldDeathKnightDeckCode);
+
+				var decks = MetaRetriever.LoadDeckCodeDecks(tempDirectory);
+
+				Assert.AreEqual(1, decks.Count);
+				Assert.AreEqual("Herald Death Knight", decks[0].Name);
+				Assert.AreEqual("Death Knight", decks[0].Class);
+			}
+			finally
+			{
+				if (Directory.Exists(tempDirectory))
+				{
+					Directory.Delete(tempDirectory, true);
+				}
+			}
+		}
+
+		private static void WithTempDirectory(System.Action<string> action)
+		{
+			var tempDirectory = Path.Combine(Path.GetTempPath(), "MetaCompanionTests", Path.GetRandomFileName());
+			Directory.CreateDirectory(tempDirectory);
+			try
+			{
+				action(tempDirectory);
+			}
+			finally
+			{
+				if (Directory.Exists(tempDirectory))
+				{
+					Directory.Delete(tempDirectory, true);
+				}
+			}
 		}
 	}
 }

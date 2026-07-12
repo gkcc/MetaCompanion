@@ -335,6 +335,12 @@ namespace MetaCompanion
 				if (string.IsNullOrWhiteSpace(archetypeName) ||
 					!archetypes.NameToId.ContainsKey(archetypeName))
 				{
+					var fallbackRow = BuildUnidentifiedPluginHistoryRow(
+						row, correction, matchId, endedAt.Value, now, sampleWindow);
+					if (fallbackRow != null)
+					{
+						localRows.Add(fallbackRow);
+					}
 					continue;
 				}
 
@@ -392,6 +398,57 @@ namespace MetaCompanion
 			}
 
 			return localRows;
+		}
+
+		private static LocalMatchRow BuildUnidentifiedPluginHistoryRow(
+			Dictionary<string, string> row,
+			MatchCorrection correction,
+			string matchId,
+			DateTime endedAt,
+			DateTime now,
+			LocalSampleWindow sampleWindow)
+		{
+			var opponentClass = MetaRetriever.NormalizeClass(Get(row, "opponent_class"));
+			if (string.IsNullOrWhiteSpace(opponentClass))
+			{
+				return null;
+			}
+
+			var startedAt = ParseDate(Get(row, "started_at"));
+			var patchReferenceTime = startedAt ?? endedAt;
+			var result = correction != null && !string.IsNullOrWhiteSpace(correction.CorrectedResult)
+				? correction.CorrectedResult
+				: Get(row, "result");
+			return new LocalMatchRow
+			{
+				MatchId = matchId,
+				StartedAt = FirstNonEmpty(
+					Get(row, "started_at"),
+					endedAt.ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture)),
+				EndedAt = endedAt,
+				Format = Get(row, "format"),
+				Mode = Get(row, "mode"),
+				Result = result,
+				OpponentClass = opponentClass,
+				ArchetypeId = 0,
+				ArchetypeName = "",
+				PlayerClass = opponentClass,
+				ConfidencePct = 0.0,
+				Weight = 0.0,
+				PatchWeight = GetPatchWeight(patchReferenceTime, sampleWindow),
+				RecencyWeight = GetRecencyWeight(endedAt, now, sampleWindow),
+				AgeDays = Math.Max(0.0, (now - endedAt).TotalDays),
+				EvidenceCount = ParseInt(Get(row, "evidence_cards"), 0),
+				EvidenceCards = Get(row, "evidence_cards"),
+				CandidateArchetypes = Get(row, "candidate_archetypes"),
+				KeyEvidenceCards = Get(row, "key_evidence_cards"),
+				ReplayFile = Get(row, "replay_file"),
+				ReplayPath = Get(row, "replay_path"),
+				HsReplayUploadId = Get(row, "hsreplay_upload_id"),
+				HsReplayUrl = Get(row, "hsreplay_url"),
+				HasCorrection = correction != null,
+				Source = "plugin_match_history_unidentified"
+			};
 		}
 
 		private static List<LocalMatchRow> LoadHdtDeckStatsRows(
@@ -791,9 +848,12 @@ namespace MetaCompanion
 			List<LocalMatchRow> localRows,
 			ArchetypeLookup archetypes)
 		{
-			var totalWeight = localRows.Sum(row => row.Weight);
+			var identifiedRows = localRows
+				.Where(IsIdentifiedLocalRow)
+				.ToList();
+			var totalWeight = identifiedRows.Sum(row => row.Weight);
 			var rank = 1;
-			return localRows
+			return identifiedRows
 				.GroupBy(row => row.ArchetypeId)
 				.Select(group =>
 					{
@@ -941,11 +1001,14 @@ namespace MetaCompanion
 			ArchetypeLookup archetypes,
 			List<LocalMatchRow> localRows)
 		{
+			var identifiedLocalRows = localRows
+				.Where(IsIdentifiedLocalRow)
+				.ToList();
 			var weights = new Dictionary<int, double>();
-			var localFactor = localRows.Count > 0
+			var localFactor = identifiedLocalRows.Count > 0
 				? Clamp(config.LocalRecommendationWeight, 0.0, 1.0)
 				: 0.0;
-			var remoteFactor = localRows.Count > 0 ? 1.0 - localFactor : 1.0;
+			var remoteFactor = identifiedLocalRows.Count > 0 ? 1.0 - localFactor : 1.0;
 			var remoteRows = ReadRemoteEnvironment(summary);
 			var remoteTotal = remoteRows.Sum(row => row.Weight);
 			if (remoteTotal > 0.0)
@@ -956,10 +1019,10 @@ namespace MetaCompanion
 				}
 			}
 
-			var localTotal = localRows.Sum(row => row.Weight);
+			var localTotal = identifiedLocalRows.Sum(row => row.Weight);
 			if (localTotal > 0.0)
 			{
-				foreach (var row in localRows)
+				foreach (var row in identifiedLocalRows)
 				{
 					AddWeight(weights, row.ArchetypeId, row.Weight / localTotal * localFactor);
 				}
@@ -974,6 +1037,14 @@ namespace MetaCompanion
 				})
 				.OrderByDescending(row => row.Weight)
 				.ToList();
+		}
+
+		private static bool IsIdentifiedLocalRow(LocalMatchRow row)
+		{
+			return row != null &&
+				row.ArchetypeId > 0 &&
+				row.Weight > 0.0 &&
+				!string.IsNullOrWhiteSpace(row.ArchetypeName);
 		}
 
 		private static List<RecommendationEnvironmentRow> ReadRemoteEnvironment(

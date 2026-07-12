@@ -130,7 +130,7 @@
 				<Button Margin="0,0,8,0"
 						Padding="12,5"
 						IsEnabled="{Binding CanRunRefreshNow}"
-						Click="ButtonRunRefreshNow_Click">立即刷新</Button>
+						Click="ButtonRunRefreshNow_Click">立即刷新（打开终端）</Button>
 				<Button Padding="12,5"
 						IsEnabled="{Binding CanOpenRefreshLog}"
 						Click="ButtonOpenRefreshLog_Click">打开刷新日志</Button>

@@ -3,7 +3,7 @@ setlocal
 pushd "%~dp0.."
 
 echo [Meta Companion] Force refresh remote cache for current patch.
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File ".\tools\Run-MetaCompanionRefresh.ps1" -Force -PrimaryTimeRange CURRENT_PATCH -MetaFallbackTimeRange CURRENT_PATCH
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File ".\tools\Run-MetaCompanionRefresh.ps1" -Force -PrimaryTimeRange CURRENT_PATCH -MetaFallbackTimeRange LAST_1_DAY
 set "ERR=%ERRORLEVEL%"
 
 echo.

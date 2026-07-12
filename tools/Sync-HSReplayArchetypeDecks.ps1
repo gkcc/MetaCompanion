@@ -12,6 +12,7 @@ param(
 	[int]$BranchesPerArchetype = 5,
 	[int]$MinGames = 100,
 	[int]$Parallelism = 6,
+	[string]$UserAgent = "",
 	[int]$AnalyticsTimeoutSeconds = 30,
 	[int]$DeckPageTimeoutSeconds = 12,
 	[int]$Retries = 2,
@@ -25,6 +26,31 @@ $ErrorActionPreference = "Stop"
 if (-not (Get-Command curl.exe -ErrorAction SilentlyContinue)) {
 	throw "curl.exe was not found."
 }
+
+function Get-DefaultBrowserUserAgent([string]$PreferredUserAgent) {
+	if (-not [string]::IsNullOrWhiteSpace($PreferredUserAgent)) {
+		return $PreferredUserAgent
+	}
+
+	$chromePaths = @(
+		"$env:ProgramFiles\Google\Chrome\Application\chrome.exe",
+		"${env:ProgramFiles(x86)}\Google\Chrome\Application\chrome.exe",
+		"$env:LOCALAPPDATA\Google\Chrome\Application\chrome.exe"
+	)
+	foreach ($path in $chromePaths) {
+		if (-not (Test-Path -LiteralPath $path)) {
+			continue
+		}
+		$version = (Get-Item -LiteralPath $path).VersionInfo.ProductVersion
+		if (-not [string]::IsNullOrWhiteSpace($version)) {
+			return "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/$version Safari/537.36"
+		}
+	}
+
+	return "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+}
+
+$effectiveUserAgent = Get-DefaultBrowserUserAgent $UserAgent
 if (-not (Test-Path $SummaryPath)) {
 	throw "Meta summary not found: $SummaryPath. Run Sync-HSReplayMetaData.ps1 first."
 }
@@ -75,11 +101,48 @@ function Get-HSReplayCookieArgs {
 	return @("-H", "Cookie: $cookieHeader")
 }
 
+function Format-HSReplayResponseBody([string]$Body) {
+	if ([string]::IsNullOrWhiteSpace($Body)) {
+		return "empty response body"
+	}
+
+	$decoded = [System.Net.WebUtility]::HtmlDecode($Body)
+	$oneLine = ($decoded -replace "\s+", " ").Trim()
+	if ($decoded -match "(?is)<title>\s*(?<title>.*?)\s*</title>") {
+		$title = (($Matches["title"] -replace "\s+", " ").Trim())
+		if ($title -match "(?i)^Just a moment") {
+			return "Cloudflare challenge page (title: $title). Refresh the HSReplay Premium cookie from a logged-in browser session, then retry. If it persists, HSReplay may be blocking scripted access temporarily."
+		}
+		return "HTML response (title: $title)"
+	}
+	if ($decoded -match "(?i)cloudflare|challenges\.cloudflare\.com") {
+		return "Cloudflare challenge page. Refresh the HSReplay Premium cookie from a logged-in browser session, then retry. If it persists, HSReplay may be blocking scripted access temporarily."
+	}
+	if ($oneLine.StartsWith("<")) {
+		return "HTML response without a title"
+	}
+	if ($oneLine.Length -gt 500) {
+		return $oneLine.Substring(0, 500) + "... [truncated]"
+	}
+	return $oneLine
+}
+
+function New-HSReplayHttpError([int]$StatusCode, [string]$Name, [string]$Body, [bool]$AuthenticationFailure) {
+	$response = Format-HSReplayResponseBody $Body
+	if ($AuthenticationFailure -and $response -match "(?i)Cloudflare challenge") {
+		return "HSReplay returned HTTP $StatusCode for $Name. HSReplay returned a Cloudflare challenge page instead of JSON. Refresh the HSReplay Premium cookie from a logged-in browser session, then retry. If it persists, HSReplay may be blocking scripted access temporarily."
+	}
+	if ($AuthenticationFailure) {
+		return "HSReplay returned HTTP $StatusCode for $Name. The cookie is missing, expired, or does not have an active Premium subscription. Response: $response"
+	}
+	return "HSReplay returned HTTP $StatusCode for $Name. Response: $response"
+}
+
 function Invoke-HSReplayJson([string]$Url, [string]$Name, [object[]]$CookieArgs) {
 	for ($attempt = 1; $attempt -le $Retries; $attempt++) {
 		$bodyPath = [System.IO.Path]::GetTempFileName()
 		try {
-			$statusText = & curl.exe -s -L -A "Mozilla/5.0" -H "Accept: application/json" @CookieArgs `
+			$statusText = & curl.exe -s -L -A $effectiveUserAgent -H "Accept: application/json" @CookieArgs `
 				--connect-timeout 10 --max-time $AnalyticsTimeoutSeconds -w "%{http_code}" -o $bodyPath $Url 2>$null
 			$statusText = (@($statusText) -join "").Trim()
 			$body = if (Test-Path $bodyPath) {
@@ -112,36 +175,36 @@ function Invoke-HSReplayJson([string]$Url, [string]$Name, [object[]]$CookieArgs)
 		}
 
 		if ($statusCode -eq 401 -or $statusCode -eq 403) {
-			throw "HSReplay returned HTTP $statusCode for $Name. The cookie is missing, expired, or does not have an active Premium subscription. Body: $body"
+			throw (New-HSReplayHttpError $statusCode $Name $body $true)
 		}
 		if ($statusCode -eq 400) {
-			throw "HSReplay rejected $Name parameters with HTTP 400. Body: $body"
+			throw "HSReplay rejected $Name parameters with HTTP 400. Response: $(Format-HSReplayResponseBody $body)"
 		}
 		if ($attempt -lt $Retries) {
 			Start-Sleep -Milliseconds (500 * $attempt)
 			continue
 		}
-		throw "HSReplay returned HTTP $statusCode for $Name. Body: $body"
+		throw (New-HSReplayHttpError $statusCode $Name $body $false)
 	}
 }
 
 function Convert-DeckPageToInfo([string]$DeckId, [string]$Html) {
 	$decoded = [System.Net.WebUtility]::HtmlDecode([string]$Html)
 	$deckStringMatch = [regex]::Match($decoded,
-		'<meta[^>]+property=["'']x-hearthstone:deck:deckstring["''][^>]+content=["''](?<deck>AA[A-Za-z0-9+/=]+)["'']',
+		'<meta[^>]+property=["'']x-hearthstone:deck:deckstring["''][^>]+content=["''](?<deck>AAE[A-Za-z0-9+/=]{20,})["'']',
 		[System.Text.RegularExpressions.RegexOptions]::IgnoreCase)
 	if (-not $deckStringMatch.Success) {
 		$deckStringMatch = [regex]::Match($decoded,
-			'<meta[^>]+content=["''](?<deck>AA[A-Za-z0-9+/=]+)["''][^>]+property=["'']x-hearthstone:deck:deckstring["'']',
+			'<meta[^>]+content=["''](?<deck>AAE[A-Za-z0-9+/=]{20,})["''][^>]+property=["'']x-hearthstone:deck:deckstring["'']',
 			[System.Text.RegularExpressions.RegexOptions]::IgnoreCase)
 	}
 	if (-not $deckStringMatch.Success) {
-		$deckStringMatch = [regex]::Match($decoded, "Import it:\s*(?<deck>AA[A-Za-z0-9+/=]+)")
+		$deckStringMatch = [regex]::Match($decoded, "Import it:\s*(?<deck>AAE[A-Za-z0-9+/=]{20,})")
 	}
 	if (-not $deckStringMatch.Success) {
-		$deckStringMatch = [regex]::Match($decoded, "(?<deck>AA[A-Za-z0-9+/=]+)")
-	}
-	if (-not $deckStringMatch.Success) {
+		if ($decoded -match "(?i)challenges\.cloudflare\.com|<title>\s*Just a moment") {
+			throw "HSReplay returned a Cloudflare challenge page for deck $DeckId. Refresh the HSReplay cookie from a logged-in browser session, then retry."
+		}
 		return $null
 	}
 
@@ -197,6 +260,7 @@ $runId = Get-Date -Format "yyyyMMdd-HHmmss"
 $runDirectory = Join-Path (Join-Path $CacheDirectory "runs") $runId
 $latestDirectory = Join-Path $CacheDirectory "latest"
 New-Item -ItemType Directory -Force -Path $runDirectory, $latestDirectory | Out-Null
+[object[]]$cookieArgs = @(Get-HSReplayCookieArgs)
 
 $candidateFileName = "list_decks_by_win_rate_v2.json"
 $candidateRunPath = Join-Path $runDirectory $candidateFileName
@@ -221,7 +285,7 @@ if ($UseCachedCandidates) {
 	$candidateUrl = "https://hsreplay.net/api/v1/analytics/query/list_decks_by_win_rate_v2/?$(ConvertTo-QueryString $parameters)"
 	Write-Host "Fetching HSReplay deck branch candidates..."
 	Write-Host "CandidateTimeRange=$CandidateTimeRange GameType=$GameType LeagueRankRange=$RankRange Region=$Region"
-	$response = Invoke-HSReplayJson $candidateUrl "list_decks_by_win_rate_v2" (Get-HSReplayCookieArgs)
+	$response = Invoke-HSReplayJson $candidateUrl "list_decks_by_win_rate_v2" $cookieArgs
 	$candidateJson = $response.Body
 	$candidateStatusCode = $response.StatusCode
 	Set-Content -Path $candidateRunPath -Value $candidateJson -Encoding UTF8
@@ -322,7 +386,7 @@ if ($Parallelism -le 1) {
 		$deckUrl = "https://hsreplay.net/decks/$deckId/"
 		$body = $null
 		for ($attempt = 1; $attempt -le $Retries; $attempt++) {
-			$body = & curl.exe -s -L -A "Mozilla/5.0" -H "Accept: text/html,*/*" `
+			$body = & curl.exe -s -L -A $effectiveUserAgent -H "Accept: text/html,*/*" @cookieArgs `
 				--connect-timeout 10 --max-time $DeckPageTimeoutSeconds $deckUrl 2>$null
 			if ($LASTEXITCODE -eq 0 -and -not [string]::IsNullOrWhiteSpace($body)) {
 				break
@@ -355,10 +419,10 @@ if ($Parallelism -le 1) {
 	$jobs = @{}
 	$checked = 0
 	$jobScript = {
-		param([string]$DeckId, [int]$Retries, [int]$TimeoutSeconds)
-		function Invoke-CurlTextLocal([string]$Url, [int]$Retries, [int]$TimeoutSeconds) {
+		param([string]$DeckId, [int]$Retries, [int]$TimeoutSeconds, [string]$UserAgent, [object[]]$CookieArgs)
+		function Invoke-CurlTextLocal([string]$Url, [int]$Retries, [int]$TimeoutSeconds, [string]$UserAgent, [object[]]$CookieArgs) {
 			for ($attempt = 1; $attempt -le $Retries; $attempt++) {
-				$text = & curl.exe -s -L -A "Mozilla/5.0" -H "Accept: text/html,*/*" `
+				$text = & curl.exe -s -L -A $UserAgent -H "Accept: text/html,*/*" @CookieArgs `
 					--connect-timeout 10 --max-time $TimeoutSeconds $Url 2>$null
 				if ($LASTEXITCODE -eq 0 -and -not [string]::IsNullOrWhiteSpace($text)) {
 					return [string]$text
@@ -375,7 +439,12 @@ if ($Parallelism -le 1) {
 			[pscustomobject]@{
 				DeckId = $DeckId
 				Url = $deckUrl
-				Html = (Invoke-CurlTextLocal $deckUrl $Retries $TimeoutSeconds)
+				Html = (Invoke-CurlTextLocal `
+					-Url $deckUrl `
+					-Retries $Retries `
+					-TimeoutSeconds $TimeoutSeconds `
+					-UserAgent $UserAgent `
+					-CookieArgs $CookieArgs)
 				Error = $null
 			}
 		} catch {
@@ -391,7 +460,7 @@ if ($Parallelism -le 1) {
 	while ($queue.Count -gt 0 -or $jobs.Count -gt 0) {
 		while ($queue.Count -gt 0 -and $jobs.Count -lt $Parallelism) {
 			$deckId = $queue.Dequeue()
-			$job = Start-Job -ScriptBlock $jobScript -ArgumentList $deckId, $Retries, $DeckPageTimeoutSeconds
+			$job = Start-Job -ScriptBlock $jobScript -ArgumentList $deckId, $Retries, $DeckPageTimeoutSeconds, $effectiveUserAgent, (,$cookieArgs)
 			$jobs[$job.Id] = $job
 		}
 

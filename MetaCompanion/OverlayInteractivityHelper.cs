@@ -16,7 +16,6 @@ namespace MetaCompanion
 		private static readonly List<WeakReference<FrameworkElement>> Targets =
 			new List<WeakReference<FrameworkElement>>();
 		private static DispatcherTimer _timer;
-		private static int? _originalExStyle;
 		private static int _interactionHolds;
 
 		public static void Register(FrameworkElement target)
@@ -114,19 +113,23 @@ namespace MetaCompanion
 			}
 
 			var activeTargets = GetActiveTargets().ToList();
-			if (_originalExStyle == null)
+			var mouseOverTarget = activeTargets.Any(IsMouseOver);
+			SetClickThrough(
+				handle,
+				ShouldClickThrough(activeTargets.Count, _interactionHolds, mouseOverTarget));
+		}
+
+		internal static bool ShouldClickThrough(
+			int activeTargetCount,
+			int interactionHolds,
+			bool mouseOverTarget)
+		{
+			if (interactionHolds > 0)
 			{
-				_originalExStyle = GetWindowLong(handle, GwlExStyle);
+				return false;
 			}
 
-			if (activeTargets.Count == 0 && _interactionHolds <= 0)
-			{
-				RestoreOriginalStyle(handle);
-				return;
-			}
-
-			var mouseOverTarget = _interactionHolds > 0 || activeTargets.Any(IsMouseOver);
-			SetClickThrough(handle, !mouseOverTarget);
+			return activeTargetCount <= 0 || !mouseOverTarget;
 		}
 
 		private static IEnumerable<FrameworkElement> GetActiveTargets()
@@ -180,21 +183,18 @@ namespace MetaCompanion
 		private static void SetClickThrough(IntPtr handle, bool clickThrough)
 		{
 			var style = GetWindowLong(handle, GwlExStyle);
-			var nextStyle = clickThrough
-				? style | WsExTransparent
-				: style & ~WsExTransparent;
+			var nextStyle = ApplyClickThroughStyle(style, clickThrough);
 			if (nextStyle != style)
 			{
 				SetWindowLong(handle, GwlExStyle, nextStyle);
 			}
 		}
 
-		private static void RestoreOriginalStyle(IntPtr handle)
+		internal static int ApplyClickThroughStyle(int style, bool clickThrough)
 		{
-			if (_originalExStyle.HasValue)
-			{
-				SetWindowLong(handle, GwlExStyle, _originalExStyle.Value);
-			}
+			return clickThrough
+				? style | WsExTransparent
+				: style & ~WsExTransparent;
 		}
 
 		[DllImport("user32.dll")]

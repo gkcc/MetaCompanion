@@ -43,15 +43,21 @@ namespace MetaCompanionTests.Tests
 		}
 
 		[TestMethod]
-		public void GetGameStartDecision_DoesNotTouchDashboardForUntrackedGame()
+		public void GetGameStartDecision_HidesDashboardForUnsupportedActualGame()
 		{
 			var unsupportedMode = MetaCompanionPlugin.GetGameStartDecision(
 				Format.Standard, GameMode.Battlegrounds, false);
+
+			Assert.IsFalse(unsupportedMode.ShouldTrack);
+			Assert.AreEqual(GameStartDashboardAction.Hide, unsupportedMode.DashboardAction);
+		}
+
+		[TestMethod]
+		public void GetGameStartDecision_DoesNotTouchDashboardForDuplicateGameStart()
+		{
 			var duplicateStart = MetaCompanionPlugin.GetGameStartDecision(
 				Format.Standard, GameMode.Ranked, true);
 
-			Assert.IsFalse(unsupportedMode.ShouldTrack);
-			Assert.AreEqual(GameStartDashboardAction.None, unsupportedMode.DashboardAction);
 			Assert.IsFalse(duplicateStart.ShouldTrack);
 			Assert.AreEqual(GameStartDashboardAction.None, duplicateStart.DashboardAction);
 		}
@@ -66,7 +72,7 @@ namespace MetaCompanionTests.Tests
 				MetaDeckLoadSnapshot.Loading(DateTime.Now));
 
 			Assert.IsFalse(decision.ShouldTrack);
-			Assert.AreEqual(GameStartDashboardAction.None, decision.DashboardAction);
+			Assert.AreEqual(GameStartDashboardAction.Hide, decision.DashboardAction);
 			StringAssert.Contains(decision.PredictionUnavailableReason, "牌组库加载中");
 		}
 

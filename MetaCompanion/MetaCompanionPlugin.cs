@@ -65,6 +65,7 @@ namespace MetaCompanion
 		private DateTime _ignoreReplayEventsUntil = DateTime.MinValue;
 		private DateTime _nextDashboardPoll = DateTime.MinValue;
 		private bool _wasInRecommendationScene;
+		private bool _pendingRecommendationDashboardRefresh;
 		private string _lastDashboardStateSignature;
 		private static readonly TimeSpan DashboardPollInterval = TimeSpan.FromSeconds(1);
 
@@ -123,6 +124,7 @@ namespace MetaCompanion
 				Directory.CreateDirectory(DataDirectory);
 			}
 			CustomLog.Initialize(LogDirectory);
+			EnsureCurrentPatchState();
 
 			_config = PluginConfig.Load();
 
@@ -190,13 +192,16 @@ namespace MetaCompanion
 			GameEvents.OnGameTied.Add(() => _matchHistoryRecorder?.SetResult("tie"));
 			GameEvents.OnGameEnd.Add(() =>
 				{
-					_matchHistoryRecorder?.Complete("game_end");
-					_quickDashboardRefresher?.TryRefreshAfterGame(
-						_config,
-						() => UpdateStandardRecommendationDashboard(true));
-					_postGameMetaRefresher?.TryRefreshAfterGame(
-						_config,
-						() => UpdateStandardRecommendationDashboard(true));
+					if (StopTrackingGame("game_end"))
+					{
+						_pendingRecommendationDashboardRefresh = true;
+						_quickDashboardRefresher?.TryRefreshAfterGame(
+							_config,
+							() => UpdateStandardRecommendationDashboard(true));
+						_postGameMetaRefresher?.TryRefreshAfterGame(
+							_config,
+							() => UpdateStandardRecommendationDashboard(true));
+					}
 				});
 			GameEvents.OnInMenu.Add(() =>
 				{
@@ -204,23 +209,17 @@ namespace MetaCompanion
 					{
 						return;
 					}
-					var wasTrackingGame = _controller != null || _matchHistoryRecorder != null;
-					if (_controller != null)
-					{
-						_view.SetEnabled(false);
-						Log.Debug("Disabling Meta Companion for end of game");
-					}
-					_matchHistoryRecorder?.Complete("in_menu");
+					var wasTrackingGame = StopTrackingGame("in_menu");
 					if (wasTrackingGame)
 					{
+						_pendingRecommendationDashboardRefresh = true;
 						_quickDashboardRefresher?.TryRefreshAfterGame(
 							_config,
 							() => UpdateStandardRecommendationDashboard(true));
 					}
-					_matchHistoryRecorder = null;
-					_controller = null;
-					if (wasTrackingGame)
+					if (wasTrackingGame || _pendingRecommendationDashboardRefresh)
 					{
+						_pendingRecommendationDashboardRefresh = false;
 						UpdateStandardRecommendationDashboard(true);
 					}
 				});
@@ -337,6 +336,27 @@ namespace MetaCompanion
 			});
 		}
 
+		private static void EnsureCurrentPatchState()
+		{
+			try
+			{
+				var result = PatchStateService.EnsureCurrentPatchState(DataDirectory);
+				if (result.PatchChanged)
+				{
+					Log.Info("Hearthstone patch boundary detected" +
+						(string.IsNullOrWhiteSpace(result.PatchVersion)
+							? ""
+							: " (" + result.PatchVersion + ")") +
+						"; archived " + result.ArchivedFileCount +
+						" local data files for a fresh patch window.");
+				}
+			}
+			catch (Exception ex)
+			{
+				Log.Warn("Unable to update patch state: " + ex.Message);
+			}
+		}
+
 		private void SetMetaDeckLoadState(List<Deck> decks, MetaDeckLoadSnapshot snapshot)
 		{
 			lock (_metaDeckLock)
@@ -418,7 +438,9 @@ namespace MetaCompanion
 			var shouldTrack = ShouldStartTrackingGame(format, mode, alreadyTracking);
 			return new GameStartDecision(
 				shouldTrack,
-				shouldTrack ? GameStartDashboardAction.Hide : GameStartDashboardAction.None);
+				shouldTrack || ShouldHideDashboardOnGameStart(mode, alreadyTracking)
+					? GameStartDashboardAction.Hide
+					: GameStartDashboardAction.None);
 		}
 
 		internal static GameStartDecision GetGameStartDecision(
@@ -429,7 +451,11 @@ namespace MetaCompanion
 		{
 			if (!ShouldStartTrackingGame(format, mode, alreadyTracking))
 			{
-				return new GameStartDecision(false, GameStartDashboardAction.None);
+				return new GameStartDecision(
+					false,
+					ShouldHideDashboardOnGameStart(mode, alreadyTracking)
+						? GameStartDashboardAction.Hide
+						: GameStartDashboardAction.None);
 			}
 
 			var snapshot = metaDeckLoadSnapshot ?? MetaDeckLoadSnapshot.Loading(DateTime.Now);
@@ -437,11 +463,16 @@ namespace MetaCompanion
 			{
 				return new GameStartDecision(
 					false,
-					GameStartDashboardAction.None,
+					GameStartDashboardAction.Hide,
 					snapshot.UserMessage);
 			}
 
 			return new GameStartDecision(true, GameStartDashboardAction.Hide);
+		}
+
+		private static bool ShouldHideDashboardOnGameStart(GameMode mode, bool alreadyTracking)
+		{
+			return !alreadyTracking && mode != GameMode.None;
 		}
 
 		internal static bool ShouldShowStandardRecommendations(
@@ -533,6 +564,25 @@ namespace MetaCompanion
 		private bool ShouldIgnoreReplayEvent()
 		{
 			return DateTime.Now < _ignoreReplayEventsUntil;
+		}
+
+		private bool StopTrackingGame(string reason)
+		{
+			var wasTrackingGame = _controller != null || _matchHistoryRecorder != null;
+			if (!wasTrackingGame)
+			{
+				return false;
+			}
+
+			_matchHistoryRecorder?.Complete(reason);
+			_matchHistoryRecorder = null;
+			if (_controller != null)
+			{
+				_view.SetEnabled(false);
+				Log.Debug("Disabling Meta Companion for end of game (" + reason + ")");
+			}
+			_controller = null;
+			return true;
 		}
 
 		public Version Version

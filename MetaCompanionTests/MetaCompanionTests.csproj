@@ -18,9 +18,32 @@
     <ReferencePath>$(ProgramFiles)\Common Files\microsoft shared\VSTT\$(VisualStudioVersion)\UITestExtensionPackages</ReferencePath>
     <IsCodedUITest>False</IsCodedUITest>
     <TestProjectType>UnitTest</TestProjectType>
-    <HdtAppPath Condition="'$(HdtAppPath)' == ''">$(LOCALAPPDATA)\HearthstoneDeckTracker\app-1.52.20</HdtAppPath>
+    <HdtAppPath Condition="'$(HdtAppPath)' == '' and '$(HDT_APP_PATH)' != ''">$(HDT_APP_PATH)</HdtAppPath>
+    <HdtAppPath Condition="'$(HdtAppPath)' == ''">$(LOCALAPPDATA)\HearthstoneDeckTracker\app-1.53.0</HdtAppPath>
     <NuGetPackageImportStamp>
     </NuGetPackageImportStamp>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)' == 'Debug|AnyCPU'">
+    <DebugSymbols>true</DebugSymbols>
+    <OutputPath>bin\Debug\</OutputPath>
+    <DefineConstants>DEBUG;TRACE</DefineConstants>
+    <DebugType>full</DebugType>
+    <PlatformTarget>AnyCPU</PlatformTarget>
+    <Prefer32Bit>false</Prefer32Bit>
+    <ResolveAssemblyWarnOrErrorOnTargetArchitectureMismatch>None</ResolveAssemblyWarnOrErrorOnTargetArchitectureMismatch>
+    <ErrorReport>prompt</ErrorReport>
+    <CodeAnalysisRuleSet>MinimumRecommendedRules.ruleset</CodeAnalysisRuleSet>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)' == 'Release|AnyCPU'">
+    <OutputPath>bin\Release\</OutputPath>
+    <DefineConstants>TRACE</DefineConstants>
+    <Optimize>true</Optimize>
+    <DebugType>pdbonly</DebugType>
+    <PlatformTarget>AnyCPU</PlatformTarget>
+    <Prefer32Bit>false</Prefer32Bit>
+    <ResolveAssemblyWarnOrErrorOnTargetArchitectureMismatch>None</ResolveAssemblyWarnOrErrorOnTargetArchitectureMismatch>
+    <ErrorReport>prompt</ErrorReport>
+    <CodeAnalysisRuleSet>MinimumRecommendedRules.ruleset</CodeAnalysisRuleSet>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)' == 'Debug|x86'">
     <DebugSymbols>true</DebugSymbols>
@@ -44,7 +67,7 @@
     <Reference Include="HearthDb">
       <HintPath>$(HdtAppPath)\HearthDb.dll</HintPath>
     </Reference>
-    <Reference Include="HearthMirror, Version=10.2.0.23180, Culture=neutral, processorArchitecture=x86">
+    <Reference Include="HearthMirror">
       <SpecificVersion>False</SpecificVersion>
       <HintPath>$(HdtAppPath)\HearthMirror.dll</HintPath>
     </Reference>
@@ -82,6 +105,8 @@
     <Compile Include="Tests\MetaDataHealthServiceTest.cs" />
     <Compile Include="Tests\MetaRetrieverTest.cs" />
     <Compile Include="Tests\OverlayDragHelperTest.cs" />
+    <Compile Include="Tests\OverlayInteractivityHelperTest.cs" />
+    <Compile Include="Tests\PatchStateServiceTest.cs" />
     <Compile Include="Tests\PluginConfigTest.cs" />
     <Compile Include="Tests\PostGameMetaRefresherTest.cs" />
     <Compile Include="Tests\QuickDashboardRefresherTest.cs" />

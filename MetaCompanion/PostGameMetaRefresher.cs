@@ -166,10 +166,14 @@ namespace MetaCompanion
 				var metaTimeRange = NormalizeValue(
 					metaTimeRangeOverride,
 					NormalizeValue(config.PostGamePrimaryTimeRange, "CURRENT_PATCH"));
+				var branchCandidateTimeRange = NormalizeValue(
+					branchCandidateTimeRangeOverride,
+					NormalizeValue(config.PostGamePrimaryTimeRange, "CURRENT_PATCH"));
 				arguments +=
-					" -Premium -Meta" +
+					" -Premium -Meta -Branches" +
 					" -PremiumTimeRange " + Quote(premiumTimeRange) +
 					" -MetaTimeRange " + Quote(metaTimeRange) +
+					" -BranchCandidateTimeRange " + Quote(branchCandidateTimeRange) +
 					" -PremiumMaxDecks " + Math.Max(1, config.PostGamePremiumRefreshMaxDecks)
 						.ToString(CultureInfo.InvariantCulture);
 				if (premiumStopOnUnsupported)
@@ -221,6 +225,7 @@ namespace MetaCompanion
 			}
 
 			var deckSnapshotFresh = IsFresh(GetDeckSnapshotPath(dataDirectory), now, maxAge);
+			var branchSnapshotFresh = IsFresh(GetBranchSnapshotPath(dataDirectory), now, maxAge);
 			var premiumMetaFresh = IsFresh(GetMetaSummaryPath(dataDirectory), now, maxAge) &&
 				IsFresh(GetMetaMatrixPath(dataDirectory), now, maxAge);
 			var hasPremiumMetaCache = HasPremiumMetaCache(dataDirectory);
@@ -231,7 +236,7 @@ namespace MetaCompanion
 				plan.IncludeDeckSnapshotRefresh = true;
 			}
 
-			if (hasPremiumCookie && (!deckSnapshotFresh || !premiumMetaFresh))
+			if (hasPremiumCookie && (!deckSnapshotFresh || !branchSnapshotFresh || !premiumMetaFresh))
 			{
 				plan.IncludeFullDataRefresh = true;
 				plan.IncludeDeckSnapshotRefresh = true;
@@ -243,7 +248,7 @@ namespace MetaCompanion
 			}
 
 			plan.PrimaryTimeRange = NormalizeValue(config.PostGamePrimaryTimeRange, "CURRENT_PATCH");
-			plan.MetaFallbackTimeRange = NormalizeValue(config.PostGameMetaFallbackTimeRange, "CURRENT_PATCH");
+			plan.MetaFallbackTimeRange = NormalizeValue(config.PostGameMetaFallbackTimeRange, "LAST_1_DAY");
 			plan.PremiumFallbackTimeRange = NormalizeValue(config.PostGamePremiumFallbackTimeRange, "LAST_7_DAYS");
 			return plan;
 		}
@@ -393,7 +398,7 @@ namespace MetaCompanion
 		public bool IncludeFullDataRefresh { get; set; }
 		public bool IncludePersonalRecommendations { get; set; } = true;
 		public string PrimaryTimeRange { get; set; } = "CURRENT_PATCH";
-		public string MetaFallbackTimeRange { get; set; } = "CURRENT_PATCH";
+		public string MetaFallbackTimeRange { get; set; } = "LAST_1_DAY";
 		public string PremiumFallbackTimeRange { get; set; } = "LAST_7_DAYS";
 
 		public bool ShouldRetryWithFallback

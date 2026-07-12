@@ -92,6 +92,81 @@ namespace MetaCompanionTests.Tests
 		}
 
 		[TestMethod]
+		public void Refresh_KeepsUnidentifiedPluginHistoryAsLastGameWithoutEnvironmentWeight()
+		{
+			var now = new DateTime(2026, 7, 1, 20, 30, 0);
+			var questPriest = "\u4efb\u52a1\u7267";
+			var heraldShaman = "\u5146\u793a\u8428";
+			var divineShieldPaladin = "\u5723\u76fe\u9a91";
+			WritePremiumMeta(questPriest, heraldShaman, divineShieldPaladin);
+			File.WriteAllText(
+				MatchHistoryRecorder.GetHistoryPath(_tempDirectory),
+				MatchHistoryRecorder.HistoryHeader + Environment.NewLine +
+				HistoryRow(
+					"known",
+					"2026-07-01 20:00:00",
+					"2026-07-01 20:05:00",
+					"Priest",
+					questPriest,
+					"95") + Environment.NewLine +
+				string.Join("\t", new[]
+				{
+					"unknown-mage",
+					"2026-07-01 20:20:00",
+					"2026-07-01 20:24:00",
+					"Standard",
+					"Ranked",
+					"loss",
+					"Mage",
+					"",
+					"0",
+					"\u672a\u77e5",
+					"0",
+					"12",
+					"21",
+					"",
+					"",
+					"game_end",
+					"",
+					"",
+					"",
+					"",
+					"Archmage Kalec, Arcane Barragex2"
+				}) + Environment.NewLine,
+				Encoding.UTF8);
+
+			var result = QuickDashboardRefresher.Refresh(
+				new PluginConfig
+				{
+					LocalRecommendationHistoryDays = 3,
+					LocalRecommendationWeight = 0.35,
+					LocalRecommendationTop = 5,
+					LocalMetaMinConfidence = 35
+				},
+				_tempDirectory,
+				now);
+
+			Assert.IsTrue(result.EnvironmentUpdated);
+			Assert.AreEqual(2, result.LocalMatchCount);
+
+			var localRows = File.ReadAllLines(Path.Combine(_tempDirectory, "local_meta_archetypes.tsv"));
+			Assert.AreEqual(3, localRows.Length);
+			StringAssert.Contains(localRows[2], "unknown-mage");
+			StringAssert.Contains(localRows[2], "\tMage\tMage\t");
+			StringAssert.Contains(localRows[2], "\t0\t\t0");
+			StringAssert.Contains(localRows[2], "plugin_match_history_unidentified");
+
+			var environmentRows = File.ReadAllLines(Path.Combine(_tempDirectory, "local_meta_environment.tsv"));
+			Assert.AreEqual(2, environmentRows.Length);
+			Assert.IsFalse(environmentRows.Any(line => line.Contains("\tMage\t")));
+
+			var snapshot = MetaDashboardSnapshot.Load(_tempDirectory);
+			Assert.AreEqual("\u6cd5\u5e08 \u672a\u8bc6\u522b", snapshot.LastGame.Title);
+			StringAssert.Contains(snapshot.LastGame.Detail, "loss vs \u6cd5\u5e08");
+			StringAssert.Contains(snapshot.LastGame.ToolTip, "\u4ec5\u663e\u793a\u5bf9\u624b\u804c\u4e1a");
+		}
+
+		[TestMethod]
 		public void Refresh_MergesHdtDeckStatsAndPluginHistoryWithoutDuplicateMatches()
 		{
 			HearthDb.Cards.LoadBaseData();

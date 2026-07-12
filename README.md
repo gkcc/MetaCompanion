@@ -25,23 +25,24 @@ Meta Companion 是一个个人向 HDT 插件，目标是把标准模式环境识
 ## 构建与测试
 
 ```powershell
-$cscDir="$env:USERPROFILE\.nuget\packages\microsoft.net.compilers\4.2.0\tools"
-& "$env:WINDIR\Microsoft.NET\Framework\v4.0.30319\MSBuild.exe" .\MetaCompanion.sln /p:Configuration=Release /p:Platform=x86 /p:CscToolPath="$cscDir" /p:CscToolExe=csc.exe /p:LangVersion=latest /m /v:minimal
-& "$env:WINDIR\SysWOW64\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -ExecutionPolicy Bypass -File .\tools\Run-Tests.ps1
+.\tools\Build-MetaCompanion.ps1
+& powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\tools\Run-Tests.ps1
 ```
 
-`Run-Tests.ps1` 会把 HDT 的 AppData 重定向到临时目录，并校验真实 `%AppData%\HearthstoneDeckTracker\config.xml` 在测试期间没有变化。
+`Build-MetaCompanion.ps1` 会自动查找最新 HDT 安装目录，并确保 `packages\Microsoft.Net.Compilers.4.2.0\tools\csc.exe` 可用。首次运行如果本地没有 Roslyn，会优先从用户 NuGet 缓存复制，仍没有时再下载 NuGet 包。
+
+`Run-Tests.ps1` 会把 HDT 的 AppData 重定向到临时目录，并校验真实 `%AppData%\HearthstoneDeckTracker\config.xml` 在测试期间没有变化。脚本默认会确认测试程序集存在且不早于源码；如果刚改过代码或测试，先重新运行 `Build-MetaCompanion.ps1`，仅排查旧程序集时才使用 `-SkipFreshnessCheck`。
 
 安装到 HDT。普通安装只复制插件 DLL，不会安装自动同步脚本：
 
 ```powershell
-.\tools\Install-MetaCompanion.ps1 -BuildPath .\MetaCompanion\bin\x86\Release\MetaCompanion.dll
+.\tools\Install-MetaCompanion.ps1 -BuildPath .\MetaCompanion\bin\Release\MetaCompanion.dll
 ```
 
 开发或高级手动同步场景才需要把 `tools/` 复制到 HDT 数据目录：
 
 ```powershell
-.\tools\Install-MetaCompanion.ps1 -BuildPath .\MetaCompanion\bin\x86\Release\MetaCompanion.dll -IncludeTools
+.\tools\Install-MetaCompanion.ps1 -BuildPath .\MetaCompanion\bin\Release\MetaCompanion.dll -IncludeTools
 ```
 
 如果 HDT 正在运行，使用等待式安装：
@@ -68,7 +69,7 @@ Premium 数据需要把自己的 HSReplay 登录 Cookie 放到：
 
 ## 社区发布前检查
 
-发布前先跑自动门禁，脚本会完成 Release x86 构建、测试、敏感信息扫描和社区包内容审计：
+发布前先跑自动门禁，脚本会完成 Release AnyCPU 构建、测试、敏感信息扫描和社区包内容审计：
 
 ```powershell
 .\tools\Invoke-ReleaseGate.ps1
