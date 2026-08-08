@@ -1410,6 +1410,17 @@ EXPLICIT_TRIGGER_LABELS = {
     "at the end of your turn,": "turn_end",
 }
 
+CHANCE_EXECUTABLE_EFFECT_TRIGGERS = {
+    "resolution",
+    "deathrattle",
+    "after_spell_cast",
+    "spellburst",
+    "frenzy",
+    "after_hero_attack",
+    "after_hero_power",
+    "turn_end",
+}
+
 
 def _parse_explicit_trigger_sections(
     value: str,
@@ -1562,12 +1573,6 @@ def compile_card(
     effects = multi_event_effects or _parse_compound_clause(body, card_id, card_defs)
     if not effects:
         return None, "no_full_template_match"
-    if any(effect.get("random") for effect in effects) and (
-        card_type in {"HERO_POWER", "LOCATION"}
-        or any(effect_trigger != "resolution" for effect_trigger in effect_triggers)
-        or multi_event_effects is not None
-    ):
-        return None, "chance_trigger_not_executable"
     if multi_event_effects is not None:
         triggered_effects = effects
     else:
@@ -1578,6 +1583,13 @@ def compile_card(
                 if effect_trigger != "resolution":
                     triggered["trigger"] = effect_trigger
                 triggered_effects.append(triggered)
+    if any(
+        (effect.get("random") or effect.get("pool") is not None)
+        and effect.get("trigger", "resolution")
+        not in CHANCE_EXECUTABLE_EFFECT_TRIGGERS
+        for effect in triggered_effects
+    ):
+        return None, "chance_trigger_not_executable"
 
     safe_id = re.sub(r"[^a-z0-9]+", "-", card_id.lower()).strip("-")
     return (

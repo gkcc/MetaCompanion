@@ -183,6 +183,20 @@ fn effect_trigger_matches_rule(rule_trigger: &str, effect_trigger: &str) -> bool
     }
 }
 
+fn chance_effect_trigger_is_executable(trigger: &str) -> bool {
+    matches!(
+        trigger,
+        "resolution"
+            | "deathrattle"
+            | "after_spell_cast"
+            | "spellburst"
+            | "frenzy"
+            | "after_hero_attack"
+            | "after_hero_power"
+            | "turn_end"
+    )
+}
+
 fn validate_generic_effect(effect: &Effect, path: &str) -> Result<(), SolverError> {
     effect.validate(path)?;
     let no_summoned_keywords = !effect.has_summoned_minion_keywords();
@@ -254,7 +268,7 @@ fn validate_generic_effect(effect: &Effect, path: &str) -> Result<(), SolverErro
         && effect.durability == 0
         && no_summoned_keywords
         && effect.random
-        && effect.trigger.as_ref() == "resolution"
+        && chance_effect_trigger_is_executable(effect.trigger.as_ref())
         && effect.pool_selection == PoolSelection::UniformRandom
         && effect.pool_destination == PoolDestination::Hand
         && effect.offer_count == 1
@@ -265,7 +279,7 @@ fn validate_generic_effect(effect: &Effect, path: &str) -> Result<(), SolverErro
             .as_ref()
             .is_some_and(|pool| pool.source == CardPoolSource::OwnerDeck);
     let random_target = effect.random
-        && effect.trigger.as_ref() == "resolution"
+        && chance_effect_trigger_is_executable(effect.trigger.as_ref())
         && effect.pool.is_none()
         && matches!(
             effect.target.as_ref(),
@@ -431,12 +445,13 @@ fn load_bundle(value: &str) -> Result<TemplateRuleBundle, SolverError> {
             ));
         }
         validate_trigger(row.card_type, &row.trigger, &format!("{path}.trigger"))?;
-        if row.effects.iter().any(|effect| effect.random)
-            && !matches!(row.trigger.as_str(), "play_resolution" | "battlecry")
-        {
+        if row.effects.iter().any(|effect| {
+            (effect.random || effect.pool.is_some())
+                && !chance_effect_trigger_is_executable(effect.trigger.as_ref())
+        }) {
             return Err(SolverError::schema(
                 format!("{path}.trigger"),
-                "chance templates are executable only for spell resolution or Battlecry",
+                "chance template effect trigger is not executable",
             ));
         }
         let resolved_mechanics = match row.trigger.as_str() {
@@ -764,8 +779,8 @@ mod tests {
     fn embedded_bundle_is_generic_only_and_complete() {
         let bundle = embedded_template_rule_bundle().expect("template bundle");
         assert_eq!(bundle.unique_official_cards(), 1811);
-        assert_eq!(bundle.rule_count(), 143);
-        assert_eq!(bundle.registered_card_id_count(), 143);
+        assert_eq!(bundle.rule_count(), 157);
+        assert_eq!(bundle.registered_card_id_count(), 157);
         assert_eq!(
             bundle.rule_count() + bundle.already_exact_cards() + bundle.uncompiled_cards(),
             1811
@@ -916,5 +931,55 @@ mod tests {
         let effect = &state.friendly.hand[0].effects[0];
         assert_eq!(effect.kind.as_ref(), "draw");
         assert_eq!(effect.trigger.as_ref(), "deathrattle");
+    }
+
+    #[test]
+    fn random_filtered_deathrattle_is_embedded_as_an_owner_deck_chance() {
+        let mut state = state_with_spell(
+            "Deathrattle: Draw a minion that costs (7) or more.",
+            "unsupported",
+        );
+        let card = &mut state.friendly.hand[0];
+        card.card_id = Arc::from("EDR_485");
+        card.name = Arc::from("Rotheart Dryad");
+        card.card_type = CardType::Minion;
+        card.attack = 3;
+        card.health = 4;
+        card.current_health = 4;
+        card.unsupported_effects =
+            Arc::from([Arc::from("card_text_not_parsed"), Arc::from("deathrattle")]);
+        let assessment =
+            apply_embedded_template_rules(&mut state).expect("apply random Deathrattle");
+        assert_eq!(assessment.matched.len(), 1);
+        let effect = &state.friendly.hand[0].effects[0];
+        assert_eq!(effect.kind.as_ref(), "draw_from_pool");
+        assert_eq!(effect.trigger.as_ref(), "deathrattle");
+        assert!(effect.random);
+        let pool = effect.pool.as_ref().expect("owner-deck pool");
+        assert_eq!(pool.source, CardPoolSource::OwnerDeck);
+        assert_eq!(pool.cost_min, Some(7));
+        assert_eq!(pool.card_types.as_slice(), &[CardType::Minion]);
+    }
+
+    #[test]
+    fn random_turn_start_card_remains_outside_the_embedded_bundle() {
+        let mut state =
+            state_with_spell("At the start of your turn, draw a Murloc.", "unsupported");
+        let card = &mut state.friendly.hand[0];
+        card.card_id = Arc::from("BAR_043");
+        card.name = Arc::from("Tinyfin's Caravan");
+        card.card_type = CardType::Minion;
+        card.attack = 1;
+        card.health = 3;
+        card.current_health = 3;
+        let assessment =
+            apply_embedded_template_rules(&mut state).expect("assess random turn-start card");
+        assert!(assessment.matched.is_empty());
+        assert!(assessment.mismatches.is_empty());
+        assert_eq!(
+            state.friendly.hand[0].effect_coverage,
+            EffectCoverage::Unsupported
+        );
+        assert!(state.friendly.hand[0].effects.is_empty());
     }
 }

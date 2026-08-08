@@ -16,9 +16,9 @@
   },
   "counts": {
     "unique_official_cards": 1811,
-    "compiled_generic_rules": 143,
+    "compiled_generic_rules": 157,
     "already_exact_cards": 39,
-    "uncompiled_cards": 1629
+    "uncompiled_cards": 1615
   },
   "rules": [
     {
@@ -419,6 +419,46 @@
           "attack": 2,
           "health": 2,
           "lifesteal": true
+        }
+      ]
+    },
+    {
+      "rule_id": "text-template-bar-330-v1",
+      "card_ids": [
+        "BAR_330"
+      ],
+      "card_type": "WEAPON",
+      "trigger": "deathrattle",
+      "accepted_texts": [
+        {
+          "normalized": "Deathrattle: Draw a Deathrattle minion.",
+          "sha256": "654edd2f3ef50d721851e14ab910068fa9b56589623e589b786b0101b6f92180"
+        }
+      ],
+      "effects": [
+        {
+          "kind": "draw_from_pool",
+          "target": "none",
+          "count": 1,
+          "random": true,
+          "pool_selection": "uniform_random",
+          "pool_destination": "hand",
+          "offer_count": 1,
+          "with_replacement": false,
+          "pool": {
+            "source": "owner_deck",
+            "collectible": true,
+            "card_types": [
+              "MINION"
+            ],
+            "class_mode": "any",
+            "spell_school_ids": [],
+            "minion_type_ids": [],
+            "required_keywords": [
+              "deathrattle"
+            ]
+          },
+          "trigger": "deathrattle"
         }
       ]
     },
@@ -911,6 +951,29 @@
       ]
     },
     {
+      "rule_id": "text-template-cata-467-v1",
+      "card_ids": [
+        "CATA_467"
+      ],
+      "card_type": "WEAPON",
+      "trigger": "after_hero_attack",
+      "accepted_texts": [
+        {
+          "normalized": "After your hero attacks, give a random friendly minion +2 Attack.",
+          "sha256": "8d71617a02d3ffcdd17b84f46dca0e9efd66c152e765b61c0fd90c1cc7c4b170"
+        }
+      ],
+      "effects": [
+        {
+          "kind": "buff_attack",
+          "amount": 2,
+          "target": "friendly_minion",
+          "random": true,
+          "trigger": "after_hero_attack"
+        }
+      ]
+    },
+    {
       "rule_id": "text-template-cata-475-v1",
       "card_ids": [
         "CATA_475"
@@ -1396,6 +1459,29 @@
           "target": "none",
           "count": 1,
           "trigger": "deathrattle"
+        }
+      ]
+    },
+    {
+      "rule_id": "text-template-core-drg-256-v1",
+      "card_ids": [
+        "CORE_DRG_256"
+      ],
+      "card_type": "MINION",
+      "trigger": "after_hero_power",
+      "accepted_texts": [
+        {
+          "normalized": "After you use your Hero Power, deal 5 damage to a random enemy.",
+          "sha256": "95f2fbb3a34fbcbf7bacc4e6298d0e2e705a72a9638d87e10f9f2e0d9b49489d"
+        }
+      ],
+      "effects": [
+        {
+          "kind": "damage",
+          "amount": 5,
+          "target": "enemy_character",
+          "random": true,
+          "trigger": "after_hero_power"
         }
       ]
     },
@@ -2134,6 +2220,29 @@
       ]
     },
     {
+      "rule_id": "text-template-core-yop-034-v1",
+      "card_ids": [
+        "CORE_YOP_034"
+      ],
+      "card_type": "MINION",
+      "trigger": "turn_end",
+      "accepted_texts": [
+        {
+          "normalized": "At the end of your turn, deal 10 damage to a random enemy minion.",
+          "sha256": "4fdfd8f596bee13a91f041c724664ca799f0488d50b5ee8aacf3e1062694ec35"
+        }
+      ],
+      "effects": [
+        {
+          "kind": "damage",
+          "amount": 10,
+          "target": "enemy_minion",
+          "random": true,
+          "trigger": "turn_end"
+        }
+      ]
+    },
+    {
       "rule_id": "text-template-deep-008-v1",
       "card_ids": [
         "DEEP_008"
@@ -2282,6 +2391,29 @@
       ]
     },
     {
+      "rule_id": "text-template-dino-132-v1",
+      "card_ids": [
+        "DINO_132"
+      ],
+      "card_type": "MINION",
+      "trigger": "turn_end",
+      "accepted_texts": [
+        {
+          "normalized": "Taunt . At the end of your turn, deal 5 damage to a random enemy minion.",
+          "sha256": "bd62555d2950db59ca431a12b614ae66e7a5c7faf55004a37a2e011e959ef0e9"
+        }
+      ],
+      "effects": [
+        {
+          "kind": "damage",
+          "amount": 5,
+          "target": "enemy_minion",
+          "random": true,
+          "trigger": "turn_end"
+        }
+      ]
+    },
+    {
       "rule_id": "text-template-dino-403-v1",
       "card_ids": [
         "DINO_403"
@@ -2345,6 +2477,29 @@
           "kind": "draw",
           "target": "none",
           "count": 2
+        }
+      ]
+    },
+    {
+      "rule_id": "text-template-edr-110-v1",
+      "card_ids": [
+        "EDR_110"
+      ],
+      "card_type": "MINION",
+      "trigger": "deathrattle",
+      "accepted_texts": [
+        {
+          "normalized": "Poisonous Deathrattle: Deal 1 damage to a random enemy minion.",
+          "sha256": "419d303a2d307562ce8dbd9a1c53375dcdffec0d41bc6782a9858c896b74b570"
+        }
+      ],
+      "effects": [
+        {
+          "kind": "damage",
+          "amount": 1,
+          "target": "enemy_minion",
+          "random": true,
+          "trigger": "deathrattle"
         }
       ]
     },
@@ -2472,6 +2627,45 @@
       ]
     },
     {
+      "rule_id": "text-template-edr-485-v1",
+      "card_ids": [
+        "EDR_485"
+      ],
+      "card_type": "MINION",
+      "trigger": "deathrattle",
+      "accepted_texts": [
+        {
+          "normalized": "Deathrattle: Draw a minion that costs (7) or more.",
+          "sha256": "b5343dd5ec20e804fb297868e6e4b62def2f204ac2511910a52ab9065a1e0e0c"
+        }
+      ],
+      "effects": [
+        {
+          "kind": "draw_from_pool",
+          "target": "none",
+          "count": 1,
+          "random": true,
+          "pool_selection": "uniform_random",
+          "pool_destination": "hand",
+          "offer_count": 1,
+          "with_replacement": false,
+          "pool": {
+            "source": "owner_deck",
+            "collectible": true,
+            "card_types": [
+              "MINION"
+            ],
+            "class_mode": "any",
+            "spell_school_ids": [],
+            "minion_type_ids": [],
+            "required_keywords": [],
+            "cost_min": 7
+          },
+          "trigger": "deathrattle"
+        }
+      ]
+    },
+    {
       "rule_id": "text-template-edr-492-v1",
       "card_ids": [
         "EDR_492"
@@ -2494,6 +2688,45 @@
           "attack": 1,
           "health": 1,
           "rush": true
+        }
+      ]
+    },
+    {
+      "rule_id": "text-template-edr-571-v1",
+      "card_ids": [
+        "EDR_571"
+      ],
+      "card_type": "MINION",
+      "trigger": "deathrattle",
+      "accepted_texts": [
+        {
+          "normalized": "Deathrattle: Draw a spell that costs (5) or more.",
+          "sha256": "c55616658f1251e441e2a9403b81e7271dd440e7c3bd53c01aab823cfc2d51c9"
+        }
+      ],
+      "effects": [
+        {
+          "kind": "draw_from_pool",
+          "target": "none",
+          "count": 1,
+          "random": true,
+          "pool_selection": "uniform_random",
+          "pool_destination": "hand",
+          "offer_count": 1,
+          "with_replacement": false,
+          "pool": {
+            "source": "owner_deck",
+            "collectible": true,
+            "card_types": [
+              "SPELL"
+            ],
+            "class_mode": "any",
+            "spell_school_ids": [],
+            "minion_type_ids": [],
+            "required_keywords": [],
+            "cost_min": 5
+          },
+          "trigger": "deathrattle"
         }
       ]
     },
@@ -2622,6 +2855,46 @@
       ]
     },
     {
+      "rule_id": "text-template-fir-929-v1",
+      "card_ids": [
+        "FIR_929"
+      ],
+      "card_type": "MINION",
+      "trigger": "deathrattle",
+      "accepted_texts": [
+        {
+          "normalized": "Deathrattle: Draw a Fire spell.",
+          "sha256": "ba4ebd5069532f2840e3ee172256b1b67dcae11cf8d8e3a2038b085436d80a7e"
+        }
+      ],
+      "effects": [
+        {
+          "kind": "draw_from_pool",
+          "target": "none",
+          "count": 1,
+          "random": true,
+          "pool_selection": "uniform_random",
+          "pool_destination": "hand",
+          "offer_count": 1,
+          "with_replacement": false,
+          "pool": {
+            "source": "owner_deck",
+            "collectible": true,
+            "card_types": [
+              "SPELL"
+            ],
+            "class_mode": "any",
+            "spell_school_ids": [
+              2
+            ],
+            "minion_type_ids": [],
+            "required_keywords": []
+          },
+          "trigger": "deathrattle"
+        }
+      ]
+    },
+    {
       "rule_id": "text-template-jail-007-v1",
       "card_ids": [
         "JAIL_007"
@@ -2662,6 +2935,75 @@
           "target": "none",
           "count": 1,
           "trigger": "after_hero_attack"
+        }
+      ]
+    },
+    {
+      "rule_id": "text-template-rlk-223-v1",
+      "card_ids": [
+        "RLK_223"
+      ],
+      "card_type": "MINION",
+      "trigger": "battlecry_and_deathrattle",
+      "accepted_texts": [
+        {
+          "normalized": "Reborn Battlecry and Deathrattle: Deal 2 damage to a random enemy.",
+          "sha256": "a520e30ade1737e244767ba2ec15a98cd10ab21d9f3c43ee72ea1cfcbd6fbbe5"
+        }
+      ],
+      "effects": [
+        {
+          "kind": "damage",
+          "amount": 2,
+          "target": "enemy_character",
+          "random": true
+        },
+        {
+          "kind": "damage",
+          "amount": 2,
+          "target": "enemy_character",
+          "random": true,
+          "trigger": "deathrattle"
+        }
+      ]
+    },
+    {
+      "rule_id": "text-template-rlk-511-v1",
+      "card_ids": [
+        "RLK_511"
+      ],
+      "card_type": "MINION",
+      "trigger": "deathrattle",
+      "accepted_texts": [
+        {
+          "normalized": "Deathrattle: Draw a Frost spell.",
+          "sha256": "b739ce1d611b7852e5f2446b584c7b9f3d6e0a05a6c22b59bc63ccb440e2232b"
+        }
+      ],
+      "effects": [
+        {
+          "kind": "draw_from_pool",
+          "target": "none",
+          "count": 1,
+          "random": true,
+          "pool_selection": "uniform_random",
+          "pool_destination": "hand",
+          "offer_count": 1,
+          "with_replacement": false,
+          "pool": {
+            "source": "owner_deck",
+            "collectible": true,
+            "card_types": [
+              "SPELL"
+            ],
+            "class_mode": "any",
+            "spell_school_ids": [
+              3
+            ],
+            "minion_type_ids": [],
+            "required_keywords": []
+          },
+          "trigger": "deathrattle"
         }
       ]
     },
@@ -3009,6 +3351,46 @@
       ]
     },
     {
+      "rule_id": "text-template-tid-704-v1",
+      "card_ids": [
+        "TID_704"
+      ],
+      "card_type": "MINION",
+      "trigger": "after_hero_attack",
+      "accepted_texts": [
+        {
+          "normalized": "After your hero attacks, draw a Fel spell.",
+          "sha256": "071ba10bfe6c1ecba6ce9204d7e86312f6419dc8858e89b35d3a507678a8fc88"
+        }
+      ],
+      "effects": [
+        {
+          "kind": "draw_from_pool",
+          "target": "none",
+          "count": 1,
+          "random": true,
+          "pool_selection": "uniform_random",
+          "pool_destination": "hand",
+          "offer_count": 1,
+          "with_replacement": false,
+          "pool": {
+            "source": "owner_deck",
+            "collectible": true,
+            "card_types": [
+              "SPELL"
+            ],
+            "class_mode": "any",
+            "spell_school_ids": [
+              7
+            ],
+            "minion_type_ids": [],
+            "required_keywords": []
+          },
+          "trigger": "after_hero_attack"
+        }
+      ]
+    },
+    {
       "rule_id": "text-template-tid-716-v1",
       "card_ids": [
         "TID_716"
@@ -3332,6 +3714,46 @@
       ]
     },
     {
+      "rule_id": "text-template-tsc-085-v1",
+      "card_ids": [
+        "TSC_085"
+      ],
+      "card_type": "MINION",
+      "trigger": "after_hero_attack",
+      "accepted_texts": [
+        {
+          "normalized": "After your hero attacks, draw a Pirate.",
+          "sha256": "a77de71b69bb28bad4154887ce0f656931cd107ead4a5607e910042eb58d97a7"
+        }
+      ],
+      "effects": [
+        {
+          "kind": "draw_from_pool",
+          "target": "none",
+          "count": 1,
+          "random": true,
+          "pool_selection": "uniform_random",
+          "pool_destination": "hand",
+          "offer_count": 1,
+          "with_replacement": false,
+          "pool": {
+            "source": "owner_deck",
+            "collectible": true,
+            "card_types": [
+              "MINION"
+            ],
+            "class_mode": "any",
+            "spell_school_ids": [],
+            "minion_type_ids": [
+              23
+            ],
+            "required_keywords": []
+          },
+          "trigger": "after_hero_attack"
+        }
+      ]
+    },
+    {
       "rule_id": "text-template-tsc-932-v1",
       "card_ids": [
         "TSC_932"
@@ -3566,6 +3988,46 @@
           "name": "Tumbleweed",
           "attack": 6,
           "health": 6
+        }
+      ]
+    },
+    {
+      "rule_id": "text-template-ww-344-v1",
+      "card_ids": [
+        "WW_344"
+      ],
+      "card_type": "MINION",
+      "trigger": "deathrattle",
+      "accepted_texts": [
+        {
+          "normalized": "Divine Shield Deathrattle: Draw a Holy spell.",
+          "sha256": "f218478d2f161c381c527acdf63d08c80d621d2274097425e576b1597671b8a7"
+        }
+      ],
+      "effects": [
+        {
+          "kind": "draw_from_pool",
+          "target": "none",
+          "count": 1,
+          "random": true,
+          "pool_selection": "uniform_random",
+          "pool_destination": "hand",
+          "offer_count": 1,
+          "with_replacement": false,
+          "pool": {
+            "source": "owner_deck",
+            "collectible": true,
+            "card_types": [
+              "SPELL"
+            ],
+            "class_mode": "any",
+            "spell_school_ids": [
+              5
+            ],
+            "minion_type_ids": [],
+            "required_keywords": []
+          },
+          "trigger": "deathrattle"
         }
       ]
     },

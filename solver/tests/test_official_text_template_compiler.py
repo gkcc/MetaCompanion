@@ -174,7 +174,7 @@ class OfficialTextTemplateCompilerTests(unittest.TestCase):
         self.assertEqual("friendly_minion", buff["effects"][0]["target"])
         self.assertTrue(buff["effects"][0]["random"])
 
-    def test_random_target_correlation_and_nonresolution_chance_fail_closed(self) -> None:
+    def test_random_target_correlation_and_supported_chance_actions_compile(self) -> None:
         correlated, correlated_status = COMPILER.compile_card(
             card("TEST_STATS", "Give a random friendly minion +2/+2.")
         )
@@ -194,10 +194,23 @@ class OfficialTextTemplateCompilerTests(unittest.TestCase):
         )
         self.assertIsNone(correlated)
         self.assertEqual("no_full_template_match", correlated_status)
-        self.assertIsNone(triggered)
-        self.assertEqual("chance_trigger_not_executable", triggered_status)
-        self.assertIsNone(power)
-        self.assertEqual("chance_trigger_not_executable", power_status)
+        self.assertEqual("compiled_generic_template", triggered_status)
+        self.assertEqual("after_hero_attack", triggered["effects"][0]["trigger"])
+        self.assertTrue(triggered["effects"][0]["random"])
+        self.assertEqual("compiled_generic_template", power_status)
+        self.assertEqual("play_resolution", power["trigger"])
+        self.assertTrue(power["effects"][0]["random"])
+
+    def test_random_turn_start_remains_fail_closed(self) -> None:
+        rule, status = COMPILER.compile_card(
+            card(
+                "BAR_043",
+                "At the start of your turn, draw a Murloc.",
+                card_type_id=4,
+            )
+        )
+        self.assertIsNone(rule)
+        self.assertEqual("chance_trigger_not_executable", status)
 
     def test_summon_uses_carddefs_related_token_and_keywords(self) -> None:
         rule, status = COMPILER.compile_card(
@@ -388,7 +401,7 @@ class OfficialTextTemplateCompilerTests(unittest.TestCase):
             all(effect["pool"]["card_types"] == ["SPELL"] for effect in rule["effects"])
         )
 
-    def test_cost_filtered_deathrattle_stays_closed_until_chance_events_exist(self) -> None:
+    def test_cost_filtered_deathrattle_compiles_to_a_chance_event(self) -> None:
         rule, status = COMPILER.compile_card(
             card(
                 "EDR_485",
@@ -396,10 +409,11 @@ class OfficialTextTemplateCompilerTests(unittest.TestCase):
                 card_type_id=4,
             )
         )
-        self.assertIsNone(rule)
-        self.assertEqual("chance_trigger_not_executable", status)
+        self.assertEqual("compiled_generic_template", status)
+        self.assertEqual("deathrattle", rule["effects"][0]["trigger"])
+        self.assertEqual(7, rule["effects"][0]["pool"]["cost_min"])
 
-    def test_filtered_draw_on_a_deathrattle_fails_closed_until_chance_events_exist(self) -> None:
+    def test_filtered_draw_on_a_weapon_deathrattle_compiles(self) -> None:
         rule, status = COMPILER.compile_card(
             card(
                 "BAR_330",
@@ -407,8 +421,24 @@ class OfficialTextTemplateCompilerTests(unittest.TestCase):
                 card_type_id=7,
             )
         )
-        self.assertIsNone(rule)
-        self.assertEqual("chance_trigger_not_executable", status)
+        self.assertEqual("compiled_generic_template", status)
+        self.assertEqual("deathrattle", rule["effects"][0]["trigger"])
+        self.assertEqual("draw_from_pool", rule["effects"][0]["kind"])
+
+    def test_random_battlecry_and_deathrattle_keep_both_events(self) -> None:
+        rule, status = COMPILER.compile_card(
+            card(
+                "RLK_223",
+                "Battlecry and Deathrattle: Deal 2 damage to a random enemy.",
+                card_type_id=4,
+            )
+        )
+        self.assertEqual("compiled_generic_template", status)
+        self.assertEqual(
+            ["resolution", "deathrattle"],
+            [effect.get("trigger", "resolution") for effect in rule["effects"]],
+        )
+        self.assertTrue(all(effect["random"] for effect in rule["effects"]))
 
     def test_draw_until_and_each_player_draw_have_distinct_ir(self) -> None:
         until, until_status = COMPILER.compile_card(
