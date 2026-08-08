@@ -1,4 +1,4 @@
-param(
+﻿param(
 	[string[]]$DeckStatsPath = @(
 		"$env:APPDATA\HearthstoneDeckTracker\DeckStats.xml",
 		"$env:APPDATA\HearthstoneDeckTracker\DefaultDeckStats.xml"
@@ -57,11 +57,13 @@ $deckStatsPaths = @($DeckStatsPath |
 	Select-Object -Unique)
 $existingDeckStatsPaths = @($deckStatsPaths | Where-Object { Test-Path -LiteralPath $_ })
 if ($existingDeckStatsPaths.Count -eq 0) {
-	throw "No HDT deck stats files were found: $($deckStatsPaths -join ', ')"
+	throw "未找到 HDT 牌组统计文件：$($deckStatsPaths -join ', ')"
 }
 
 $since = if ($Since -ne [datetime]::MinValue) {
 	$Since
+} elseif ($Days -le 0) {
+	[datetime]::MinValue
 } else {
 	(Get-Date).AddDays(-1 * [Math]::Abs($Days))
 }
@@ -171,6 +173,6 @@ foreach ($deckStatsFile in $existingDeckStatsPaths) {
 }
 
 Set-Content -Path $OutputPath -Value $rows -Encoding UTF8
-Write-Host "Read HDT deck stats files:"
+Write-Host "已读取 HDT 牌组统计文件："
 $existingDeckStatsPaths | ForEach-Object { Write-Host "  $_" }
-Write-Host "Wrote $($rows.Count - 1) HDT games to $OutputPath"
+Write-Host "已将 $($rows.Count - 1) 场 HDT 对局写入：$OutputPath"

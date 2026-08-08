@@ -1,10 +1,6 @@
-param(
+﻿param(
 	[string[]]$RankRanges = @(
-		"DIAMOND_THROUGH_LEGEND",
-		"DIAMOND_FOUR_THROUGH_DIAMOND_ONE",
-		"PLATINUM",
-		"GOLD",
-		"BRONZE_THROUGH_GOLD"
+		"DIAMOND_THROUGH_LEGEND"
 	),
 	[string]$GameType = "RANKED_STANDARD",
 	[int]$LimitPerRange = 250,
@@ -26,7 +22,7 @@ param(
 $ErrorActionPreference = "Stop"
 
 if (-not (Get-Command curl.exe -ErrorAction SilentlyContinue)) {
-	throw "curl.exe was not found. It is required because HSReplay blocks .NET WebClient requests."
+	throw "未找到 curl.exe。由于 HSReplay 会阻止 .NET WebClient 请求，因此必须使用 curl.exe。"
 }
 
 function Get-OptionalHSReplayCookieArgs {
@@ -90,17 +86,17 @@ function Format-DiagnosticText([string]$Text, [int]$MaxLength = 240) {
 	if ($decoded -match "(?is)<title>\s*(?<title>.*?)\s*</title>") {
 		$title = (($Matches["title"] -replace "\s+", " ").Trim())
 		if ($title -match "(?i)^Just a moment") {
-			return "Cloudflare challenge page (title: $title)"
+			return "Cloudflare 验证页面（标题：$title）"
 		}
-		return "HTML response (title: $title)"
+		return "HTML 响应（标题：$title）"
 	}
 	if ($decoded -match "(?i)cloudflare|challenges\.cloudflare\.com") {
-		return "Cloudflare challenge page"
+		return "Cloudflare 验证页面"
 	}
 
 	$singleLine = ($decoded.Trim() -replace "\s+", " ")
 	if ($singleLine.StartsWith("<")) {
-		return "HTML response without a title"
+		return "无标题的 HTML 响应"
 	}
 	if ($singleLine.Length -le $MaxLength) {
 		return $singleLine
@@ -116,6 +112,17 @@ function Format-CurlErrorText([string]$Text) {
 	return $diagnostic
 }
 
+function Get-CurlExitSummary([int]$ExitCode) {
+	switch ($ExitCode) {
+		6 { return "域名解析失败" }
+		7 { return "无法连接远端服务" }
+		22 { return "远端服务拒绝了请求" }
+		28 { return "请求超时" }
+		35 { return "安全连接建立失败" }
+		default { return "网络请求失败（代码 $ExitCode）" }
+	}
+}
+
 $RankRanges = @($RankRanges | ForEach-Object { $_ -split "," } |
 	ForEach-Object { $_.Trim() } |
 	Where-Object { -not [string]::IsNullOrWhiteSpace($_) })
@@ -124,7 +131,7 @@ $outputDirectory = Split-Path -Parent $OutputPath
 New-Item -ItemType Directory -Force -Path $outputDirectory | Out-Null
 [object[]]$deckPageCookieArgs = @(Get-OptionalHSReplayCookieArgs)
 if ($deckPageCookieArgs.Count -gt 0) {
-	Write-Host "Using HSReplay cookie for deck pages."
+	Write-Host "牌组页面将使用 HSReplay Cookie。"
 }
 $effectiveDeckPageUserAgent = Get-DefaultBrowserUserAgent $DeckPageUserAgent
 
@@ -149,7 +156,7 @@ function Invoke-CurlText(
 			$previousErrorActionPreference = $ErrorActionPreference
 			try {
 				$ErrorActionPreference = "Continue"
-				$statusText = & curl.exe -sS -L -A $UserAgent @headers @ExtraCurlArgs `
+				$statusText = & curl.exe -s -L -A $UserAgent @headers @ExtraCurlArgs `
 					--connect-timeout 10 --max-time $TimeoutSeconds `
 					-w "%{http_code}" -o $tempPath $Url 2>$errorPath
 				$exitCode = $LASTEXITCODE
@@ -180,19 +187,21 @@ function Invoke-CurlText(
 			}
 
 			$details = New-Object System.Collections.Generic.List[string]
-			$details.Add("curl exit code $exitCode")
+			if ($exitCode -ne 0) {
+				$details.Add((Get-CurlExitSummary $exitCode))
+			}
 			if ($hasStatusCode) {
 				$details.Add("HTTP $statusCode")
 			} elseif (-not [string]::IsNullOrWhiteSpace($statusText)) {
-				$details.Add("HTTP status output '$statusText'")
+				$details.Add("HTTP 状态输出 '$statusText'")
 			}
 			if ($bodyLength -eq 0 -or [string]::IsNullOrWhiteSpace($bodyText)) {
-				$details.Add("empty response body")
+				$details.Add("响应正文为空")
 			} elseif ($hasStatusCode -and ($statusCode -lt 200 -or $statusCode -ge 300)) {
-				$details.Add("body: $(Format-DiagnosticText $bodyText)")
+				$details.Add("响应正文：$(Format-DiagnosticText $bodyText)")
 			}
 			if (-not [string]::IsNullOrWhiteSpace($errorText)) {
-				$details.Add("stderr: $(Format-CurlErrorText $errorText)")
+				$details.Add("stderr：$(Format-CurlErrorText $errorText)")
 			}
 			$lastFailure = $details -join "; "
 		} finally {
@@ -204,9 +213,9 @@ function Invoke-CurlText(
 		}
 	}
 	if ([string]::IsNullOrWhiteSpace($lastFailure)) {
-		throw "curl.exe failed while reading $Url"
+		throw "curl.exe 调用失败，无法读取 $Url"
 	}
-	throw "curl.exe failed while reading $Url ($lastFailure)"
+	throw "curl.exe 调用失败，无法读取 $Url（$lastFailure）"
 }
 
 $deckIds = New-Object System.Collections.Generic.List[string]
@@ -241,7 +250,7 @@ if (-not [string]::IsNullOrWhiteSpace($Locale)) {
 	$archetypeCachePath = Join-Path $outputDirectory (
 		"hsreplay_archetypes.$($Locale -replace '[^A-Za-z0-9_-]', '_').json")
 	$sourceUrls.Add($archetypesUrl)
-	Write-Host "Reading localized archetype names from HSReplay for $Locale..."
+	Write-Host "正在从 HSReplay 读取 $Locale 的本地化流派名称..."
 	try {
 		$archetypesJson = Invoke-CurlText $archetypesUrl "Hearthstone Deck Tracker" "application/json" `
 			$ArchetypeTimeoutSeconds $Locale
@@ -249,14 +258,14 @@ if (-not [string]::IsNullOrWhiteSpace($Locale)) {
 		if ($loadedCount -gt 0) {
 			Set-Content -Path $archetypeCachePath -Value $archetypesJson -Encoding UTF8
 		}
-		Write-Host "Loaded $loadedCount localized archetype names."
+		Write-Host "已加载 $loadedCount 个本地化流派名称。"
 	} catch {
 		if (Test-Path $archetypeCachePath) {
 			$cachedArchetypesJson = Get-Content -Path $archetypeCachePath -Encoding UTF8 -Raw
 			$loadedCount = Add-ArchetypeNamesFromJson $cachedArchetypesJson $archetypeNames
-			Write-Warning "Failed to fetch localized archetype names: $($_.Exception.Message); using cached $Locale names ($loadedCount entries)."
+			Write-Warning "获取本地化流派名称失败：$($_.Exception.Message)；改用缓存的 $Locale 名称（$loadedCount 条）。"
 		} else {
-			Write-Warning "Failed to fetch localized archetype names: $($_.Exception.Message); deck page titles will be used instead."
+			Write-Warning "获取本地化流派名称失败：$($_.Exception.Message)；将改用牌组页面标题。"
 		}
 	}
 }
@@ -264,11 +273,11 @@ if (-not [string]::IsNullOrWhiteSpace($Locale)) {
 foreach ($rankRange in $RankRanges) {
 	$inventoryUrl = "https://hsreplay.net/api/v1/analytics/query/list_deck_inventory_v2/?GameType=$GameType&RankRange=$rankRange"
 	$sourceUrls.Add($inventoryUrl)
-	Write-Host "Reading deck inventory from HSReplay for $rankRange..."
+	Write-Host "正在从 HSReplay 读取 $rankRange 的牌组清单..."
 	$inventoryJson = Invoke-CurlText $inventoryUrl "Hearthstone Deck Tracker" "application/json" $InventoryTimeoutSeconds
 	$inventory = $inventoryJson | ConvertFrom-Json
 	if (-not $inventory.series) {
-		throw "HSReplay inventory response did not contain a series object: $inventoryJson"
+		throw "HSReplay 牌组清单响应中不包含 series 对象：$inventoryJson"
 	}
 
 	if ($inventory.as_of) {
@@ -296,14 +305,14 @@ foreach ($rankRange in $RankRanges) {
 		}
 	}
 
-	Write-Host "Added $rangeCount ids from $rankRange; $($deckIds.Count) unique ids queued."
+	Write-Host "已从 $rankRange 添加 $rangeCount 个 ID；当前有 $($deckIds.Count) 个唯一 ID 等待处理。"
 	if ($MaxDecks -gt 0 -and $deckIds.Count -ge $MaxDecks) {
 		break
 	}
 }
 
 if ($deckIds.Count -eq 0) {
-	throw "No deck ids found for $GameType / $($RankRanges -join ', ')."
+	throw "未找到 $GameType / $($RankRanges -join ', ') 对应的牌组 ID。"
 }
 
 function Convert-DeckPageToEntry([string]$DeckId, [string]$Html) {
@@ -326,7 +335,7 @@ function Convert-DeckPageToEntry([string]$DeckId, [string]$Html) {
 	}
 	if (-not $match.Success) {
 		if ($decoded -match "(?i)challenges\.cloudflare\.com|<title>\s*Just a moment") {
-			throw "HSReplay returned a Cloudflare challenge page for deck $DeckId. Refresh the HSReplay cookie from a logged-in browser session, then retry."
+			throw "HSReplay 为牌组 $DeckId 返回了 Cloudflare 验证页面。请从已登录的浏览器会话中更新 HSReplay Cookie，然后重试。"
 		}
 		return $null
 	}
@@ -358,7 +367,7 @@ function Test-DeckSnapshotHasValidCode([string]$Path) {
 	return $false
 }
 
-Write-Host "Found $($deckIds.Count) deck ids. Fetching deck codes..."
+Write-Host "已找到 $($deckIds.Count) 个牌组 ID，正在获取牌组代码..."
 $deckCodes = New-Object System.Collections.Generic.List[string]
 $fetched = 0
 $failed = 0
@@ -384,14 +393,14 @@ if ($Parallelism -le 1) {
 			}
 		} catch {
 			$failed++
-			Write-Warning "Failed to fetch $deckUrl`: $($_.Exception.Message)"
+			Write-Warning "获取 $deckUrl 失败：$($_.Exception.Message)"
 		}
 
 		if ($RequestDelayMs -gt 0) {
 			Start-Sleep -Milliseconds $RequestDelayMs
 		}
 		if ($ProgressEvery -gt 0 -and (($index + 1) % $ProgressEvery -eq 0 -or ($index + 1) -eq $deckIds.Count)) {
-			Write-Host "Checked $($index + 1)/$($deckIds.Count), fetched $fetched deck codes, failed $failed, skipped $skipped."
+			Write-Host "已检查 $($index + 1)/$($deckIds.Count)，已获取 $fetched 个牌组代码，失败 $failed 个，跳过 $skipped 个。"
 		}
 	}
 } else {
@@ -414,7 +423,7 @@ if ($Parallelism -le 1) {
 					Start-Sleep -Milliseconds (500 * $attempt)
 				}
 			}
-			throw "curl.exe failed while reading $Url"
+			throw "curl.exe 调用失败，无法读取 $Url"
 		}
 
 		$deckUrl = "https://hsreplay.net/decks/$DeckId/"
@@ -459,7 +468,7 @@ if ($Parallelism -le 1) {
 
 		if ($result.Error) {
 			$failed++
-			Write-Warning "Failed to fetch $($result.Url): $($result.Error)"
+			Write-Warning "获取 $($result.Url) 失败：$($result.Error)"
 		} else {
 			try {
 				$entry = Convert-DeckPageToEntry $result.DeckId $result.Html
@@ -471,12 +480,12 @@ if ($Parallelism -le 1) {
 				}
 			} catch {
 				$failed++
-				Write-Warning "Failed to parse $($result.Url): $($_.Exception.Message)"
+				Write-Warning "解析 $($result.Url) 失败：$($_.Exception.Message)"
 			}
 		}
 
 		if ($ProgressEvery -gt 0 -and ($checked % $ProgressEvery -eq 0 -or $checked -eq $deckIds.Count)) {
-			Write-Host "Checked $checked/$($deckIds.Count), fetched $fetched deck codes, failed $failed, skipped $skipped."
+			Write-Host "已检查 $checked/$($deckIds.Count)，已获取 $fetched 个牌组代码，失败 $failed 个，跳过 $skipped 个。"
 		}
 	}
 }
@@ -494,9 +503,9 @@ if ($uniqueDeckCodes.Count -eq 0) {
 	if ((Test-Path -LiteralPath $OutputPath) -and -not (Test-DeckSnapshotHasValidCode $OutputPath)) {
 		$invalidPath = $OutputPath + ".invalid-" + (Get-Date).ToString("yyyyMMdd-HHmmss")
 		Move-Item -LiteralPath $OutputPath -Destination $invalidPath -Force
-		Write-Warning "Moved invalid deck-code snapshot to $invalidPath"
+		Write-Warning "已将无效的牌组代码快照移至 $invalidPath"
 	}
-	throw "No deck codes were extracted."
+	throw "未能提取任何牌组代码。"
 }
 
 $header = @(
@@ -513,4 +522,4 @@ $header = @(
 $tempOutputPath = Join-Path $outputDirectory ((Split-Path -Leaf $OutputPath) + ".tmp")
 Set-Content -Path $tempOutputPath -Value ($header + $uniqueDeckCodes) -Encoding UTF8
 Move-Item -LiteralPath $tempOutputPath -Destination $OutputPath -Force
-Write-Host "Wrote $($uniqueDeckCodes.Count) deck codes to $OutputPath"
+Write-Host "已将 $($uniqueDeckCodes.Count) 个牌组代码写入 $OutputPath"

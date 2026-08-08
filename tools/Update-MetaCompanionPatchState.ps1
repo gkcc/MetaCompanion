@@ -2,7 +2,7 @@ function Normalize-MetaCompanionPatchVersion([string]$Value) {
 	if ([string]::IsNullOrWhiteSpace($Value)) {
 		return ""
 	}
-	$match = [regex]::Match($Value, "\b(\d+\.\d+\.\d+)(?:\.\d+)?\b")
+	$match = [regex]::Match($Value, "\b(\d+\.\d+\.\d+(?:\.\d+)?)\b")
 	if ($match.Success) {
 		return $match.Groups[1].Value
 	}
@@ -50,20 +50,28 @@ function Get-MetaCompanionDetectedPatch {
 	$exePath = Resolve-MetaCompanionHearthstoneExePath
 	if (Test-Path -LiteralPath $exePath) {
 		$source = $exePath
-		if (-not $time) {
-			$time = (Get-Item -LiteralPath $exePath).LastWriteTime
-		}
-		if ([string]::IsNullOrWhiteSpace($version)) {
-			$productDbPath = Join-Path (Split-Path -Parent $exePath) ".product.db"
-			if (Test-Path -LiteralPath $productDbPath) {
-				$text = [System.Text.Encoding]::ASCII.GetString(
-					[System.IO.File]::ReadAllBytes($productDbPath))
-				$version = Normalize-MetaCompanionPatchVersion $text
+		$productDbPath = Join-Path (Split-Path -Parent $exePath) ".product.db"
+		if (Test-Path -LiteralPath $productDbPath) {
+			$text = [System.Text.Encoding]::ASCII.GetString(
+				[System.IO.File]::ReadAllBytes($productDbPath))
+			$productDbVersion = Normalize-MetaCompanionPatchVersion $text
+			if (-not [string]::IsNullOrWhiteSpace($productDbVersion)) {
+				if ([string]::IsNullOrWhiteSpace($version)) {
+					$version = $productDbVersion
+					$source = $productDbPath
+				}
+				if (-not $time) {
+					$time = [System.IO.File]::GetLastWriteTime($productDbPath)
+					$source = $productDbPath
+				}
 			}
 		}
 		if ([string]::IsNullOrWhiteSpace($version)) {
 			$version = Normalize-MetaCompanionPatchVersion (
 				(Get-Item -LiteralPath $exePath).VersionInfo.ProductVersion)
+		}
+		if (-not $time) {
+			$time = [System.IO.File]::GetLastWriteTime($exePath)
 		}
 	}
 
@@ -72,6 +80,16 @@ function Get-MetaCompanionDetectedPatch {
 		PatchTime = $time
 		Source = $source
 	}
+}
+
+function New-MetaCompanionPatchEpoch([string]$PatchVersion, [object]$PatchTime) {
+	$hasPatchTime = $null -ne $PatchTime
+	if ([string]::IsNullOrWhiteSpace($PatchVersion) -and -not $hasPatchTime) {
+		return ""
+	}
+	$versionPart = if ([string]::IsNullOrWhiteSpace($PatchVersion)) { "unknown" } else { $PatchVersion }
+	$timePart = if ($hasPatchTime) { ([datetime]$PatchTime).ToString("o") } else { "unknown" }
+	return "$versionPart@$timePart"
 }
 
 function Get-MetaCompanionUniquePath([string]$Path) {
@@ -148,6 +166,7 @@ function Update-MetaCompanionPatchState {
 		return [pscustomobject]@{
 			PatchChanged = $false
 			PatchVersion = ""
+			PatchEpoch = ""
 			PatchTime = $null
 			ArchivedFileCount = 0
 			ArchiveDirectory = ""
@@ -157,7 +176,7 @@ function Update-MetaCompanionPatchState {
 	New-Item -ItemType Directory -Force -Path $DataDirectory | Out-Null
 	$detected = Get-MetaCompanionDetectedPatch -PatchVersion $PatchVersion -PatchTime $PatchTime
 	$version = Normalize-MetaCompanionPatchVersion $detected.Version
-	$time = $detected.PatchTime
+	$detectedTime = $detected.PatchTime
 	$versionPath = Join-Path $DataDirectory "patch_version.txt"
 	$markerPath = Join-Path $DataDirectory "patch_marker.txt"
 	$storedVersion = if (Test-Path -LiteralPath $versionPath) {
@@ -167,13 +186,25 @@ function Update-MetaCompanionPatchState {
 	$storedMarker = if (Test-Path -LiteralPath $markerPath) {
 		Read-MetaCompanionDate (Get-Content -LiteralPath $markerPath -Raw -Encoding UTF8)
 	} else { $null }
+	$versionChanged = -not [string]::IsNullOrWhiteSpace($storedVersion) -and
+		-not [string]::IsNullOrWhiteSpace($version) -and
+		-not [string]::Equals($storedVersion, $version, [StringComparison]::OrdinalIgnoreCase)
+	$time = if ($versionChanged -and
+		(-not $detectedTime -or ($storedMarker -and $detectedTime -le $storedMarker))) {
+		$Now
+	} elseif ($storedMarker -and $detectedTime) {
+		if ($storedMarker -ge $detectedTime) { $storedMarker } else { $detectedTime }
+	} elseif ($storedMarker) {
+		$storedMarker
+	} else {
+		$detectedTime
+	}
 
 	$patchChanged = $false
-	if (-not [string]::IsNullOrWhiteSpace($storedVersion) -and
-		-not [string]::IsNullOrWhiteSpace($version) -and
-		-not [string]::Equals($storedVersion, $version, [StringComparison]::OrdinalIgnoreCase)) {
+	if ($versionChanged) {
 		$patchChanged = $true
-	} elseif ($time -and $storedMarker -and $storedMarker -lt $time.AddMinutes(-1)) {
+	} elseif ($detectedTime -and $storedMarker -and
+		$storedMarker -lt $detectedTime.AddMinutes(-1)) {
 		$patchChanged = $true
 	}
 
@@ -194,10 +225,15 @@ function Update-MetaCompanionPatchState {
 	if ($time -and ($patchChanged -or -not $storedMarker -or $storedMarker -lt $time.AddMinutes(-1))) {
 		$time.ToString("o") | Set-Content -LiteralPath $markerPath -Encoding UTF8
 	}
+	$epoch = New-MetaCompanionPatchEpoch -PatchVersion $version -PatchTime $time
+	if (-not [string]::IsNullOrWhiteSpace($epoch)) {
+		$epoch | Set-Content -LiteralPath (Join-Path $DataDirectory "patch_epoch.txt") -Encoding UTF8
+	}
 
 	return [pscustomobject]@{
 		PatchChanged = $patchChanged
 		PatchVersion = $version
+		PatchEpoch = $epoch
 		PatchTime = $time
 		ArchivedFileCount = $archive.ArchivedFileCount
 		ArchiveDirectory = $archive.ArchiveDirectory

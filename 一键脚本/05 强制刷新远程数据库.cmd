@@ -1,16 +1,17 @@
 @echo off
+chcp 65001 >nul
 setlocal
 pushd "%~dp0.."
 
-echo [Meta Companion] Force refresh remote cache for current patch.
+echo [Meta Companion] 正在强制刷新当前补丁的远端缓存。
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File ".\tools\Run-MetaCompanionRefresh.ps1" -Force -PrimaryTimeRange CURRENT_PATCH -MetaFallbackTimeRange LAST_1_DAY
 set "ERR=%ERRORLEVEL%"
 
 echo.
 if "%ERR%"=="0" (
-	echo Done.
+	echo 刷新完成。
 ) else (
-	echo Failed with exit code %ERR%.
+	echo 刷新失败，退出码：%ERR%。
 )
 echo.
 pause

@@ -1,21 +1,27 @@
-param(
+﻿param(
 	[string]$OpponentHistoryPath = "$env:APPDATA\HearthstoneDeckTracker\MetaCompanion\hdt_opponent_history.tsv",
 	[string]$DeckCodePath = "$env:APPDATA\HearthstoneDeckTracker\MetaCompanion\hsreplay_deckcodes.txt",
-	[string]$BranchPath = "$env:APPDATA\HearthstoneDeckTracker\MetaCompanion\archetype_deck_branches.tsv",
+	[string]$BranchPath = "$env:APPDATA\HearthstoneDeckTracker\MetaCompanion\archetype_model_branches.tsv",
 	[string]$OutputPrefix = "$env:APPDATA\HearthstoneDeckTracker\MetaCompanion\local_meta",
 	[string]$HdtAppPath = "",
 	[int]$Days = 3,
+	[Alias("Matches")]
+	[int]$HistoryMatches = 0,
 	[int]$MinRelevantCards = 2,
 	[int]$MinConfidence = 35,
 	[int]$TopCandidates = 3,
 	[datetime]$PatchTime = [datetime]::MinValue,
-	[double]$PrePatchWeight = 0.35,
+	[datetime]$HistoryClearedAt = [datetime]::MinValue,
+	[double]$PrePatchWeight = 0.0,
 	[double]$RecencyHalfLifeDays = 3.0,
 	[bool]$UsePatchWindow = $true,
 	[string]$PatchMarkerPath = "$env:APPDATA\HearthstoneDeckTracker\MetaCompanion\patch_marker.txt"
 )
 
 $ErrorActionPreference = "Stop"
+
+$RecognitionModel = "softmax_v1_t12_legacy_confidence_mass"
+$RecognitionSoftmaxTemperature = 12.0
 
 function Resolve-HdtAppPath {
 	if (-not [string]::IsNullOrWhiteSpace($HdtAppPath) -and
@@ -25,7 +31,7 @@ function Resolve-HdtAppPath {
 
 	$root = Join-Path $env:LOCALAPPDATA "HearthstoneDeckTracker"
 	if (-not (Test-Path $root)) {
-		throw "HearthstoneDeckTracker local app directory was not found: $root"
+		throw "未找到 HearthstoneDeckTracker 本地程序目录：$root"
 	}
 
 	$app = Get-ChildItem $root -Directory -Filter "app-*" |
@@ -33,7 +39,7 @@ function Resolve-HdtAppPath {
 		Sort-Object LastWriteTime -Descending |
 		Select-Object -First 1
 	if (-not $app) {
-		throw "No HDT app-* directory containing HearthDb.dll was found under $root"
+		throw "在 $root 下未找到包含 HearthDb.dll 的 HDT app-* 目录。"
 	}
 	return $app.FullName
 }
@@ -61,17 +67,31 @@ function Try-ParseDateTimeOffset([string]$Value) {
 	return $null
 }
 
+function Get-MetaCompanionPublicPatchVersion([string]$Value) {
+	if ([string]::IsNullOrWhiteSpace($Value)) {
+		return ""
+	}
+	$match = [regex]::Match($Value, "\b(\d+\.\d+\.\d+)(?:\.\d+)?\b")
+	if ($match.Success) {
+		return $match.Groups[1].Value
+	}
+	return $Value.Trim()
+}
+
 function Test-CurrentPatchBranchSnapshot([string]$Path) {
 	if ([string]::IsNullOrWhiteSpace($Path) -or -not (Test-Path -LiteralPath $Path)) {
 		return $false
 	}
 
 	$candidateTimeRange = ""
+	$candidatePatchVersion = ""
 	$candidateAsOf = $null
 	foreach ($rawLine in (Get-Content -LiteralPath $Path -Encoding UTF8 -TotalCount 32)) {
 		$line = $rawLine.Trim()
 		if ($line.StartsWith("# CandidateTimeRange:", [StringComparison]::OrdinalIgnoreCase)) {
 			$candidateTimeRange = $line.Substring("# CandidateTimeRange:".Length).Trim()
+		} elseif ($line.StartsWith("# PatchVersion:", [StringComparison]::OrdinalIgnoreCase)) {
+			$candidatePatchVersion = $line.Substring("# PatchVersion:".Length).Trim()
 		} elseif ($line.StartsWith("# CandidateAsOf:", [StringComparison]::OrdinalIgnoreCase)) {
 			$candidateAsOf = Try-ParseDateTimeOffset $line.Substring("# CandidateAsOf:".Length).Trim()
 		} elseif (-not $line.StartsWith("#") -and $line.Length -gt 0) {
@@ -79,10 +99,34 @@ function Test-CurrentPatchBranchSnapshot([string]$Path) {
 		}
 	}
 
-	if (-not [string]::Equals($candidateTimeRange, "CURRENT_PATCH", [StringComparison]::OrdinalIgnoreCase)) {
+	if ($candidateTimeRange -notin @("CURRENT_PATCH", "LAST_1_DAY", "LAST_3_DAYS", "LAST_7_DAYS")) {
 		return $false
 	}
-
+	if ([string]::Equals(
+			$candidateTimeRange,
+			"CURRENT_PATCH",
+			[StringComparison]::OrdinalIgnoreCase)) {
+		# HSReplay owns this scope. CandidateAsOf is a snapshot timestamp and may
+		# legitimately precede the time this machine first noticed the patch.
+		$versionDirectory = if (-not [string]::IsNullOrWhiteSpace($PatchMarkerPath)) {
+			Split-Path -Parent $PatchMarkerPath
+		} else {
+			Split-Path -Parent $Path
+		}
+		$versionPath = Join-Path $versionDirectory "patch_version.txt"
+		if (Test-Path -LiteralPath $versionPath -PathType Leaf) {
+			$localPatchVersion = Get-MetaCompanionPublicPatchVersion (
+				(Get-Content -LiteralPath $versionPath -Raw -Encoding UTF8).Trim())
+			if ([string]::IsNullOrWhiteSpace($candidatePatchVersion) -or
+				-not [string]::Equals(
+					(Get-MetaCompanionPublicPatchVersion $candidatePatchVersion),
+					$localPatchVersion,
+					[StringComparison]::OrdinalIgnoreCase)) {
+				return $false
+			}
+		}
+		return $true
+	}
 	if ([string]::IsNullOrWhiteSpace($PatchMarkerPath) -or -not (Test-Path -LiteralPath $PatchMarkerPath)) {
 		return $true
 	}
@@ -284,8 +328,109 @@ function Join-Candidates($Candidates) {
 	}) -join " / "
 }
 
+function Get-SoftRecognitionDistribution($Candidates, [int]$Confidence, [double]$Temperature) {
+	$candidateRows = @($Candidates | Where-Object { [int]$_.archetype_id -gt 0 })
+	$hasEvidence = $candidateRows.Count -gt 0 -and
+		[int]$candidateRows[0].relevant_cards -gt 0
+	$knownMass = if ($hasEvidence) {
+		[Math]::Max(0.0, [Math]::Min(1.0, $Confidence / 100.0))
+	} else {
+		0.0
+	}
+	$probabilities = New-Object System.Collections.Generic.List[object]
+
+	if ($knownMass -gt 0.0 -and $candidateRows.Count -gt 0) {
+		$effectiveTemperature = [Math]::Max(0.001, $Temperature)
+		$maxScore = [double](($candidateRows | Measure-Object -Property score -Maximum).Maximum)
+		$weightedCandidates = @($candidateRows | ForEach-Object {
+			$exponent = ([double]$_.score - $maxScore) / $effectiveTemperature
+			[pscustomobject][ordered]@{
+				candidate = $_
+				weight = [Math]::Exp($exponent)
+			}
+		})
+		$totalSoftmaxWeight = [double](($weightedCandidates | Measure-Object -Property weight -Sum).Sum)
+		if ($totalSoftmaxWeight -gt 0.0 -and
+			-not [double]::IsNaN($totalSoftmaxWeight) -and
+			-not [double]::IsInfinity($totalSoftmaxWeight)) {
+			foreach ($weightedCandidate in $weightedCandidates) {
+				$candidate = $weightedCandidate.candidate
+				$probability = [Math]::Round(
+					$knownMass * [double]$weightedCandidate.weight / $totalSoftmaxWeight,
+					8)
+				$probabilities.Add([pscustomobject][ordered]@{
+					id = [int]$candidate.archetype_id
+					name = [string]$candidate.name
+					probability = $probability
+				})
+			}
+		} else {
+			$knownMass = 0.0
+		}
+	}
+
+	$roundedKnownMass = if ($probabilities.Count -gt 0) {
+		[double](($probabilities | Measure-Object -Property probability -Sum).Sum)
+	} else {
+		0.0
+	}
+	if ($roundedKnownMass -gt 1.0) {
+		$scale = 1.0 / $roundedKnownMass
+		foreach ($row in $probabilities) {
+			$row.probability = [Math]::Round([double]$row.probability * $scale, 8)
+		}
+		$roundedKnownMass = [double](($probabilities | Measure-Object -Property probability -Sum).Sum)
+	}
+	$unknownProbability = [Math]::Max(0.0, 1.0 - $roundedKnownMass)
+	$probabilities.Add([pscustomobject][ordered]@{
+		id = 0
+		name = "Unknown"
+		probability = $unknownProbability
+	})
+
+	# Assign the floating-point normalization residue to Unknown so the serialized
+	# distribution always sums to one in the same arithmetic used by consumers.
+	$distributionTotal = [double](($probabilities | Measure-Object -Property probability -Sum).Sum)
+	$probabilities[$probabilities.Count - 1].probability =
+		[Math]::Max(0.0, [double]$probabilities[$probabilities.Count - 1].probability + (1.0 - $distributionTotal))
+
+	$topProbability = 0.0
+	$secondProbability = 0.0
+	if ($candidateRows.Count -gt 0) {
+		$topId = [int]$candidateRows[0].archetype_id
+		$topProbabilityRow = $probabilities | Where-Object { [int]$_.id -eq $topId } | Select-Object -First 1
+		if ($topProbabilityRow) {
+			$topProbability = [double]$topProbabilityRow.probability
+		}
+		$knownProbabilities = @($probabilities |
+			Where-Object { [int]$_.id -gt 0 } |
+			Sort-Object @{ Expression = { [double]$_.probability }; Descending = $true })
+		if ($knownProbabilities.Count -gt 1) {
+			$secondProbability = [double]$knownProbabilities[1].probability
+		}
+	}
+	$unknownProbability = [double]$probabilities[$probabilities.Count - 1].probability
+	$tier = if (-not $hasEvidence -or $unknownProbability -ge $topProbability) {
+		"unknown"
+	} elseif ($topProbability -ge 0.70 -and ($topProbability - $secondProbability) -ge 0.25) {
+		"confirmed"
+	} elseif ($topProbability -ge 0.40 -and ($topProbability - $secondProbability) -ge 0.10) {
+		"likely"
+	} else {
+		"mixed"
+	}
+
+	return [pscustomobject][ordered]@{
+		distribution = [object[]]@($probabilities | ForEach-Object { $_ })
+		known_probability = 1.0 - $unknownProbability
+		unknown_probability = $unknownProbability
+		top_probability = $topProbability
+		tier = $tier
+	}
+}
+
 if (-not (Test-Path $OpponentHistoryPath)) {
-	throw "Opponent history was not found: $OpponentHistoryPath"
+	throw "未找到对手历史记录：$OpponentHistoryPath"
 }
 
 $resolvedHdtAppPath = Resolve-HdtAppPath
@@ -304,11 +449,12 @@ if (Test-CurrentPatchBranchSnapshot $BranchPath) {
 	$libraryPath = $BranchPath
 	$librarySource = "branch_fallback"
 } else {
-	throw "No deck-code snapshot was found. Expected $DeckCodePath; branch fallback was also missing: $BranchPath"
+	throw "未找到牌组代码快照。预期路径：$DeckCodePath；同时也缺少分支兜底文件：$BranchPath"
 }
 
 $branches = New-Object System.Collections.Generic.List[object]
 $branchRanks = @{}
+$invalidLibraryEntryCount = 0
 foreach ($line in Get-Content -Path $libraryPath -Encoding UTF8) {
 	if ([string]::IsNullOrWhiteSpace($line) -or $line.StartsWith("#")) {
 		continue
@@ -377,7 +523,7 @@ foreach ($line in Get-Content -Path $libraryPath -Encoding UTF8) {
 			$branchRanks[$key] = $branchRank
 		}
 		if ([string]::IsNullOrWhiteSpace($name)) {
-			$name = if ([string]::IsNullOrWhiteSpace($pageDeckName)) { "Archetype $archetypeId" } else { $pageDeckName }
+			$name = if ([string]::IsNullOrWhiteSpace($pageDeckName)) { "流派 $archetypeId" } else { $pageDeckName }
 		}
 
 		$branches.Add([pscustomobject][ordered]@{
@@ -393,12 +539,16 @@ foreach ($line in Get-Content -Path $libraryPath -Encoding UTF8) {
 			cards = $cards
 		})
 	} catch {
-		Write-Warning "Ignoring invalid deck code library entry: $($_.Exception.Message)"
+		$invalidLibraryEntryCount++
 	}
 }
 
+if ($invalidLibraryEntryCount -gt 0) {
+	Write-Warning "牌组识别语料中有 $invalidLibraryEntryCount 条记录无法解析，已统一跳过；请重新刷新识别语料。"
+}
+
 if ($branches.Count -eq 0) {
-	throw "No usable deck-code entries were loaded from $libraryPath"
+	throw "未能从 $libraryPath 加载任何可用的牌组代码条目。"
 }
 
 $archetypes = @($branches |
@@ -432,24 +582,43 @@ foreach ($group in ($archetypes | Group-Object player_class)) {
 }
 
 $now = Get-Date
-$defaultCutoff = $now.AddDays(-1 * [Math]::Max(1, $Days))
+$historyDays = [Math]::Max(0, $Days)
+$defaultCutoff = if ($historyDays -gt 0) {
+	$now.AddDays(-1 * $historyDays)
+} else {
+	[DateTime]::MinValue
+}
 $effectivePatchTime = Resolve-EffectivePatchTime
 $sampleWindowStart = $defaultCutoff
-$sampleWindow = "last_$([Math]::Max(1, $Days))_days"
-if ($UsePatchWindow -and $effectivePatchTime -and $effectivePatchTime -lt $now) {
-	if ($effectivePatchTime -le $defaultCutoff) {
+$sampleWindow = if ($historyDays -gt 0) { "last_$($historyDays)_days" } else { "all_available_history" }
+if ($UsePatchWindow -and $effectivePatchTime) {
+	if ($effectivePatchTime -gt $sampleWindowStart) {
 		$sampleWindowStart = $effectivePatchTime
 		$sampleWindow = "current_patch"
 	} else {
-		$sampleWindowStart = $defaultCutoff
-		$sampleWindow = "recent_days_with_patch_weight"
+		$sampleWindow += "_within_current_patch"
 	}
 }
-$prePatchWeightFactor = [Math]::Max(0.0, [Math]::Min(1.0, $PrePatchWeight))
+if ($HistoryClearedAt -ne [datetime]::MinValue -and $HistoryClearedAt -gt $sampleWindowStart) {
+	$sampleWindowStart = $HistoryClearedAt
+	$sampleWindow = "after_local_clear"
+}
+# Retain the parameter for command-line compatibility, but patch epochs are a
+# hard evidence boundary. Pre-patch games must never reach downstream weights.
+$prePatchWeightFactor = 0.0
 $gameRows = New-Object System.Collections.Generic.List[object]
 $summary = @{}
 
-foreach ($game in Import-Csv -Path $OpponentHistoryPath -Delimiter "`t") {
+$sourceGames = @(Import-Csv -Path $OpponentHistoryPath -Delimiter "`t" |
+	Where-Object {
+		$start = Try-ParseDate ([string]$_.start_time)
+		$start -and $start -ge $sampleWindowStart
+	} |
+	Sort-Object @{ Expression = { Try-ParseDate ([string]$_.start_time) }; Descending = $true })
+if ($HistoryMatches -gt 0) {
+	$sourceGames = @($sourceGames | Select-Object -First $HistoryMatches)
+}
+foreach ($game in $sourceGames) {
 	$startTime = Try-ParseDate $game.start_time
 	if ($null -eq $startTime -or $startTime -lt $sampleWindowStart) {
 		continue
@@ -458,7 +627,7 @@ foreach ($game in Import-Csv -Path $OpponentHistoryPath -Delimiter "`t") {
 	$className = Normalize-Class $game.opponent_hero
 	$classUniverse = $classCardFrequency[$className]
 	if ($null -eq $classUniverse) {
-		continue
+		$classUniverse = @{}
 	}
 
 	$observed = Parse-OpponentCards $game.opponent_cards
@@ -518,23 +687,41 @@ foreach ($game in Import-Csv -Path $OpponentHistoryPath -Delimiter "`t") {
 			@{ Expression = { $_.coverage }; Descending = $true },
 			@{ Expression = { $_.matched_cards }; Descending = $true })
 
-	if ($candidates.Count -eq 0) {
-		continue
-	}
-
-	$top = $candidates[0]
+	$top = if ($candidates.Count -gt 0) { $candidates[0] } else { $null }
 	$second = if ($candidates.Count -gt 1) { $candidates[1] } else { $null }
-	$gap = if ($second) { [double]$top.score - [double]$second.score } else { 20.0 }
-	$evidenceFactor = [Math]::Min(1.0, [double]$top.relevant_cards / 6.0)
-	$confidence = [int][Math]::Round(
-		([double]$top.coverage * 70.0) +
-		([double]$top.branch_coverage * 15.0) +
-		([Math]::Min(20.0, [Math]::Max(0.0, $gap)) * 0.5) +
-		($evidenceFactor * 10.0))
-	if ([int]$top.relevant_cards -lt $MinRelevantCards) {
+	$gap = if ($top -and $second) {
+		[double]$top.score - [double]$second.score
+	} elseif ($top) {
+		20.0
+	} else {
+		0.0
+	}
+	$evidenceFactor = if ($top) {
+		[Math]::Min(1.0, [double]$top.relevant_cards / 6.0)
+	} else {
+		0.0
+	}
+	$confidence = if ($top) {
+		[int][Math]::Round(
+			([double]$top.coverage * 70.0) +
+			([double]$top.branch_coverage * 15.0) +
+			([Math]::Min(20.0, [Math]::Max(0.0, $gap)) * 0.5) +
+			($evidenceFactor * 10.0))
+	} else {
+		0
+	}
+	if ($top -and [int]$top.relevant_cards -lt $MinRelevantCards) {
 		$confidence = [Math]::Min($confidence, 45)
 	}
 	$confidence = [Math]::Max(0, [Math]::Min(95, $confidence))
+	$softRecognition = Get-SoftRecognitionDistribution `
+		-Candidates $candidates `
+		-Confidence $confidence `
+		-Temperature $RecognitionSoftmaxTemperature
+	$softDistributionJson = ConvertTo-Json `
+		-InputObject $softRecognition.distribution `
+		-Depth 4 `
+		-Compress
 
 	$baseWeight = if ($confidence -ge $MinConfidence) {
 		[Math]::Max(0.25, $confidence / 100.0)
@@ -542,17 +729,20 @@ foreach ($game in Import-Csv -Path $OpponentHistoryPath -Delimiter "`t") {
 		0.0
 	}
 	$patchWeight = if ($effectivePatchTime -and $startTime -lt $effectivePatchTime) {
-		$prePatchWeightFactor
+		0.0
 	} else {
 		1.0
 	}
 	$recencyWeight = Get-RecencyWeight $startTime $now
 	$weight = $baseWeight * $patchWeight * $recencyWeight
+	$evidenceWeight = $patchWeight * $recencyWeight
+	$softKnownWeight = $evidenceWeight * [double]$softRecognition.known_probability
+	$softUnknownWeight = $evidenceWeight * [double]$softRecognition.unknown_probability
 
 	$isWin = ([string]$game.result).Equals("Win", [StringComparison]::OrdinalIgnoreCase)
 	$isLoss = ([string]$game.result).Equals("Loss", [StringComparison]::OrdinalIgnoreCase)
-	$key = [string]$top.archetype_id
-	if ($weight -gt 0 -and -not $summary.ContainsKey($key)) {
+	$key = if ($top) { [string]$top.archetype_id } else { "" }
+	if ($top -and $weight -gt 0 -and -not $summary.ContainsKey($key)) {
 		$summary[$key] = [pscustomobject][ordered]@{
 			archetype_id = [int]$top.archetype_id
 			name = [string]$top.name
@@ -564,7 +754,7 @@ foreach ($game in Import-Csv -Path $OpponentHistoryPath -Delimiter "`t") {
 			losses = 0
 		}
 	}
-	if ($weight -gt 0) {
+	if ($top -and $weight -gt 0) {
 		$summary[$key].games++
 		$summary[$key].weighted_games += $weight
 		$summary[$key].confidence_sum += $confidence
@@ -582,19 +772,29 @@ foreach ($game in Import-Csv -Path $OpponentHistoryPath -Delimiter "`t") {
 		opponent_hero = [string]$game.opponent_hero
 		opponent_class = $className
 		opponent_card_count = [int]$game.opponent_card_count
-		relevant_cards = [int]$top.relevant_cards
-		matched_cards = [int]$top.matched_cards
-		predicted_archetype_id = [int]$top.archetype_id
-		predicted_archetype = [string]$top.name
+		relevant_cards = if ($top) { [int]$top.relevant_cards } else { 0 }
+		matched_cards = if ($top) { [int]$top.matched_cards } else { 0 }
+		predicted_archetype_id = if ($top) { [int]$top.archetype_id } else { 0 }
+		predicted_archetype = if ($top) { [string]$top.name } else { "" }
 		confidence_pct = $confidence
 		weight = [Math]::Round($weight, 4)
 		patch_weight = [Math]::Round($patchWeight, 4)
 		recency_weight = [Math]::Round($recencyWeight, 4)
 		age_days = [Math]::Round([Math]::Max(0.0, ($now - $startTime).TotalDays), 3)
-		coverage_pct = [Math]::Round([double]$top.coverage * 100.0, 2)
-		best_branch_rank = [int]$top.best_branch_rank
-		best_branch_deck_id = [string]$top.best_branch_deck_id
+		coverage_pct = if ($top) { [Math]::Round([double]$top.coverage * 100.0, 2) } else { 0.0 }
+		best_branch_rank = if ($top) { [int]$top.best_branch_rank } else { 0 }
+		best_branch_deck_id = if ($top) { [string]$top.best_branch_deck_id } else { "" }
 		candidate_archetypes = Join-Candidates $candidates
+		recognition_model = $RecognitionModel
+		top_probability_pct = [Math]::Round([double]$softRecognition.top_probability * 100.0, 2)
+		unknown_probability_pct = [Math]::Round([double]$softRecognition.unknown_probability * 100.0, 2)
+		recognition_tier = [string]$softRecognition.tier
+		archetype_distribution_json = $softDistributionJson
+		evidence_weight = [Math]::Round($evidenceWeight, 4)
+		soft_known_weight = [Math]::Round($softKnownWeight, 4)
+		soft_unknown_weight = [Math]::Round($softUnknownWeight, 4)
+		format = [string]$game.format
+		mode = [string]$game.game_mode
 		replay_file = [string]$game.replay_file
 		replay_path = [string]$game.replay_path
 		hsreplay_upload_id = [string]$game.hsreplay_upload_id
@@ -611,7 +811,7 @@ $gamesPath = "$OutputPrefix`_archetypes.tsv"
 $summaryPath = "$OutputPrefix`_environment.tsv"
 $jsonPath = "$OutputPrefix`_summary.json"
 
-$gameHeader = "game_id`tstart_time`tend_time`tresult`tplayer_deck_name`tplayer_hero`topponent_hero`topponent_class`topponent_card_count`trelevant_cards`tmatched_cards`tpredicted_archetype_id`tpredicted_archetype`tconfidence_pct`tweight`tpatch_weight`trecency_weight`tage_days`tcoverage_pct`tbest_branch_rank`tbest_branch_deck_id`tcandidate_archetypes`treplay_file`treplay_path`thsreplay_upload_id`thsreplay_url"
+$gameHeader = "game_id`tstart_time`tend_time`tresult`tplayer_deck_name`tplayer_hero`topponent_hero`topponent_class`topponent_card_count`trelevant_cards`tmatched_cards`tpredicted_archetype_id`tpredicted_archetype`tconfidence_pct`tweight`tpatch_weight`trecency_weight`tage_days`tcoverage_pct`tbest_branch_rank`tbest_branch_deck_id`tcandidate_archetypes`treplay_file`treplay_path`thsreplay_upload_id`thsreplay_url`trecognition_model`ttop_probability_pct`tunknown_probability_pct`trecognition_tier`tarchetype_distribution_json`tevidence_weight`tsoft_known_weight`tsoft_unknown_weight`tformat`tmode"
 $gameLines = New-Object System.Collections.Generic.List[string]
 $gameLines.Add($gameHeader)
 foreach ($row in $gameRows) {
@@ -622,12 +822,18 @@ foreach ($row in $gameRows) {
 		$row.weight, $row.patch_weight, $row.recency_weight, $row.age_days,
 		$row.coverage_pct, $row.best_branch_rank, $row.best_branch_deck_id,
 		$row.candidate_archetypes, $row.replay_file, $row.replay_path,
-		$row.hsreplay_upload_id, $row.hsreplay_url)
+		$row.hsreplay_upload_id, $row.hsreplay_url, $row.recognition_model,
+		$row.top_probability_pct, $row.unknown_probability_pct, $row.recognition_tier,
+		$row.archetype_distribution_json, $row.evidence_weight,
+		$row.soft_known_weight, $row.soft_unknown_weight, $row.format, $row.mode)
 	$gameLines.Add(($values | ForEach-Object { Format-TsvValue $_ }) -join "`t")
 }
 Set-Content -Path $gamesPath -Value $gameLines -Encoding UTF8
 
 $totalWeighted = ($summary.Values | Measure-Object -Property weighted_games -Sum).Sum
+$totalEvidenceWeight = ($gameRows | Measure-Object -Property evidence_weight -Sum).Sum
+$totalSoftKnownWeight = ($gameRows | Measure-Object -Property soft_known_weight -Sum).Sum
+$totalSoftUnknownWeight = ($gameRows | Measure-Object -Property soft_unknown_weight -Sum).Sum
 $rank = 1
 $summaryRows = @($summary.Values |
 	Sort-Object @{ Expression = { $_.weighted_games }; Descending = $true },
@@ -672,10 +878,18 @@ if ($effectivePatchTime) {
 [void]$json.Add("library_path", $libraryPath)
 [void]$json.Add("library_source", $librarySource)
 [void]$json.Add("history_days", $Days)
+[void]$json.Add("history_matches", [Math]::Max(0, $HistoryMatches))
+$historyClearedAtValue = $null
+if ($HistoryClearedAt -ne [datetime]::MinValue) {
+	$historyClearedAtValue = $HistoryClearedAt.ToString("o")
+}
+[void]$json.Add("local_history_cleared_at", $historyClearedAtValue)
 [void]$json.Add("sample_window", $sampleWindow)
 [void]$json.Add("sample_window_start", $sampleWindowStart.ToString("o"))
 [void]$json.Add("min_relevant_cards", $MinRelevantCards)
 [void]$json.Add("min_confidence", $MinConfidence)
+[void]$json.Add("recognition_model", $RecognitionModel)
+[void]$json.Add("recognition_softmax_temperature", $RecognitionSoftmaxTemperature)
 [void]$json.Add("patch_time", $patchTimeValue)
 [void]$json.Add("pre_patch_weight", $prePatchWeightFactor)
 [void]$json.Add("recency_half_life_days", $RecencyHalfLifeDays)
@@ -686,14 +900,30 @@ if ($effectivePatchTime) {
 [void]$json.Add("archetype_count", $archetypes.Count)
 [void]$json.Add("game_count", $gameRows.Count)
 [void]$json.Add("weighted_game_count", [Math]::Round([double]$totalWeighted, 3))
+[void]$json.Add("evidence_weight", [Math]::Round([double]$totalEvidenceWeight, 3))
+[void]$json.Add("soft_known_weight", [Math]::Round([double]$totalSoftKnownWeight, 3))
+[void]$json.Add("soft_unknown_weight", [Math]::Round([double]$totalSoftUnknownWeight, 3))
 [void]$json.Add("games_path", $gamesPath)
 [void]$json.Add("environment_path", $summaryPath)
 [void]$json.Add("environment", [object[]]@($summaryRows))
 $json | ConvertTo-Json -Depth 8 | Set-Content -Path $jsonPath -Encoding UTF8
 
-Write-Host "Wrote local meta:"
+Write-Host "本地环境统计已写入："
 Write-Host "  $gamesPath"
 Write-Host "  $summaryPath"
 Write-Host "  $jsonPath"
-Write-Host "Games classified: $($gameRows.Count)"
-$summaryRows | Format-Table -AutoSize
+Write-Host "已识别对局数：$($gameRows.Count)"
+$displayColumns = @(
+	@{ Label = "排名"; Expression = { $_.rank } },
+	@{ Label = "流派 ID"; Expression = { $_.archetype_id } },
+	@{ Label = "名称"; Expression = { $_.name } },
+	@{ Label = "职业"; Expression = { $_.player_class } },
+	@{ Label = "对局数"; Expression = { $_.games } },
+	@{ Label = "加权对局"; Expression = { $_.weighted_games } },
+	@{ Label = "本地占比"; Expression = { $_.local_pct } },
+	@{ Label = "平均置信度"; Expression = { $_.avg_confidence } },
+	@{ Label = "胜"; Expression = { $_.wins } },
+	@{ Label = "负"; Expression = { $_.losses } },
+	@{ Label = "胜率"; Expression = { $_.win_rate } }
+)
+$summaryRows | Format-Table -Property $displayColumns -AutoSize
