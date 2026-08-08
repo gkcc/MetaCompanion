@@ -119,8 +119,22 @@ $realHdtConfigPath = if ($originalAppData) {
 } else {
 	$null
 }
-$realHdtConfigHash = if ($realHdtConfigPath -and (Test-Path -LiteralPath $realHdtConfigPath)) {
+$realPluginConfigPath = if ($originalAppData) {
+	Join-Path $originalAppData "HearthstoneDeckTracker\MetaCompanion\config.xml"
+} else {
+	$null
+}
+$realHdtConfigExists = [bool]($realHdtConfigPath -and
+	(Test-Path -LiteralPath $realHdtConfigPath -PathType Leaf))
+$realPluginConfigExists = [bool]($realPluginConfigPath -and
+	(Test-Path -LiteralPath $realPluginConfigPath -PathType Leaf))
+$realHdtConfigHash = if ($realHdtConfigExists) {
 	(Get-FileHash -LiteralPath $realHdtConfigPath -Algorithm SHA256).Hash
+} else {
+	$null
+}
+$realPluginConfigHash = if ($realPluginConfigExists) {
+	(Get-FileHash -LiteralPath $realPluginConfigPath -Algorithm SHA256).Hash
 } else {
 	$null
 }
@@ -158,15 +172,29 @@ function Set-HdtTestAppDataPath {
 }
 
 function Assert-RealHdtConfigUnchanged {
-	if (-not $realHdtConfigPath -or -not $realHdtConfigHash) {
-		return
-	}
-	if (-not (Test-Path -LiteralPath $realHdtConfigPath)) {
-		throw "Real HDT config disappeared during tests: $realHdtConfigPath"
-	}
-	$currentHash = (Get-FileHash -LiteralPath $realHdtConfigPath -Algorithm SHA256).Hash
-	if ($currentHash -ne $realHdtConfigHash) {
-		throw "Real HDT config changed during tests: $realHdtConfigPath. Tests must run only against sandboxed AppData."
+	$protectedConfigs = @(
+		@($realHdtConfigPath, $realHdtConfigExists, $realHdtConfigHash, "HDT"),
+		@($realPluginConfigPath, $realPluginConfigExists, $realPluginConfigHash, "MetaCompanion")
+	)
+	foreach ($protectedConfig in $protectedConfigs) {
+		$path = [string]$protectedConfig[0]
+		$existedBefore = [bool]$protectedConfig[1]
+		$hash = [string]$protectedConfig[2]
+		$label = [string]$protectedConfig[3]
+		if (-not $path) {
+			continue
+		}
+		$existsNow = Test-Path -LiteralPath $path -PathType Leaf
+		if ($existsNow -ne $existedBefore) {
+			throw "Real $label config presence changed during tests: $path (before=$existedBefore, after=$existsNow)"
+		}
+		if (-not $existedBefore) {
+			continue
+		}
+		$currentHash = (Get-FileHash -LiteralPath $path -Algorithm SHA256).Hash
+		if ($currentHash -ne $hash) {
+			throw "Real $label config changed during tests: $path. Tests must run only against sandboxed AppData."
+		}
 	}
 }
 

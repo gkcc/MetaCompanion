@@ -2,10 +2,15 @@ param(
 	[int]$PollSeconds = 2,
 	[string]$BuildPath = "",
 	[string]$LogPath = "$env:APPDATA\HearthstoneDeckTracker\MetaCompanion\pending-install.log",
-	[switch]$IncludeTools
+	[switch]$IncludeTools,
+	[switch]$RemoveRefreshTools
 )
 
 $ErrorActionPreference = "Stop"
+
+if ($IncludeTools -and $RemoveRefreshTools) {
+	throw "不能同时安装和删除远程刷新组件。"
+}
 
 $logDirectory = Split-Path -Parent $LogPath
 New-Item -ItemType Directory -Force -Path $logDirectory | Out-Null
@@ -30,6 +35,17 @@ try {
 		} else {
 			Write-PendingLog "Using build path: $BuildPath"
 			& "$PSScriptRoot\Install-MetaCompanion.ps1" -BuildPath $BuildPath -IncludeTools *>&1 | ForEach-Object {
+				Write-PendingLog $_
+			}
+		}
+	} elseif ($RemoveRefreshTools) {
+		if ([string]::IsNullOrWhiteSpace($BuildPath)) {
+			& "$PSScriptRoot\Install-MetaCompanion.ps1" -RemoveRefreshTools *>&1 | ForEach-Object {
+				Write-PendingLog $_
+			}
+		} else {
+			Write-PendingLog "Using build path: $BuildPath"
+			& "$PSScriptRoot\Install-MetaCompanion.ps1" -BuildPath $BuildPath -RemoveRefreshTools *>&1 | ForEach-Object {
 				Write-PendingLog $_
 			}
 		}

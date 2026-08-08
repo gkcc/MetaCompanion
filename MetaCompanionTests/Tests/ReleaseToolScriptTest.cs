@@ -3,6 +3,7 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
+using System.Security.Cryptography;
 
 namespace MetaCompanionTests.Tests
 {
@@ -38,6 +39,33 @@ namespace MetaCompanionTests.Tests
 			StringAssert.Contains(script, "Repo scan fallback should skip artifacts.");
 			StringAssert.Contains(script, "Repo scan fallback should include tracked dist installer scripts.");
 			StringAssert.Contains(script, "Repo scan fallback should skip dist build outputs.");
+			StringAssert.Contains(script, "Ensure-NetFxReferenceAssemblies.ps1");
+			StringAssert.Contains(script, "/p:FrameworkPathOverride=$frameworkPath");
+			StringAssert.Contains(script, "Framework path override:");
+			StringAssert.Contains(script, "HDT rule evaluation summary should parse all release metrics.");
+			StringAssert.Contains(script, "HDT visible point-effect oracle gate result:");
+			StringAssert.Contains(script, "Trajectory auditor fixture summary should strictly parse source, hashes, flags, metrics, and caveat.");
+			StringAssert.Contains(script, "Trajectory auditor fixture self-test result:");
+			StringAssert.Contains(script, "Behavior learning fixture summary should parse UTF-8 without a BOM.");
+			StringAssert.Contains(script, "Observed-policy fixture summary should parse UTF-8 without a BOM.");
+			StringAssert.Contains(script, "Dual-model updater summary should use an encoding-stable ASCII marker.");
+			StringAssert.Contains(script, "Behavior learning fixture caveat drift should be invalid.");
+			StringAssert.Contains(script, "Non-ready behavior learning fixture should fail the release summary.");
+			StringAssert.Contains(script, "Behavior prior fixture summary should strictly parse split isolation, readiness, and safety flags.");
+			StringAssert.Contains(script, "Behavior prior readiness tampering should fail closed.");
+			StringAssert.Contains(script, "Behavior prior quality-check tampering should fail closed.");
+			StringAssert.Contains(script, "Community installer must install the behavior-prior updater.");
+			StringAssert.Contains(script, "Behavior-prior updater must resolve the installed AdvisorWorker.");
+			StringAssert.Contains(script, "Runtime trajectory NO_DATA summary should be explicit and non-blocking.");
+			StringAssert.Contains(script, "Runtime trajectory summary must reject a changed content-addressed snapshot.");
+			StringAssert.Contains(script, "solve-status-semantics-v1");
+			StringAssert.Contains(script, "$minimumRustFullFixtureCount = 40");
+			StringAssert.Contains(script, "$minimumVisibleResponseFixtureCount = 3");
+			StringAssert.Contains(script, "Rust full parity fixture floor did not reject a 39-case report.");
+			StringAssert.Contains(script, "Rust full parity fixture floor rejected a 40-case report.");
+			StringAssert.Contains(script, "Visible-response false-claim metric did not block promotion.");
+			StringAssert.Contains(script, "Valid Rust official card-pool report was not accepted.");
+			StringAssert.Contains(script, "Official card-pool gate did not reject a changed Rust binary.");
 		}
 
 		[TestMethod]
@@ -76,6 +104,42 @@ namespace MetaCompanionTests.Tests
 		}
 
 		[TestMethod]
+		public void EnsureNetFxReferenceAssemblies_UsesCachedPackageWithoutDownload()
+		{
+			var repoRoot = FindRepoRoot();
+			var tempRoot = Path.Combine(
+				Path.GetTempPath(),
+				"MetaCompanionNetFxReferencesTest-" + Guid.NewGuid().ToString("N"));
+			var referencePath = Path.Combine(
+				tempRoot,
+				"Microsoft.NETFramework.ReferenceAssemblies.net472.1.0.3",
+				"build",
+				".NETFramework",
+				"v4.7.2");
+			Directory.CreateDirectory(referencePath);
+			File.WriteAllText(Path.Combine(referencePath, "mscorlib.dll"), string.Empty);
+
+			try
+			{
+				var result = RunPowerShell(
+					repoRoot,
+					Path.Combine(repoRoot, "tools", "Ensure-NetFxReferenceAssemblies.ps1"),
+					"-PackagesDirectory \"" + tempRoot + "\" -Quiet");
+
+				Assert.AreEqual(0, result.ExitCode, result.Output);
+				StringAssert.Contains(result.Output, referencePath);
+				Assert.IsFalse(result.Output.Contains("Downloading"), result.Output);
+			}
+			finally
+			{
+				if (Directory.Exists(tempRoot))
+				{
+					Directory.Delete(tempRoot, true);
+				}
+			}
+		}
+
+		[TestMethod]
 		public void AnyCpuProjectConfigurations_SuppressKnownHdtArchitectureWarnings()
 		{
 			var repoRoot = FindRepoRoot();
@@ -97,6 +161,30 @@ namespace MetaCompanionTests.Tests
 					"Release|AnyCPU",
 					"<ResolveAssemblyWarnOrErrorOnTargetArchitectureMismatch>None</ResolveAssemblyWarnOrErrorOnTargetArchitectureMismatch>");
 			}
+		}
+
+		[TestMethod]
+		public void Projects_UseNet472FacadeReferencesInsteadOfRuntimeDirectory()
+		{
+			var repoRoot = FindRepoRoot();
+			var projectPaths = new[]
+			{
+				Path.Combine(repoRoot, "MetaCompanion", "MetaCompanion.csproj"),
+				Path.Combine(repoRoot, "MetaCompanionTests", "MetaCompanionTests.csproj")
+			};
+
+			foreach (var projectPath in projectPaths)
+			{
+				var project = File.ReadAllText(projectPath);
+				StringAssert.Contains(project, "<NetFxFacadePath");
+				StringAssert.Contains(project, "$(NetFxFacadePath)\\netstandard.dll");
+				Assert.IsFalse(
+					project.Contains(@"C:\Windows\Microsoft.NET\Framework\v4.0.30319"),
+					projectPath);
+			}
+
+			var testProject = File.ReadAllText(projectPaths[1]);
+			StringAssert.Contains(testProject, "$(NetFxFacadePath)\\System.Runtime.dll");
 		}
 
 		[TestMethod]
@@ -127,6 +215,7 @@ namespace MetaCompanionTests.Tests
 			Directory.CreateDirectory(packageRoot);
 			Directory.CreateDirectory(Path.Combine(tempRoot, "nested"));
 			File.WriteAllText(Path.Combine(packageRoot, "README.md"), "package audit");
+			var requiredEntryCount = PopulateRequiredReleasePackage(packageRoot);
 
 			try
 			{
@@ -153,11 +242,21 @@ namespace MetaCompanionTests.Tests
 				StringAssert.Contains(report, "- Git dirty files: ");
 				StringAssert.Contains(report, "- Build: Skipped");
 				StringAssert.Contains(report, "- Tests: Skipped");
+				StringAssert.Contains(report, "- HDT visible point-effect gate: Skipped");
+				StringAssert.Contains(report, "- Trajectory auditor fixture self-test: Skipped");
+				StringAssert.Contains(report, "- Behavior prior synthetic-fixture gate: Skipped");
+				StringAssert.Contains(report, "- Rust behavior-prior loader gate: Skipped");
+				StringAssert.Contains(report, "- Rust official card-pool gate: Not requested");
+				StringAssert.Contains(report, "- Runtime training readiness (non-blocking for plugin release): Skipped");
+				StringAssert.Contains(report, "\u8bad\u7ec3\u6570\u636e\u95e8\u7981\u8bf4\u660e");
+				StringAssert.Contains(report, "\u751f\u4ea7\u8bad\u7ec3\u5c31\u7eea\u8bf4\u660e");
+				StringAssert.Contains(report, "\u6c42\u89e3\u72b6\u6001\u53e3\u5f84");
 				StringAssert.Contains(report, "- Failure count: 0");
 				StringAssert.Contains(report, "- MSBuild: Not required");
 				StringAssert.Contains(report, "- Test PowerShell: Not required");
 				StringAssert.Contains(report, "- Roslyn: Not required");
 				StringAssert.Contains(report, "- HDT app: Not required");
+				StringAssert.Contains(report, "- Framework path override: Not required");
 				StringAssert.Contains(report, "## Inputs");
 				StringAssert.Contains(report, "- Solution: " + Path.Combine(repoRoot, "MetaCompanion.sln"));
 				StringAssert.Contains(report, "- Artifacts directory: " + Path.GetFullPath(artifactsRoot));
@@ -170,15 +269,32 @@ namespace MetaCompanionTests.Tests
 				StringAssert.Contains(report, "- Test log: Not generated (tests skipped)");
 				StringAssert.Contains(report, "- Test result: Skipped");
 				StringAssert.Contains(report, "- Test log issues: 0");
+				StringAssert.Contains(report, "- HDT rule evaluation log: Not generated (tests skipped)");
+				StringAssert.Contains(report, "- HDT rule evaluation report: Not generated (tests skipped)");
+				StringAssert.Contains(report, "- HDT rule evaluation result: Skipped");
+				StringAssert.Contains(report, "- Trajectory auditor fixture log: Not generated (tests skipped)");
+				StringAssert.Contains(report, "- Trajectory auditor fixture report: Not generated (tests skipped)");
+				StringAssert.Contains(report, "- Trajectory auditor fixture result: Skipped");
+				StringAssert.Contains(report, "- Behavior prior fixture log: Not generated (tests skipped)");
+				StringAssert.Contains(report, "- Behavior prior fixture artifact: Not generated (tests skipped)");
+				StringAssert.Contains(report, "- Behavior prior fixture result: Skipped");
+				StringAssert.Contains(report, "- Rust behavior-prior loader log: Not generated (Rust promotion not requested)");
+				StringAssert.Contains(report, "- Rust behavior-prior loader result: Skipped");
+				StringAssert.Contains(report, "- Rust official card-pool log: Not generated (Rust promotion not requested)");
+				StringAssert.Contains(report, "- Rust official card-pool report: Not generated (Rust promotion not requested)");
+				StringAssert.Contains(report, "- Rust official card-pool result: Not requested");
+				StringAssert.Contains(report, "- Runtime trajectory audit log: Not generated (tests skipped)");
+				StringAssert.Contains(report, "- Runtime trajectory audit report: Not generated (tests skipped)");
+				StringAssert.Contains(report, "- Runtime training readiness result: Skipped");
 				StringAssert.Contains(report, "- Build skipped");
 				StringAssert.Contains(report, "- Type: Directory");
 				StringAssert.Contains(report, "- Size bytes: Not applicable");
 				StringAssert.Contains(report, "- SHA256: Not applicable");
-				StringAssert.Contains(report, "- Entry count: 1");
+				StringAssert.Contains(report, "- Entry count: " + (requiredEntryCount + 1));
 				StringAssert.Contains(report, "- Blocked entries: 0");
 				StringAssert.Contains(report, "- Tracked-file source: git ls-files");
 				StringAssert.Contains(report, "- Tracked files scanned: ");
-				StringAssert.Contains(report, "- Package files scanned: 1");
+				StringAssert.Contains(report, "- Package files scanned: " + requiredEntryCount);
 				StringAssert.Contains(report, "- Package matches: 0");
 				StringAssert.Contains(report, "  - README.md");
 				Assert.IsFalse(report.Contains("- DLL: "), report);
@@ -194,6 +310,79 @@ namespace MetaCompanionTests.Tests
 		}
 
 		[TestMethod]
+		public void ReleaseGate_ExplicitPackageRejectsMissingAdvisorRuntime()
+		{
+			var repoRoot = FindRepoRoot();
+			var tempRoot = Path.Combine(
+				Path.GetTempPath(),
+				"MetaCompanionReleaseGateMissingRuntimeTest-" + Guid.NewGuid().ToString("N"));
+			var packageRoot = Path.Combine(tempRoot, "package");
+			var artifactsRoot = Path.Combine(tempRoot, "artifacts");
+			Directory.CreateDirectory(packageRoot);
+			File.WriteAllText(Path.Combine(packageRoot, "MetaCompanion.dll"), "fixture");
+
+			try
+			{
+				var result = RunPowerShell(
+					repoRoot,
+					Path.Combine(repoRoot, "tools", "Invoke-ReleaseGate.ps1"),
+					"-SkipBuild -SkipTests -PackagePath \"" + packageRoot +
+					"\" -ArtifactsDirectory \"" + artifactsRoot + "\"");
+
+				Assert.AreNotEqual(0, result.ExitCode, result.Output);
+				StringAssert.Contains(result.Output, "Community package is missing required entry:");
+				var report = File.ReadAllText(GetSingleReleaseGateReportPath(artifactsRoot));
+				StringAssert.Contains(
+					report,
+					"Community package is missing required entry: solver/metacompanion_solver/counterplay.py");
+				StringAssert.Contains(
+					report,
+					"Community package is missing required entry: solver/fixtures/oracle-turnpair-v1.json");
+				StringAssert.Contains(
+					report,
+					"Community package is missing required entry: solver/metacompanion_solver/card_rules.py");
+				StringAssert.Contains(
+					report,
+					"Community package is missing required entry: solver/metacompanion_solver/hdt_rule_evaluation.py");
+				StringAssert.Contains(
+					report,
+					"Community package is missing required entry: solver/metacompanion_solver/visible_response_evaluation.py");
+				StringAssert.Contains(
+					report,
+					"Community package is missing required entry: solver/metacompanion_solver/rules_data/hdt-visible-point-effects-v1.json");
+				StringAssert.Contains(
+					report,
+					"Community package is missing required entry: solver/fixtures/oracle-hdt-cardrules-v1.json");
+				StringAssert.Contains(
+					report,
+					"Community package is missing required entry: solver/fixtures/visible-response-v1.json");
+				StringAssert.Contains(
+					report,
+					"Community package is missing required entry: solver/metacompanion_solver/trajectory.py");
+				StringAssert.Contains(
+					report,
+					"Community package is missing required entry: solver/metacompanion_solver/verification.py");
+				StringAssert.Contains(
+					report,
+					"Community package is missing required entry: solver/fixtures/trajectory-readiness-policy-v1.json");
+				StringAssert.Contains(
+					report,
+					"Community package is missing required entry: solver/fixtures/trajectory-readiness-v1.jsonl");
+				StringAssert.Contains(
+					report,
+					"Community package is missing required entry: solver/metacompanion_solver/behavior_prior.py");
+				StringAssert.Contains(
+					report,
+					"Community package is missing required entry: solver/fixtures/behavior-prior-readiness-v1.manifest.json");
+			}
+			finally
+			{
+				if (Directory.Exists(tempRoot))
+					Directory.Delete(tempRoot, true);
+			}
+		}
+
+		[TestMethod]
 		public void ReleaseGate_DirectoryPackageReportsBlockedEntryCount()
 		{
 			var repoRoot = FindRepoRoot();
@@ -204,6 +393,7 @@ namespace MetaCompanionTests.Tests
 			var toolsRoot = Path.Combine(packageRoot, "tools");
 			var artifactsRoot = Path.Combine(tempRoot, "artifacts");
 			Directory.CreateDirectory(toolsRoot);
+			var requiredEntryCount = PopulateRequiredReleasePackage(packageRoot);
 
 			try
 			{
@@ -221,9 +411,9 @@ namespace MetaCompanionTests.Tests
 				var report = File.ReadAllText(GetSingleReleaseGateReportPath(artifactsRoot));
 				StringAssert.Contains(report, "- Result: FAIL");
 				StringAssert.Contains(report, "- Failure count: 1");
-				StringAssert.Contains(report, "- Entry count: 1");
+				StringAssert.Contains(report, "- Entry count: " + (requiredEntryCount + 1));
 				StringAssert.Contains(report, "- Blocked entries: 1");
-				StringAssert.Contains(report, "- Package files scanned: 1");
+				StringAssert.Contains(report, "- Package files scanned: " + requiredEntryCount);
 				StringAssert.Contains(report, "  - tools/Update-MetaCompanionData.ps1");
 				StringAssert.Contains(report, "- Blocked package entry: tools/Update-MetaCompanionData.ps1");
 			}
@@ -248,6 +438,7 @@ namespace MetaCompanionTests.Tests
 			var packagePath = Path.Combine(tempRoot, "MetaCompanion-community.zip");
 			var artifactsRoot = Path.Combine(tempRoot, "artifacts");
 			Directory.CreateDirectory(toolsRoot);
+			var requiredEntryCount = PopulateRequiredReleasePackage(sourceRoot);
 
 			try
 			{
@@ -269,9 +460,9 @@ namespace MetaCompanionTests.Tests
 				StringAssert.Contains(report, "- Result: FAIL");
 				StringAssert.Contains(report, "- Type: File");
 				StringAssert.Contains(report, "- Size bytes: ");
-				StringAssert.Contains(report, "- Entry count: 3");
+				StringAssert.Contains(report, "- Entry count: " + (requiredEntryCount + 3));
 				StringAssert.Contains(report, "- Blocked entries: 1");
-				StringAssert.Contains(report, "- Package files scanned: 3");
+				StringAssert.Contains(report, "- Package files scanned: " + (requiredEntryCount + 2));
 				AssertContainsInOrder(
 					report,
 					"  - a-first.txt",
@@ -298,6 +489,7 @@ namespace MetaCompanionTests.Tests
 			var packageRoot = Path.Combine(tempRoot, "package");
 			var artifactsRoot = Path.Combine(tempRoot, "artifacts");
 			Directory.CreateDirectory(packageRoot);
+			var requiredEntryCount = PopulateRequiredReleasePackage(packageRoot);
 
 			try
 			{
@@ -319,8 +511,8 @@ namespace MetaCompanionTests.Tests
 
 				var report = File.ReadAllText(GetSingleReleaseGateReportPath(artifactsRoot));
 				StringAssert.Contains(report, "- Result: FAIL");
-				StringAssert.Contains(report, "- Entry count: 2");
-				StringAssert.Contains(report, "- Package files scanned: 1");
+				StringAssert.Contains(report, "- Entry count: " + (requiredEntryCount + 2));
+				StringAssert.Contains(report, "- Package files scanned: " + requiredEntryCount);
 				StringAssert.Contains(report, "  - aaa-large.bin");
 				StringAssert.Contains(report, "  - zzz-secret.txt");
 				StringAssert.Contains(report, "- Package matches: 1");
@@ -371,6 +563,7 @@ namespace MetaCompanionTests.Tests
 				StringAssert.Contains(report, "- Test PowerShell: Not required");
 				StringAssert.Contains(report, "- Roslyn: " + fakeCsc);
 				StringAssert.Contains(report, "- HDT app: Not resolved");
+				StringAssert.Contains(report, "- Framework path override: Not resolved");
 				StringAssert.Contains(report, "- Build log: Not generated");
 				StringAssert.Contains(report, "- Build log issues: 0");
 				StringAssert.Contains(report, "- Test log: Not generated (tests skipped)");
@@ -457,6 +650,8 @@ namespace MetaCompanionTests.Tests
 			var repoRoot = FindRepoRoot();
 			var refreshScript = File.ReadAllText(
 				Path.Combine(repoRoot, "tools", "Run-MetaCompanionRefresh.ps1"));
+			var branchScript = File.ReadAllText(
+				Path.Combine(repoRoot, "tools", "Sync-HSReplayArchetypeDecks.ps1"));
 			var installScript = File.ReadAllText(
 				Path.Combine(repoRoot, "tools", "Install-MetaCompanionRefreshTask.ps1"));
 
@@ -464,17 +659,74 @@ namespace MetaCompanionTests.Tests
 			StringAssert.Contains(refreshScript, "selected_time_range");
 			StringAssert.Contains(refreshScript, "CURRENT_PATCH");
 			StringAssert.Contains(refreshScript, "LAST_1_DAY");
+			StringAssert.Contains(refreshScript, "Test-MetaCacheMatchesEpoch");
+			StringAssert.Contains(refreshScript, "META_COMPANION_REFRESH_OUTCOME=$refreshOutcome");
+			StringAssert.Contains(refreshScript, "$refreshOutcome = \"DEFERRED\"");
+			StringAssert.Contains(refreshScript, "Get-MetaCompanionPublicPatchVersion");
+			StringAssert.Contains(refreshScript, "本次停止分支与推荐刷新，请稍后重试");
 			StringAssert.Contains(refreshScript, "summary.as_of");
+			StringAssert.Contains(refreshScript, "matrix.as_of");
 			StringAssert.Contains(refreshScript, "Update-MetaCompanionPatchState.ps1");
 			Assert.IsFalse(refreshScript.Contains("AUTO_CURRENT_PATCH_OR_LAST_3_DAYS"));
-			StringAssert.Contains(refreshScript, "Remote cache already refreshed today");
-			StringAssert.Contains(refreshScript, "Premium/meta refresh failed; recalculating recommendations from existing cache.");
+			StringAssert.Contains(refreshScript, "远端缓存今天已经刷新完成");
+			StringAssert.Contains(refreshScript, "Premium / 环境数据刷新失败；将使用现有缓存重新计算推荐。");
+			StringAssert.Contains(branchScript, "[string]$CandidateTimeRange = \"LAST_7_DAYS\"");
+			StringAssert.Contains(refreshScript, "ExpectedRankRange");
+			StringAssert.Contains(refreshScript, "modelBranchManifest.rank_range");
+			StringAssert.Contains(refreshScript,
+				"$modelBranchTimeRange = [string]$modelBranchManifest.candidate_time_range");
+			StringAssert.Contains(refreshScript,
+				"Test-MetaCompanionCurrentPatchRange $modelBranchTimeRange");
+			StringAssert.Contains(refreshScript, "archetype_model_branches.tsv");
 			StringAssert.Contains(installScript, "Meta Companion Remote Cache Refresh");
 			StringAssert.Contains(installScript, "Run-MetaCompanionRefresh.ps1");
 			StringAssert.Contains(installScript, "New-ScheduledTaskTrigger -AtLogOn");
 			StringAssert.Contains(installScript, "LogonDelayMinutes");
 			StringAssert.Contains(installScript, "StartWhenAvailable");
+			StringAssert.Contains(installScript, "schtasks.exe");
+			StringAssert.Contains(installScript, "\"/RL\", \"LIMITED\"");
+			StringAssert.Contains(installScript, "当前用户限权任务（无需管理员权限）");
 			StringAssert.Contains(installScript, "Meta Companion Daily Refresh");
+		}
+
+		[TestMethod]
+		public void RefreshScripts_WithChineseOutput_UseWindowsPowerShellSafeEncoding()
+		{
+			var repoRoot = FindRepoRoot();
+			var scriptNames = new[]
+			{
+				"Run-MetaCompanionRefresh.ps1",
+				"Install-MetaCompanionRefreshTask.ps1",
+				"Update-MetaCompanionData.ps1",
+				"Sync-HSReplayDeckCodes.ps1",
+				"Sync-HSReplayPremiumData.ps1",
+				"Sync-HSReplayMetaData.ps1",
+				"Sync-HSReplayArchetypeDecks.ps1",
+				"Export-HdtOpponentHistory.ps1",
+				"Measure-HdtLocalMeta.ps1",
+				"Get-MetaArchetypeRecommendations.ps1",
+				"Get-PersonalMetaRecommendations.ps1",
+				"Verify-DeckCodeImport.ps1"
+			};
+
+			foreach (var scriptName in scriptNames)
+			{
+				var bytes = File.ReadAllBytes(Path.Combine(repoRoot, "tools", scriptName));
+				Assert.IsTrue(
+					bytes.Length >= 3 && bytes[0] == 0xef && bytes[1] == 0xbb && bytes[2] == 0xbf,
+					scriptName + " 必须保留 UTF-8 BOM，确保 Windows PowerShell 5.1 正确读取中文。");
+			}
+
+			foreach (var commandName in new[]
+			{
+				"04 手动刷新远程数据库（智能跳过）.cmd",
+				"05 强制刷新远程数据库.cmd",
+				"06 安装自动刷新计划任务（管理员）.cmd"
+			})
+			{
+				var command = File.ReadAllText(Path.Combine(repoRoot, "一键脚本", commandName));
+				StringAssert.Contains(command, "chcp 65001 >nul");
+			}
 		}
 
 		[TestMethod]
@@ -541,8 +793,201 @@ namespace MetaCompanionTests.Tests
 			{
 				var script = File.ReadAllText(Path.Combine(repoRoot, "tools", scriptName));
 				StringAssert.Contains(script, "Format-HSReplayResponseBody");
-				StringAssert.Contains(script, "Cloudflare challenge page");
+				StringAssert.Contains(script, "Cloudflare");
 				Assert.IsFalse(script.Contains("Body: $body"), scriptName);
+			}
+
+			var deckCodeScript = File.ReadAllText(
+				Path.Combine(repoRoot, "tools", "Sync-HSReplayDeckCodes.ps1"));
+			StringAssert.Contains(deckCodeScript, "Get-CurlExitSummary");
+			StringAssert.Contains(deckCodeScript, "请求超时");
+			Assert.IsFalse(
+				deckCodeScript.Contains("curl.exe -sS"),
+				"Native curl stderr must not flood scheduled refresh logs with raw English errors.");
+		}
+
+		[TestMethod]
+		public void HsReplayRefresh_PollsProcessingAndPromotesOnlyValidatedRuns()
+		{
+			var repoRoot = FindRepoRoot();
+			var premiumScript = File.ReadAllText(
+				Path.Combine(repoRoot, "tools", "Sync-HSReplayPremiumData.ps1"));
+			var metaScript = File.ReadAllText(
+				Path.Combine(repoRoot, "tools", "Sync-HSReplayMetaData.ps1"));
+			var branchScript = File.ReadAllText(
+				Path.Combine(repoRoot, "tools", "Sync-HSReplayArchetypeDecks.ps1"));
+			var refreshScript = File.ReadAllText(
+				Path.Combine(repoRoot, "tools", "Run-MetaCompanionRefresh.ps1"));
+			var personalRecommendationScript = File.ReadAllText(
+				Path.Combine(repoRoot, "tools", "Get-PersonalMetaRecommendations.ps1"));
+
+			foreach (var script in new[] { premiumScript, metaScript, branchScript })
+			{
+				StringAssert.Contains(script, "ProcessingMaxPolls");
+				StringAssert.Contains(script, "ProcessingPollDelaySeconds");
+				StringAssert.Contains(script, "Test-HSReplayProcessingResponse");
+				StringAssert.Contains(script, "ProcessingPollCount");
+				StringAssert.Contains(script, "处理中轮询");
+				Assert.IsFalse(
+					script.Contains("Set-Content -Path $latestPath -Value $response.Body"),
+					"A response must not be promoted to latest before the full run is validated.");
+			}
+
+			StringAssert.Contains(premiumScript, "Assert-HSReplayAnalyticsPayload");
+			StringAssert.Contains(premiumScript, "Test-HSReplayEndpointSupportsTimeRange");
+			StringAssert.Contains(premiumScript, "unsupported_time_range:$TimeRange");
+			StringAssert.Contains(premiumScript, "LAST_30_DAYS\", \"CURRENT_PATCH\", \"CURRENT_EXPANSION\", \"CURRENT_SEASON");
+			StringAssert.Contains(premiumScript, "成功=$SuccessCount");
+			StringAssert.Contains(premiumScript, "空结果=$NoContentCount");
+			StringAssert.Contains(premiumScript, "跳过=$SkippedCount");
+			StringAssert.Contains(premiumScript, "Publish-PremiumLatestAtomically");
+			StringAssert.Contains(premiumScript, "publish-complete.json");
+			StringAssert.Contains(premiumScript, ".staging");
+			StringAssert.Contains(premiumScript, "System.Security.Cryptography.SHA256");
+			Assert.IsFalse(
+				premiumScript.Contains("Get-FileHash"),
+				"The scheduled refresh host does not guarantee the Get-FileHash cmdlet.");
+
+			StringAssert.Contains(metaScript, "Assert-HSReplayMetaPayload");
+			StringAssert.Contains(metaScript, "\\d+\\.\\d+\\.\\d+(?:\\.\\d+)?");
+			StringAssert.Contains(metaScript, "不能提升为 Meta latest");
+			StringAssert.Contains(metaScript, "Publish-MetaLatestAtomically");
+			StringAssert.Contains(metaScript, "publish-complete.json");
+			StringAssert.Contains(metaScript, ".staging");
+			StringAssert.Contains(metaScript, "System.Security.Cryptography.SHA256");
+			Assert.IsFalse(
+				metaScript.Contains("Get-FileHash"),
+				"The scheduled refresh host does not guarantee the Get-FileHash cmdlet.");
+
+			StringAssert.Contains(branchScript, "Assert-HSReplayAnalyticsPayload");
+			StringAssert.Contains(branchScript, "series[0].data");
+			StringAssert.Contains(branchScript, "Publish-BranchesLatestAtomically");
+			StringAssert.Contains(branchScript, "publish-complete.json");
+			StringAssert.Contains(branchScript, "# RunId: $runId");
+			StringAssert.Contains(branchScript, "output_sha256");
+			StringAssert.Contains(branchScript, "cachedManifest.candidate_time_range");
+			StringAssert.Contains(branchScript, "cachedCompletion.manifest_sha256");
+			StringAssert.Contains(branchScript, "cachedManifest.candidate.sha256");
+			StringAssert.Contains(branchScript, "拒绝复用和重新标记");
+			StringAssert.Contains(branchScript,
+				"$eligibleRows = @($eligible | ForEach-Object { $_ })");
+			Assert.IsFalse(branchScript.Contains("$eligible = @($eligible)"));
+			StringAssert.Contains(branchScript, ".staging");
+			Assert.IsFalse(
+				branchScript.Contains("Set-Content -Path $candidateLatestPath"),
+				"A candidate response must not be written to Branches/latest before the run is validated.");
+			Assert.IsFalse(
+				branchScript.Contains("Move-Item -LiteralPath $tempOutputPath -Destination $OutputPath"),
+				"The main branch TSV must only be replaced by the validated atomic publisher.");
+
+			StringAssert.Contains(refreshScript, "Invoke-MetaCompanionPremiumStage");
+			StringAssert.Contains(refreshScript, "Invoke-MetaCompanionMetaStage");
+			StringAssert.Contains(refreshScript, "Invoke-MetaCompanionBranchStage");
+			StringAssert.Contains(refreshScript, "仅以兼容模式重试 Premium 阶段");
+			StringAssert.Contains(refreshScript, "仅重试 Meta 阶段");
+			StringAssert.Contains(refreshScript, "-TimeRange $effectiveMetaTimeRange");
+			StringAssert.Contains(refreshScript, "-OutputPath $branchOutputPath");
+			StringAssert.Contains(refreshScript, "-TimeRange $ModelBranchTimeRange");
+			StringAssert.Contains(refreshScript, "-OutputPath $modelBranchOutputPath");
+			Assert.IsFalse(refreshScript.Contains(
+				"Invoke-MetaCompanionBranchStage -TimeRange $PremiumFallbackTimeRange"),
+				"Representative decks must not use a different time range from the selected Meta cache.");
+			StringAssert.Contains(refreshScript,
+				"同口径代表卡组未刷新；将保留旧文件但不会把不同范围的代码显示到复制按钮。");
+			Assert.IsFalse(refreshScript.Contains("$strictCurrentPatch"));
+			StringAssert.Contains(refreshScript, "$metaTimeRangeCandidates");
+			StringAssert.Contains(refreshScript,
+				"改用 HSReplay CURRENT_PATCH 远端环境");
+			StringAssert.Contains(refreshScript, "生产 latest 未被覆盖");
+			Assert.IsFalse(
+				refreshScript.Contains("Invoke-MetaCompanionRefreshRun"),
+				"A stage failure must not restart the entire refresh pipeline.");
+			StringAssert.Contains(personalRecommendationScript, "Test-RepresentativeDeckScope");
+			StringAssert.Contains(personalRecommendationScript,
+				"当前口径暂无同范围卡组代码；推荐排序会继续生成");
+			Assert.IsFalse(personalRecommendationScript.Contains(
+				"throw \"代表卡组缓存口径"));
+		}
+
+		[TestMethod]
+		public void HsReplayFreshnessGuards_SelfTestsPassInWindowsPowerShell()
+		{
+			var repoRoot = FindRepoRoot();
+			var metaResult = RunPowerShell(
+				repoRoot,
+				Path.Combine(repoRoot, "tools", "Sync-HSReplayMetaData.ps1"),
+				"-SelfTest");
+			var branchResult = RunPowerShell(
+				repoRoot,
+				Path.Combine(repoRoot, "tools", "Sync-HSReplayArchetypeDecks.ps1"),
+				"-SelfTest");
+
+			Assert.AreEqual(0, metaResult.ExitCode, metaResult.Output);
+			StringAssert.Contains(metaResult.Output, "Meta freshness self-test passed");
+			Assert.AreEqual(0, branchResult.ExitCode, branchResult.Output);
+			StringAssert.Contains(branchResult.Output, "Branch freshness self-test passed");
+		}
+
+		[TestMethod]
+		public void PremiumSync_LastSevenDaysStrictRejectsAndTolerantPublishesSkippedManifest()
+		{
+			var repoRoot = FindRepoRoot();
+			var tempRoot = Path.Combine(
+				Path.GetTempPath(),
+				"MetaCompanionPremiumContract-" + Guid.NewGuid().ToString("N"));
+			var outputDirectory = Path.Combine(tempRoot, "Premium Cache");
+			Directory.CreateDirectory(tempRoot);
+			try
+			{
+				var scriptPath = Path.Combine(repoRoot, "tools", "Sync-HSReplayPremiumData.ps1");
+				var arguments =
+					"-Cookie \"fixture=1\" -DeckIds deck1 -MaxDecks 1 " +
+					"-TimeRange LAST_7_DAYS " +
+					"-Endpoints single_deck_base_winrate_by_opponent_class_v2 " +
+					"-OutputDirectory \"" + outputDirectory + "\" " +
+					"-RequestDelayMs 0 -ProgressEvery 1";
+
+				var strictResult = RunPowerShell(
+					repoRoot,
+					scriptPath,
+					arguments + " -StopOnUnsupported");
+				Assert.AreNotEqual(0, strictResult.ExitCode, strictResult.Output);
+				StringAssert.Contains(strictResult.Output,
+					"single_deck_base_winrate_by_opponent_class_v2");
+
+				var tolerantResult = RunPowerShell(repoRoot, scriptPath, arguments);
+				Assert.AreEqual(0, tolerantResult.ExitCode, tolerantResult.Output);
+				StringAssert.Contains(tolerantResult.Output, "TimeRange=LAST_7_DAYS");
+
+				var latestDirectory = Path.Combine(outputDirectory, "latest");
+				var manifestPath = Path.Combine(latestDirectory, "manifest.json");
+				var completionPath = Path.Combine(latestDirectory, "publish-complete.json");
+				Assert.IsTrue(File.Exists(manifestPath), tolerantResult.Output);
+				Assert.IsTrue(File.Exists(completionPath), tolerantResult.Output);
+				var manifest = File.ReadAllText(manifestPath);
+				var completion = File.ReadAllText(completionPath);
+				StringAssert.Contains(manifest, "\"skipped\":  true");
+				StringAssert.Contains(manifest, "unsupported_time_range:LAST_7_DAYS");
+				StringAssert.Contains(manifest, "\"skipped\":  1");
+				Assert.IsFalse(File.Exists(Path.Combine(
+					latestDirectory,
+					"deck1.single_deck_base_winrate_by_opponent_class_v2.json")));
+
+				var markerMatch = System.Text.RegularExpressions.Regex.Match(
+					completion,
+					"\\\"manifest_sha256\\\"\\s*:\\s*\\\"(?<hash>[A-Fa-f0-9]{64})\\\"");
+				Assert.IsTrue(markerMatch.Success, completion);
+				Assert.AreEqual(
+					ComputeFileSha256(manifestPath),
+					markerMatch.Groups["hash"].Value,
+					true);
+			}
+			finally
+			{
+				if (Directory.Exists(tempRoot))
+				{
+					Directory.Delete(tempRoot, true);
+				}
 			}
 		}
 
@@ -561,15 +1006,209 @@ namespace MetaCompanionTests.Tests
 				var script = File.ReadAllText(scriptPath);
 				StringAssert.Contains(script, "Resolve-ToolSourceDirectory");
 				StringAssert.Contains(script, "Remove-MetaCompanionRefreshTask");
+				StringAssert.Contains(script, "[switch]$RemoveRefreshTools");
+				StringAssert.Contains(script, "elseif ($RemoveRefreshTools)");
 				StringAssert.Contains(script, "Run-MetaCompanionRefresh.ps1");
 				StringAssert.Contains(script, "Update-MetaCompanionPatchState.ps1");
-				StringAssert.Contains(script, "Refresh tools and scheduled task were not installed");
+				StringAssert.Contains(script, "已有远程刷新组件和计划任务保持不变");
 				StringAssert.Contains(script, @"MetaCompanion\bin\Release\MetaCompanion.dll");
 				StringAssert.Contains(script, "Build-MetaCompanion.ps1");
 				StringAssert.Contains(script, "-BuildPath explicitly");
 				Assert.IsFalse(script.Contains("Get-ChildItem -Path $PSScriptRoot -Filter \"*.ps1\""), scriptPath);
 				Assert.IsFalse(script.Contains(@"MetaCompanion\bin\x86\Release\MetaCompanion.dll"), scriptPath);
 			}
+		}
+
+		[TestMethod]
+		public void AdvisorRuntimeSmoke_TrainingOnlyModeSelfTestsReadOnlyGates()
+		{
+			var repoRoot = FindRepoRoot();
+			var scriptPath = Path.Combine(
+				repoRoot,
+				"tools",
+				"Invoke-HdtAdvisorRuntimeSmoke.ps1");
+			var script = File.ReadAllText(scriptPath);
+			var result = RunPowerShell(repoRoot, scriptPath, "-SelfTest");
+
+			Assert.AreEqual(0, result.ExitCode, result.Output);
+			StringAssert.Contains(result.Output, "training_only_config_gate");
+			StringAssert.Contains(result.Output, "training_only_solve_gate");
+			StringAssert.Contains(result.Output, "training_only_behavior_gate");
+			StringAssert.Contains(result.Output, "training_only_panel_absence_gate");
+			StringAssert.Contains(script, "[switch]$ExpectTrainingOnly");
+			StringAssert.Contains(script, "DtdProcessing = [System.Xml.DtdProcessing]::Prohibit");
+			StringAssert.Contains(script, "rl_training_eligible_violation_count");
+			StringAssert.Contains(script, "Get-TrainingOnlyAdvisorPanelCheck");
+			StringAssert.Contains(script, "System.Windows.Automation");
+			Assert.IsFalse(script.Contains("SetCursorPos"), scriptPath);
+			Assert.IsFalse(script.Contains("mouse_event"), scriptPath);
+			Assert.IsFalse(result.Output.Contains("actor_side"), result.Output);
+			Assert.IsFalse(result.Output.Contains("config.xml"), result.Output);
+			Assert.IsFalse(result.Output.Contains("training-v2.jsonl"), result.Output);
+		}
+
+		[TestMethod]
+		public void AdvisorDataArtifacts_AreInstalledPackagedAndSecretScanned()
+		{
+			var repoRoot = FindRepoRoot();
+			var installScriptPaths = new[]
+			{
+				Path.Combine(repoRoot, "tools", "Install-MetaCompanion.ps1"),
+				Path.Combine(repoRoot, "dist", "Install-MetaCompanion.ps1")
+			};
+			foreach (var installScriptPath in installScriptPaths)
+			{
+				var installScript = File.ReadAllText(installScriptPath);
+				StringAssert.Contains(installScript, "Sync-HdtArenaAdvisorData.ps1");
+				StringAssert.Contains(installScript, "Sync-BlizzardCardPools.ps1");
+				StringAssert.Contains(installScript, "Resolve-ArenaAdvisorDataToolSource");
+				StringAssert.Contains(installScript, "Copy-ArenaAdvisorDataTool");
+				StringAssert.Contains(installScript, "Resolve-OfficialCardPoolToolSource");
+				StringAssert.Contains(installScript, "Copy-OfficialCardPoolTool");
+				StringAssert.Contains(installScript, "Update-AdvisorBehaviorPrior.ps1");
+				StringAssert.Contains(installScript, "Resolve-BehaviorPriorUpdateToolSource");
+				StringAssert.Contains(installScript, "Copy-BehaviorPriorUpdateTool");
+				StringAssert.Contains(installScript, "Copy-AdvisorWorker");
+				StringAssert.Contains(installScript, "Copy-AdvisorOfflineTools");
+				StringAssert.Contains(installScript, "Resolve-RustAdvisorWorkerPath");
+				StringAssert.Contains(installScript, "AdvisorWorker");
+				StringAssert.Contains(installScript, "AdvisorOfflineTools");
+				StringAssert.Contains(installScript, "实时求解仅使用 Rust");
+				StringAssert.Contains(installScript, "旧 Python 实时求解");
+				StringAssert.Contains(installScript, "metacompanion-solver.exe");
+				StringAssert.Contains(installScript, "\"tests\"");
+				StringAssert.Contains(installScript, "\"__pycache__\"");
+				StringAssert.Contains(installScript, "\"data\"");
+			}
+
+			var releaseGate = File.ReadAllText(
+				Path.Combine(repoRoot, "tools", "Invoke-ReleaseGate.ps1"));
+			StringAssert.Contains(releaseGate, "tools/Sync-HdtArenaAdvisorData.ps1");
+			StringAssert.Contains(releaseGate, "tools/Sync-BlizzardCardPools.ps1");
+			StringAssert.Contains(releaseGate, "tools/Update-AdvisorBehaviorPrior.ps1");
+			StringAssert.Contains(releaseGate, "docs/ADVISOR-DATA.md");
+			StringAssert.Contains(releaseGate, "docs/OFFICIAL-CARD-POOLS.md");
+			StringAssert.Contains(releaseGate, "solver/launch_solver.py");
+			StringAssert.Contains(releaseGate, "solver/metacompanion_solver/__main__.py");
+			StringAssert.Contains(releaseGate, "solver/metacompanion_solver/card_pool.py");
+			StringAssert.Contains(releaseGate, "solver/metacompanion_solver/card_rules.py");
+			StringAssert.Contains(releaseGate, "solver/metacompanion_solver/behavior_candidate_alignment.py");
+			StringAssert.Contains(releaseGate, "solver/metacompanion_solver/behavior_learning.py");
+			StringAssert.Contains(releaseGate, "solver/metacompanion_solver/behavior_prior.py");
+			StringAssert.Contains(releaseGate, "solver/metacompanion_solver/decision_ranker.py");
+			StringAssert.Contains(releaseGate, "solver/metacompanion_solver/decision_solver_evaluation.py");
+			StringAssert.Contains(releaseGate, "solver/metacompanion_solver/observed_policy_evaluation.py");
+			StringAssert.Contains(releaseGate, "solver/metacompanion_solver/rust_worker_client.py");
+			StringAssert.Contains(releaseGate, "solver/tools/observed_policy_fixture.py");
+			StringAssert.Contains(releaseGate, "solver/metacompanion_solver/counterplay.py");
+			StringAssert.Contains(releaseGate, "RustSolverBinaryPath");
+			StringAssert.Contains(releaseGate, "--profile\", \"combat-v1");
+			StringAssert.Contains(releaseGate, "--profile\", \"full");
+			StringAssert.Contains(releaseGate, "binary changed after parity verification");
+			StringAssert.Contains(releaseGate, "solver/metacompanion-solver.exe");
+			StringAssert.Contains(releaseGate, "solver/metacompanion_solver/hdt_rule_evaluation.py");
+			StringAssert.Contains(releaseGate, "solver/metacompanion_solver/visible_response_evaluation.py");
+			StringAssert.Contains(releaseGate, "solver/metacompanion_solver/trajectory.py");
+			StringAssert.Contains(releaseGate, "solver/metacompanion_solver/verification.py");
+			StringAssert.Contains(releaseGate, "solver/metacompanion_solver/turnpair_evaluation.py");
+			StringAssert.Contains(releaseGate, "solver/metacompanion_solver/rules_data/hdt-visible-point-effects-v1.json");
+			StringAssert.Contains(releaseGate, "solver/fixtures/oracle-hdt-cardrules-v1.json");
+			StringAssert.Contains(releaseGate, "solver/fixtures/visible-response-v1.json");
+			StringAssert.Contains(releaseGate, "solver/fixtures/oracle-turnpair-v1.json");
+			StringAssert.Contains(releaseGate, "evaluate-turnpair");
+			StringAssert.Contains(releaseGate, "Counterplay turn-pair oracle gate");
+			StringAssert.Contains(releaseGate, "evaluate-hdt-rules");
+			StringAssert.Contains(releaseGate, "HDT visible point-effect oracle gate");
+			StringAssert.Contains(releaseGate, "evaluate-visible-response");
+			StringAssert.Contains(releaseGate, "Rust visible-response partial honesty gate");
+			StringAssert.Contains(releaseGate, "audit-decision-solver-coverage");
+			StringAssert.Contains(releaseGate, "Rust decision-frame solver-coverage honesty gate");
+			StringAssert.Contains(releaseGate, "solver/fixtures/trajectory-readiness-policy-v1.json");
+			StringAssert.Contains(releaseGate, "solver/fixtures/trajectory-readiness-v1.jsonl");
+			StringAssert.Contains(releaseGate, "audit-trajectories");
+			StringAssert.Contains(releaseGate, "Trajectory auditor synthetic-fixture self-test");
+			StringAssert.Contains(releaseGate, "audit-runtime-trajectories");
+			StringAssert.Contains(releaseGate, "solver/fixtures/behavior-learning-readiness-policy-v1.json");
+			StringAssert.Contains(releaseGate, "solver/fixtures/behavior-learning-readiness-v1.jsonl");
+			StringAssert.Contains(releaseGate, "solver/fixtures/behavior-candidate-alignment-policy-v1.json");
+			StringAssert.Contains(releaseGate, "audit-behavior-candidates");
+			StringAssert.Contains(releaseGate, "Behavior candidate-completeness negative-fixture gate");
+			StringAssert.Contains(releaseGate, "audit-behavior-learning");
+			StringAssert.Contains(releaseGate, "audit-runtime-behavior-learning");
+			StringAssert.Contains(releaseGate, "Behavior learning auditor synthetic-fixture self-test");
+			StringAssert.Contains(releaseGate, "solver/fixtures/behavior-prior-readiness-policy-v1.json");
+			StringAssert.Contains(releaseGate, "solver/fixtures/behavior-prior-readiness-v1.jsonl");
+			StringAssert.Contains(releaseGate, "solver/fixtures/behavior-prior-readiness-v1.manifest.json");
+			StringAssert.Contains(releaseGate, "train-behavior-prior");
+			StringAssert.Contains(releaseGate, "Behavior prior synthetic-fixture gate");
+			StringAssert.Contains(releaseGate, "Rust behavior-prior loader gate");
+			StringAssert.Contains(releaseGate, "behavior-prior-check");
+			StringAssert.Contains(releaseGate, "Rust official card-pool gate");
+			StringAssert.Contains(releaseGate, "solver\\tools\\rust_card_pool_gate.py");
+			StringAssert.Contains(releaseGate, "metacompanion-rust-official-card-pool-gate-v1");
+			StringAssert.Contains(releaseGate, "Rust parity, visible-response, card-pool, and decision-solver coverage gates verified different solver binaries.");
+			StringAssert.Contains(releaseGate, "behavior-prior-v1(?:\\.install)?\\.json");
+			StringAssert.Contains(releaseGate, "source=synthetic_fixture");
+			StringAssert.Contains(releaseGate, "--cached --others --exclude-standard");
+			StringAssert.Contains(releaseGate, "\".py\"");
+			StringAssert.Contains(releaseGate, "\".toml\"");
+			StringAssert.Contains(releaseGate, "\".jsonl\"");
+			StringAssert.Contains(releaseGate, "ArenaLastDrafts\\.xml");
+			StringAssert.Contains(releaseGate, "AdvisorData(/|$)");
+			StringAssert.Contains(releaseGate, "training(?:-v2)?\\.jsonl");
+			StringAssert.Contains(releaseGate, "AdvisorWorker/data/training-v2.jsonl");
+			StringAssert.Contains(releaseGate, "excludedSolverDirectories");
+
+			var selfTest = RunPowerShell(
+				repoRoot,
+				Path.Combine(repoRoot, "tools", "Sync-HdtArenaAdvisorData.ps1"),
+				"-SelfTest");
+			Assert.AreEqual(0, selfTest.ExitCode, selfTest.Output);
+			StringAssert.Contains(selfTest.Output, "Arena advisor data self-test passed");
+
+			var officialPoolSelfTest = RunPowerShell(
+				repoRoot,
+				Path.Combine(repoRoot, "tools", "Sync-BlizzardCardPools.ps1"),
+				"-SelfTest");
+			Assert.AreEqual(0, officialPoolSelfTest.ExitCode, officialPoolSelfTest.Output);
+			StringAssert.Contains(
+				officialPoolSelfTest.Output,
+				"Official Blizzard card pool self-test passed");
+			var officialPoolScript = File.ReadAllText(
+				Path.Combine(repoRoot, "tools", "Sync-BlizzardCardPools.ps1"));
+			StringAssert.Contains(
+				officialPoolScript, "Add-Type -AssemblyName System.Net.Http");
+
+			var archiveSelfTest = RunPowerShell(
+				repoRoot,
+				Path.Combine(repoRoot, "tools", "Archive-AdvisorTrainingLog.ps1"),
+				"-SelfTest");
+			Assert.AreEqual(0, archiveSelfTest.ExitCode, archiveSelfTest.Output);
+			StringAssert.Contains(
+				archiveSelfTest.Output,
+				"metacompanion-training-log-archive-v1");
+
+			var behaviorPriorUpdater = File.ReadAllText(
+				Path.Combine(repoRoot, "tools", "Update-AdvisorBehaviorPrior.ps1"));
+			StringAssert.Contains(behaviorPriorUpdater, "audit-runtime-behavior-learning");
+			StringAssert.Contains(behaviorPriorUpdater, "audit-behavior-candidates");
+			StringAssert.Contains(behaviorPriorUpdater, "candidate_ranking_training_ready");
+			StringAssert.Contains(behaviorPriorUpdater, "behavior-candidate-alignment-v1.json");
+			StringAssert.Contains(behaviorPriorUpdater, "promote-behavior-imitation");
+			StringAssert.Contains(behaviorPriorUpdater, "train-behavior-prior");
+			StringAssert.Contains(behaviorPriorUpdater, "train-decision-ranker");
+			StringAssert.Contains(behaviorPriorUpdater, "evaluate-observed-policy");
+			StringAssert.Contains(behaviorPriorUpdater, "behavior-prior-check");
+			StringAssert.Contains(behaviorPriorUpdater, "decision-ranker-check");
+			StringAssert.Contains(behaviorPriorUpdater, "transactional_pair = $true");
+			StringAssert.Contains(behaviorPriorUpdater, "HistoricalSourceDirectory");
+			StringAssert.Contains(behaviorPriorUpdater, "..\\AdvisorWorker");
+			StringAssert.Contains(behaviorPriorUpdater, "Sort-Object LastWriteTimeUtc -Descending");
+			StringAssert.Contains(behaviorPriorUpdater, "hot_reload_supported = $true");
+			StringAssert.Contains(behaviorPriorUpdater, "现有模型保持不变");
+			Assert.IsFalse(behaviorPriorUpdater.Contains("Cookie"));
+			Assert.IsFalse(behaviorPriorUpdater.Contains("Chrome"));
+			Assert.IsFalse(behaviorPriorUpdater.Contains("Edge"));
 		}
 
 		[TestMethod]
@@ -596,6 +1235,42 @@ namespace MetaCompanionTests.Tests
 		}
 
 		[TestMethod]
+		public void DeckSnapshotDefaults_UseDiamondThroughLegendOnly()
+		{
+			var repoRoot = FindRepoRoot();
+			var syncScript = File.ReadAllText(
+				Path.Combine(repoRoot, "tools", "Sync-HSReplayDeckCodes.ps1"));
+			var updateScript = File.ReadAllText(
+				Path.Combine(repoRoot, "tools", "Update-MetaCompanionData.ps1"));
+			var defaultMatch = System.Text.RegularExpressions.Regex.Match(
+				syncScript,
+				@"\[string\[\]\]\$RankRanges\s*=\s*@\((?<body>.*?)\)\s*,",
+				System.Text.RegularExpressions.RegexOptions.Singleline);
+
+			Assert.IsTrue(defaultMatch.Success, syncScript);
+			var defaultBody = defaultMatch.Groups["body"].Value;
+			StringAssert.Contains(defaultBody, "DIAMOND_THROUGH_LEGEND");
+			Assert.IsFalse(defaultBody.Contains("DIAMOND_FOUR_THROUGH_DIAMOND_ONE"), defaultBody);
+			Assert.IsFalse(defaultBody.Contains("PLATINUM"), defaultBody);
+			Assert.IsFalse(defaultBody.Contains("GOLD"), defaultBody);
+			Assert.IsFalse(defaultBody.Contains("BRONZE_THROUGH_GOLD"), defaultBody);
+			StringAssert.Contains(updateScript, "$defaultRankRanges = @($RemoteRankRange)");
+			StringAssert.Contains(updateScript, "$rankRanges = $defaultRankRanges");
+			StringAssert.Contains(updateScript, "$rankRanges = $fullRankRanges");
+			var fullMatch = System.Text.RegularExpressions.Regex.Match(
+				updateScript,
+				@"\$fullRankRanges\s*=\s*@\((?<body>.*?)\)",
+				System.Text.RegularExpressions.RegexOptions.Singleline);
+			Assert.IsTrue(fullMatch.Success, updateScript);
+			var fullBody = fullMatch.Groups["body"].Value;
+			StringAssert.Contains(fullBody, "DIAMOND_THROUGH_LEGEND");
+			StringAssert.Contains(fullBody, "DIAMOND_FOUR_THROUGH_DIAMOND_ONE");
+			StringAssert.Contains(fullBody, "PLATINUM");
+			StringAssert.Contains(fullBody, "GOLD");
+			StringAssert.Contains(fullBody, "BRONZE_THROUGH_GOLD");
+		}
+
+		[TestMethod]
 		public void OneClickTestScript_BuildsBeforeRunningTests()
 		{
 			var repoRoot = FindRepoRoot();
@@ -613,7 +1288,7 @@ namespace MetaCompanionTests.Tests
 		}
 
 		[TestMethod]
-		public void LocalMetaScripts_UseFullCurrentPatchHdtHistory()
+		public void LocalMetaScripts_ApplyDaysMatchesPatchAndClearBoundaries()
 		{
 			var repoRoot = FindRepoRoot();
 			var exportScript = File.ReadAllText(
@@ -625,9 +1300,16 @@ namespace MetaCompanionTests.Tests
 
 			StringAssert.Contains(exportScript, "DefaultDeckStats.xml");
 			StringAssert.Contains(exportScript, "Select-Object -Unique");
-			StringAssert.Contains(updateScript, "$historyExportArgs.Since = $effectivePatchTime");
+			StringAssert.Contains(updateScript, "$historyStart = Get-LatestDate");
+			StringAssert.Contains(updateScript, "$historyExportArgs.Since = $historyStart");
+			StringAssert.Contains(updateScript, "local_history_cleared_at.txt");
+			StringAssert.Contains(updateScript, "Matches = $PersonalRecommendationHistoryMatches");
+			StringAssert.Contains(localMetaScript, "[Alias(\"Matches\")]");
+			StringAssert.Contains(localMetaScript, "Select-Object -First $HistoryMatches");
 			StringAssert.Contains(updateScript, "Update-MetaCompanionPatchState.ps1");
-			StringAssert.Contains(updateScript, "BranchPath = (Join-Path $dataDirectory \"archetype_deck_branches.tsv\")");
+			StringAssert.Contains(updateScript, "BranchPath = $recognitionBranchPath");
+			StringAssert.Contains(updateScript, "archetype_model_branches.tsv");
+			Assert.IsFalse(updateScript.Contains("Assert-BranchCacheScope"));
 			StringAssert.Contains(localMetaScript, "Test-CurrentPatchBranchSnapshot");
 			StringAssert.Contains(localMetaScript, "current_patch_branch");
 		}
@@ -928,6 +1610,15 @@ public class LaterPassingTest
 				"Implementation summary should not pin build-specific hashes.");
 		}
 
+		private static string ComputeFileSha256(string path)
+		{
+			using (var algorithm = SHA256.Create())
+			using (var stream = File.OpenRead(path))
+			{
+				return BitConverter.ToString(algorithm.ComputeHash(stream)).Replace("-", "");
+			}
+		}
+
 		private static ProcessResult RunPowerShell(
 			string workingDirectory,
 			string scriptPath,
@@ -1020,6 +1711,65 @@ public class LaterPassingTest
 			Assert.IsTrue(end > start, "PropertyGroup end not found: " + configuration);
 			var propertyGroup = project.Substring(start, end - start);
 			StringAssert.Contains(propertyGroup, expected);
+		}
+
+		private static int PopulateRequiredReleasePackage(string packageRoot)
+		{
+			var entries = new[]
+			{
+				"MetaCompanion.dll",
+				"Install-MetaCompanion.ps1",
+				"Wait-AndInstall-MetaCompanion.ps1",
+				"tools/Sync-HdtArenaAdvisorData.ps1",
+				"tools/Sync-BlizzardCardPools.ps1",
+				"tools/Update-AdvisorBehaviorPrior.ps1",
+				"solver/launch_solver.py",
+				"solver/metacompanion_solver/__main__.py",
+				"solver/metacompanion_solver/card_pool.py",
+				"solver/metacompanion_solver/card_rules.py",
+				"solver/metacompanion_solver/behavior_candidate_alignment.py",
+				"solver/metacompanion_solver/behavior.py",
+				"solver/metacompanion_solver/behavior_learning.py",
+				"solver/metacompanion_solver/behavior_prior.py",
+				"solver/metacompanion_solver/cli.py",
+				"solver/metacompanion_solver/counterplay.py",
+				"solver/metacompanion_solver/decision_frame.py",
+				"solver/metacompanion_solver/decision_ranker.py",
+				"solver/metacompanion_solver/decision_solver_evaluation.py",
+				"solver/metacompanion_solver/evaluation.py",
+				"solver/metacompanion_solver/hdt_rule_evaluation.py",
+				"solver/metacompanion_solver/hdt_replay_behavior.py",
+				"solver/metacompanion_solver/observed_policy_evaluation.py",
+				"solver/metacompanion_solver/rust_worker_client.py",
+				"solver/metacompanion_solver/visible_response_evaluation.py",
+				"solver/metacompanion_solver/search.py",
+				"solver/metacompanion_solver/trajectory.py",
+				"solver/metacompanion_solver/verification.py",
+				"solver/metacompanion_solver/turnpair_evaluation.py",
+				"solver/metacompanion_solver/rules_data/hdt-visible-point-effects-v1.json",
+				"solver/fixtures/oracle-hdt-cardrules-v1.json",
+				"solver/fixtures/oracle-turn-v1.json",
+				"solver/fixtures/oracle-turnpair-v1.json",
+				"solver/fixtures/visible-response-v1.json",
+				"solver/fixtures/trajectory-readiness-policy-v1.json",
+				"solver/fixtures/trajectory-readiness-v1.jsonl",
+				"solver/fixtures/behavior-learning-readiness-policy-v1.json",
+				"solver/fixtures/behavior-learning-readiness-v1.jsonl",
+				"solver/fixtures/behavior-candidate-alignment-policy-v1.json",
+				"solver/fixtures/behavior-prior-readiness-policy-v1.json",
+				"solver/fixtures/behavior-prior-readiness-v1.jsonl",
+				"solver/fixtures/behavior-prior-readiness-v1.manifest.json",
+				"solver/tools/observed_policy_fixture.py",
+				"docs/ADVISOR-DATA.md",
+				"docs/OFFICIAL-CARD-POOLS.md"
+			};
+			foreach (var entry in entries)
+			{
+				var path = Path.Combine(packageRoot, entry.Replace('/', Path.DirectorySeparatorChar));
+				Directory.CreateDirectory(Path.GetDirectoryName(path));
+				File.WriteAllText(path, "release gate package fixture");
+			}
+			return entries.Length;
 		}
 
 		private static void CreateZipPackage(string repoRoot, string sourceRoot, string packagePath)

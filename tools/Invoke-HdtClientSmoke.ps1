@@ -449,6 +449,7 @@ $keyFiles = @(
 	"meta_deck_load_status.tsv",
 	"hsreplay_deckcodes.txt",
 	"hsguru_deckcodes.txt",
+	"archetype_model_branches.tsv",
 	"archetype_deck_branches.tsv",
 	"metaDecks.xml",
 	"local_meta_environment.tsv",

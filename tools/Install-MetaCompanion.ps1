@@ -1,9 +1,14 @@
 ﻿param(
 	[string]$BuildPath = "",
-	[switch]$IncludeTools
+	[switch]$IncludeTools,
+	[switch]$RemoveRefreshTools
 )
 
 $ErrorActionPreference = "Stop"
+
+if ($IncludeTools -and $RemoveRefreshTools) {
+	throw "不能同时安装和删除远程刷新组件。"
+}
 
 $refreshTaskName = "Meta Companion Remote Cache Refresh"
 $requiredToolScripts = @(
@@ -15,6 +20,8 @@ $requiredToolScripts = @(
 	"Sync-HSReplayPremiumData.ps1",
 	"Sync-HSReplayMetaData.ps1",
 	"Sync-HSReplayArchetypeDecks.ps1",
+	"Sync-HdtArenaAdvisorData.ps1",
+	"Sync-BlizzardCardPools.ps1",
 	"Export-HdtOpponentHistory.ps1",
 	"Measure-HdtLocalMeta.ps1",
 	"Get-MetaArchetypeRecommendations.ps1",
@@ -40,6 +47,187 @@ function Resolve-ToolSourceDirectory([string[]]$RequiredScripts) {
 		}
 	}
 	throw "Refresh tool source scripts were not found. Run this installer from the source checkout, or install without -IncludeTools for the community DLL-only mode."
+}
+
+function Resolve-AdvisorSourceDirectory {
+	$candidates = @(
+		(Join-Path $PSScriptRoot "solver"),
+		(Join-Path $PSScriptRoot "..\solver")
+	)
+	foreach ($candidate in ($candidates | Select-Object -Unique)) {
+		if (Test-Path -LiteralPath (Join-Path $candidate "launch_solver.py")) {
+			return (Resolve-Path -LiteralPath $candidate).Path
+		}
+	}
+	return $null
+}
+
+function Resolve-RustAdvisorWorkerPath([string]$AdvisorSourceDirectory) {
+	$candidates = New-Object System.Collections.Generic.List[string]
+	if (-not [string]::IsNullOrWhiteSpace($AdvisorSourceDirectory)) {
+		$candidates.Add((Join-Path $AdvisorSourceDirectory "metacompanion-solver.exe"))
+	}
+	$candidates.Add((Join-Path $PSScriptRoot "solver\metacompanion-solver.exe"))
+	$candidates.Add((Join-Path $PSScriptRoot "..\solver-rust\target\release\metacompanion-solver.exe"))
+	foreach ($candidate in ($candidates | Select-Object -Unique)) {
+		if (Test-Path -LiteralPath $candidate -PathType Leaf) {
+			return (Resolve-Path -LiteralPath $candidate).Path
+		}
+	}
+	return $null
+}
+
+function Resolve-ArenaAdvisorDataToolSource {
+	$name = "Sync-HdtArenaAdvisorData.ps1"
+	$candidates = @(
+		(Join-Path $PSScriptRoot $name),
+		(Join-Path (Join-Path $PSScriptRoot "tools") $name),
+		(Join-Path (Join-Path $PSScriptRoot "..\tools") $name)
+	)
+	foreach ($candidate in ($candidates | Select-Object -Unique)) {
+		if (Test-Path -LiteralPath $candidate -PathType Leaf) {
+			return (Resolve-Path -LiteralPath $candidate).Path
+		}
+	}
+	return $null
+}
+
+function Copy-ArenaAdvisorDataTool([string]$Source, [string]$DestinationDirectory) {
+	if ([string]::IsNullOrWhiteSpace($Source)) {
+		Write-Warning "Arena advisor data exporter was not found; local arena priors must be synced from the source checkout."
+		return
+	}
+	New-Item -ItemType Directory -Force -Path $DestinationDirectory | Out-Null
+	Copy-Item `
+		-LiteralPath $Source `
+		-Destination (Join-Path $DestinationDirectory "Sync-HdtArenaAdvisorData.ps1") `
+		-Force
+	Write-Host "Arena advisor data exporter copied to $DestinationDirectory"
+}
+
+function Resolve-OfficialCardPoolToolSource {
+	$name = "Sync-BlizzardCardPools.ps1"
+	$candidates = @(
+		(Join-Path $PSScriptRoot $name),
+		(Join-Path (Join-Path $PSScriptRoot "tools") $name),
+		(Join-Path (Join-Path $PSScriptRoot "..\tools") $name)
+	)
+	foreach ($candidate in ($candidates | Select-Object -Unique)) {
+		if (Test-Path -LiteralPath $candidate -PathType Leaf) {
+			return (Resolve-Path -LiteralPath $candidate).Path
+		}
+	}
+	return $null
+}
+
+function Copy-OfficialCardPoolTool([string]$Source, [string]$DestinationDirectory) {
+	if ([string]::IsNullOrWhiteSpace($Source)) {
+		Write-Warning "Official Blizzard card pool sync tool was not found; Standard and Arena pool snapshots must be synced from the source checkout."
+		return
+	}
+	New-Item -ItemType Directory -Force -Path $DestinationDirectory | Out-Null
+	Copy-Item `
+		-LiteralPath $Source `
+		-Destination (Join-Path $DestinationDirectory "Sync-BlizzardCardPools.ps1") `
+		-Force
+	Write-Host "Official Blizzard card pool sync tool copied to $DestinationDirectory"
+}
+
+function Resolve-BehaviorPriorUpdateToolSource {
+	$name = "Update-AdvisorBehaviorPrior.ps1"
+	$candidates = @(
+		(Join-Path $PSScriptRoot $name),
+		(Join-Path (Join-Path $PSScriptRoot "tools") $name),
+		(Join-Path (Join-Path $PSScriptRoot "..\tools") $name)
+	)
+	foreach ($candidate in ($candidates | Select-Object -Unique)) {
+		if (Test-Path -LiteralPath $candidate -PathType Leaf) {
+			return (Resolve-Path -LiteralPath $candidate).Path
+		}
+	}
+	return $null
+}
+
+function Copy-BehaviorPriorUpdateTool([string]$Source, [string]$DestinationDirectory) {
+	if ([string]::IsNullOrWhiteSpace($Source)) {
+		Write-Warning "未找到双模型更新工具；实战行为采集仍可正常保存，但本次安装无法刷新本方决策排序与对手行为模型。"
+		return
+	}
+	New-Item -ItemType Directory -Force -Path $DestinationDirectory | Out-Null
+	Copy-Item `
+		-LiteralPath $Source `
+		-Destination (Join-Path $DestinationDirectory "Update-AdvisorBehaviorPrior.ps1") `
+		-Force
+	Write-Host "本方决策排序与对手行为模型更新工具已复制到 $DestinationDirectory"
+}
+
+function Copy-AdvisorOfflineTools([string]$Source, [string]$Destination) {
+	if ([string]::IsNullOrWhiteSpace($Source)) {
+		Write-Warning "未找到 Python 离线训练与审计工具；Rust 实时建议不受影响。"
+		return
+	}
+	$excludedDirectories = @(
+		"__pycache__", ".pytest_cache", ".mypy_cache", ".ruff_cache",
+		".venv", "venv", "data", "build", "dist", "tests"
+	)
+	foreach ($file in Get-ChildItem -LiteralPath $Source -Recurse -File) {
+		$relative = $file.FullName.Substring($Source.Length).TrimStart("\", "/")
+		$parts = $relative -split "[\\/]"
+		if ($relative -ieq "metacompanion-solver.exe" -or
+			@($parts | Where-Object { $excludedDirectories -contains $_ }).Count -gt 0 -or
+			$file.Extension -in @(".pyc", ".pyo")) {
+			continue
+		}
+		$target = Join-Path $Destination $relative
+		New-Item -ItemType Directory -Force -Path (Split-Path -Parent $target) | Out-Null
+		Copy-Item -LiteralPath $file.FullName -Destination $target -Force
+	}
+	Write-Host "Python 离线训练与审计工具已复制到 $Destination（不参与 HDT 实时求解）"
+}
+
+function Copy-AdvisorWorker([string]$RustBinary, [string]$Destination) {
+	New-Item -ItemType Directory -Force -Path $Destination | Out-Null
+
+	# Python remains available only in AdvisorOfflineTools for explicit offline jobs.
+	# Remove the legacy live entrypoints and code without touching models or match data.
+	foreach ($name in @(
+		"launch_solver.py",
+		"MetaCompanion.Advisor.Worker.exe",
+		"advisor_worker.exe",
+		"advisor_worker.py",
+		"config.default.json",
+		"pyproject.toml",
+		"run_solver.ps1",
+		"README.md"
+	)) {
+		$legacyPath = Join-Path $Destination $name
+		if (Test-Path -LiteralPath $legacyPath -PathType Leaf) {
+			Remove-Item -LiteralPath $legacyPath -Force
+			Write-Host "已删除旧 Python 实时求解文件：$legacyPath"
+		}
+	}
+	foreach ($name in @("metacompanion_solver", "fixtures", "tools")) {
+		$legacyPath = Join-Path $Destination $name
+		if (Test-Path -LiteralPath $legacyPath -PathType Container) {
+			$resolvedLegacyPath = (Resolve-Path -LiteralPath $legacyPath).Path
+			$resolvedDestination = (Resolve-Path -LiteralPath $Destination).Path.TrimEnd('\')
+			if (-not $resolvedLegacyPath.StartsWith(
+				$resolvedDestination + '\',
+				[System.StringComparison]::OrdinalIgnoreCase)) {
+				throw "拒绝删除 AdvisorWorker 目录之外的旧 Python 文件。"
+			}
+			Remove-Item -LiteralPath $resolvedLegacyPath -Recurse -Force
+			Write-Host "已删除旧 Python 实时求解目录：$resolvedLegacyPath"
+		}
+	}
+
+	if ([string]::IsNullOrWhiteSpace($RustBinary)) {
+		Write-Warning "未找到已构建的 Rust 求解器；插件仍可安装，但实时建议将保持不可用。"
+		return
+	}
+	$target = Join-Path $Destination "metacompanion-solver.exe"
+	Copy-Item -LiteralPath $RustBinary -Destination $target -Force
+	Write-Host "Rust 实时求解器已复制到 $target"
 }
 
 function Remove-MetaCompanionRefreshTask([string]$TaskName) {
@@ -243,6 +431,8 @@ foreach ($legacyPluginDirectory in $legacyPluginDirectories) {
 
 $toolTargetDirectory = "$env:APPDATA\HearthstoneDeckTracker\MetaCompanion\Tools"
 $dataTargetDirectory = Split-Path -Parent $toolTargetDirectory
+$advisorTargetDirectory = Join-Path $dataTargetDirectory "AdvisorWorker"
+$advisorOfflineToolsDirectory = Join-Path $dataTargetDirectory "AdvisorOfflineTools"
 $legacyDataDirectory = "$env:APPDATA\HearthstoneDeckTracker\DeckPredictor"
 if ((Test-Path -LiteralPath $legacyDataDirectory) -and -not (Test-Path -LiteralPath $dataTargetDirectory)) {
 	Write-Host "Migrating local data to $dataTargetDirectory"
@@ -264,29 +454,53 @@ if ($IncludeTools) {
 	Get-ChildItem -Path $toolSourceDirectory -Filter "*.ps1" -File | ForEach-Object {
 		Copy-Item -LiteralPath $_.FullName -Destination (Join-Path $toolTargetDirectory $_.Name) -Force
 	}
-} else {
+} elseif ($RemoveRefreshTools) {
 	if (Test-Path -LiteralPath $toolTargetDirectory) {
 		Remove-Item -LiteralPath $toolTargetDirectory -Recurse -Force
-		Write-Host "Removed bundled refresh tools: $toolTargetDirectory"
+		Write-Host "已删除远程刷新组件：$toolTargetDirectory"
 	}
 	Remove-MetaCompanionRefreshTask $refreshTaskName
+} else {
+	Write-Host "未改动现有远程刷新组件和计划任务。"
 }
+
+$arenaAdvisorDataToolSource = Resolve-ArenaAdvisorDataToolSource
+Copy-ArenaAdvisorDataTool $arenaAdvisorDataToolSource $toolTargetDirectory
+
+$officialCardPoolToolSource = Resolve-OfficialCardPoolToolSource
+Copy-OfficialCardPoolTool $officialCardPoolToolSource $toolTargetDirectory
+
+$behaviorPriorUpdateToolSource = Resolve-BehaviorPriorUpdateToolSource
+Copy-BehaviorPriorUpdateTool $behaviorPriorUpdateToolSource $toolTargetDirectory
+
+$advisorSourceDirectory = Resolve-AdvisorSourceDirectory
+$rustAdvisorWorkerPath = Resolve-RustAdvisorWorkerPath $advisorSourceDirectory
+Copy-AdvisorOfflineTools $advisorSourceDirectory $advisorOfflineToolsDirectory
+Copy-AdvisorWorker $rustAdvisorWorkerPath $advisorTargetDirectory
 
 $configPath = Join-Path $dataTargetDirectory "config.xml"
 if (Test-Path -LiteralPath $configPath) {
 	[xml]$configXml = Get-Content -LiteralPath $configPath -Encoding UTF8
 	$configChanged = $false
+	$backendNode = $configXml.PluginConfig.AdvisorWorkerBackendMode
+	if ($backendNode) {
+		if ($backendNode -ne "RustOnly") {
+			$configXml.PluginConfig.AdvisorWorkerBackendMode = "RustOnly"
+			$configChanged = $true
+		}
+	} else {
+		$backendNode = $configXml.CreateElement("AdvisorWorkerBackendMode")
+		$backendNode.InnerText = "RustOnly"
+		[void]$configXml.PluginConfig.AppendChild($backendNode)
+		$configChanged = $true
+	}
 	if ($IncludeTools) {
 		if ($configXml.PluginConfig.EnablePostGameMetaRefresh -and
 			$configXml.PluginConfig.EnablePostGameMetaRefresh -ne "true") {
 			$configXml.PluginConfig.EnablePostGameMetaRefresh = "true"
 			$configChanged = $true
 		}
-		if ($configChanged) {
-			$configXml.Save($configPath)
-			Write-Host "Enabled post-game local meta refresh in config: $configPath"
-		}
-	} else {
+	} elseif ($RemoveRefreshTools) {
 		if ($configXml.PluginConfig.EnablePostGameMetaRefresh) {
 			$configXml.PluginConfig.EnablePostGameMetaRefresh = "false"
 			$configChanged = $true
@@ -295,10 +509,10 @@ if (Test-Path -LiteralPath $configPath) {
 			$configXml.PluginConfig.EnablePostGameDataRefresh = "false"
 			$configChanged = $true
 		}
-		if ($configChanged) {
-			$configXml.Save($configPath)
-			Write-Host "Disabled post-game refresh in config: $configPath"
-		}
+	}
+	if ($configChanged) {
+		$configXml.Save($configPath)
+		Write-Host "配置已更新：实时求解仅使用 Rust。"
 	}
 }
 
@@ -337,8 +551,10 @@ if (Test-Path $pluginsXmlPath) {
 	Get-MetaCompanionFileHash $_
 }
 if ($IncludeTools) {
-	Write-Host "Tools copied to $toolTargetDirectory"
+	Write-Host "高级刷新组件已复制到 $toolTargetDirectory"
+} elseif ($RemoveRefreshTools) {
+	Write-Host "远程刷新组件和计划任务已按要求删除。"
 } else {
-	Write-Host "Refresh tools and scheduled task were not installed. Re-run with -IncludeTools for development or advanced manual sync."
+	Write-Host "本次仅更新插件；已有远程刷新组件和计划任务保持不变。首次安装高级刷新可使用 -IncludeTools。"
 }
 

@@ -1,4 +1,4 @@
-param(
+﻿param(
 	[string]$DeckCodePath = "$env:APPDATA\HearthstoneDeckTracker\MetaCompanion\hsreplay_deckcodes.txt",
 	[string]$HdtAppPath = "$env:LOCALAPPDATA\HearthstoneDeckTracker\app-1.52.19"
 )
@@ -46,9 +46,9 @@ foreach ($line in Get-Content $DeckCodePath) {
 	}
 }
 
-"ImportedDecks=$importedDecks"
+"已导入牌组数：$importedDecks"
 $classCounts.GetEnumerator() | Sort-Object Name | ForEach-Object {
-	"$($_.Name)=$($_.Value)"
+	"职业 $($_.Name)：$($_.Value)"
 }
-"InvalidDecks=$invalidDecks"
-"UnknownDbfIds=$($unknownDbfIds.Count)"
+"无效牌组数：$invalidDecks"
+"未知卡牌 DBF ID 数：$($unknownDbfIds.Count)"
