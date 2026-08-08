@@ -11,8 +11,8 @@ namespace MetaCompanionTests.Tests
 		[TestMethod]
 		public void Info_AddedToLogQueue()
 		{
-			Log.Info("test string");
-			Assert.IsTrue(Log.PrevLine.Contains("test string"));
+			Log.Info("测试信息已写入。");
+			Assert.IsTrue(Log.PrevLine.Contains("测试信息已写入。"));
 		}
 
 	}

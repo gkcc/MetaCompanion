@@ -62,7 +62,36 @@ namespace MetaCompanionTests.Tests
 		}
 
 		[TestMethod]
-		public void SelectDeckCodeFilePaths_PrefersCurrentPatchBranchOverUnscopedHsReplay()
+		public void SelectDeckCodeFilePaths_PrefersModelBranchForRecognition()
+		{
+			WithTempDirectory(tempDirectory =>
+			{
+				var manualPath = Path.Combine(tempDirectory, "deckcodes.txt");
+				var modelPath = Path.Combine(tempDirectory, "archetype_model_branches.tsv");
+				var representativePath = Path.Combine(tempDirectory, "archetype_deck_branches.tsv");
+				var hsReplayPath = Path.Combine(tempDirectory, "hsreplay_deckcodes.txt");
+				File.WriteAllText(
+					Path.Combine(tempDirectory, "patch_version.txt"),
+					"36.2.0.211835");
+				File.WriteAllText(modelPath,
+					"# CandidateTimeRange: CURRENT_PATCH\n" +
+					"# PatchVersion: 36.2.0\n");
+				File.WriteAllText(representativePath, "# CandidateTimeRange: LAST_3_DAYS\n");
+
+				var selected = MetaRetriever.SelectDeckCodeFilePaths(new[]
+				{
+					manualPath,
+					modelPath,
+					representativePath,
+					hsReplayPath
+				}, tempDirectory);
+
+				CollectionAssert.AreEqual(new[] { manualPath, modelPath }, selected);
+			});
+		}
+
+		[TestMethod]
+		public void SelectDeckCodeFilePaths_AcceptsCurrentPatchWhenServerAsOfPrecedesLocalMarker()
 		{
 			WithTempDirectory(tempDirectory =>
 			{
@@ -71,9 +100,11 @@ namespace MetaCompanionTests.Tests
 				var hsReplayPath = Path.Combine(tempDirectory, "hsreplay_deckcodes.txt");
 				var hsGuruPath = Path.Combine(tempDirectory, "hsguru_deckcodes.txt");
 				File.WriteAllText(Path.Combine(tempDirectory, "patch_marker.txt"), "2026-07-07T19:16:55+08:00");
+				File.WriteAllText(Path.Combine(tempDirectory, "patch_version.txt"), "36.2.0.211835");
 				File.WriteAllText(branchPath,
-					"# CandidateAsOf: 2026-07-08T07:58:37Z\n" +
-					"# CandidateTimeRange: CURRENT_PATCH\n");
+					"# CandidateAsOf: 2026-07-07T10:00:00Z\n" +
+					"# CandidateTimeRange: CURRENT_PATCH\n" +
+					"# PatchVersion: 36.2.0\n");
 
 				var selected = MetaRetriever.SelectDeckCodeFilePaths(new[]
 				{
@@ -88,7 +119,57 @@ namespace MetaCompanionTests.Tests
 		}
 
 		[TestMethod]
-		public void SelectDeckCodeFilePaths_PrefersHsReplayOverNonCurrentBranchFallback()
+		public void SelectDeckCodeFilePaths_RejectsCurrentPatchFromPreviousVersion()
+		{
+			WithTempDirectory(tempDirectory =>
+			{
+				var manualPath = Path.Combine(tempDirectory, "deckcodes.txt");
+				var branchPath = Path.Combine(tempDirectory, "archetype_model_branches.tsv");
+				var hsReplayPath = Path.Combine(tempDirectory, "hsreplay_deckcodes.txt");
+				File.WriteAllText(Path.Combine(tempDirectory, "patch_version.txt"), "36.2.0.211835");
+				File.WriteAllText(branchPath,
+					"# CandidateTimeRange: CURRENT_PATCH\n" +
+					"# PatchVersion: 36.0.0\n");
+
+				var selected = MetaRetriever.SelectDeckCodeFilePaths(new[]
+				{
+					manualPath,
+					branchPath,
+					hsReplayPath
+				}, tempDirectory);
+
+				CollectionAssert.AreEqual(new[] { manualPath, hsReplayPath }, selected);
+			});
+		}
+
+		[TestMethod]
+		public void SelectDeckCodeFilePaths_RejectsRollingBranchOlderThanLocalMarker()
+		{
+			WithTempDirectory(tempDirectory =>
+			{
+				var manualPath = Path.Combine(tempDirectory, "deckcodes.txt");
+				var branchPath = Path.Combine(tempDirectory, "archetype_deck_branches.tsv");
+				var hsReplayPath = Path.Combine(tempDirectory, "hsreplay_deckcodes.txt");
+				File.WriteAllText(
+					Path.Combine(tempDirectory, "patch_marker.txt"),
+					"2026-07-07T19:16:55+08:00");
+				File.WriteAllText(branchPath,
+					"# CandidateAsOf: 2026-07-07T10:00:00Z\n" +
+					"# CandidateTimeRange: LAST_7_DAYS\n");
+
+				var selected = MetaRetriever.SelectDeckCodeFilePaths(new[]
+				{
+					manualPath,
+					branchPath,
+					hsReplayPath
+				}, tempDirectory);
+
+				CollectionAssert.AreEqual(new[] { manualPath, hsReplayPath }, selected);
+			});
+		}
+
+		[TestMethod]
+		public void SelectDeckCodeFilePaths_AcceptsRollingWindowBranchSnapshot()
 		{
 			WithTempDirectory(tempDirectory =>
 			{
@@ -104,7 +185,7 @@ namespace MetaCompanionTests.Tests
 					hsReplayPath
 				}, tempDirectory);
 
-				CollectionAssert.AreEqual(new[] {manualPath, hsReplayPath}, selected);
+				CollectionAssert.AreEqual(new[] {manualPath, branchPath}, selected);
 			});
 		}
 

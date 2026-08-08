@@ -10,7 +10,9 @@
     <RootNamespace>MetaCompanion</RootNamespace>
     <AssemblyName>MetaCompanion</AssemblyName>
     <TargetFrameworkVersion>v4.7.2</TargetFrameworkVersion>
-    <FrameworkPathOverride Condition="'$(FrameworkPathOverride)' == '' and !Exists('$(ProgramFiles(x86))\Reference Assemblies\Microsoft\Framework\.NETFramework\$(TargetFrameworkVersion)\mscorlib.dll') and Exists('$(WINDIR)\Microsoft.NET\Framework\v4.0.30319\mscorlib.dll')">$(WINDIR)\Microsoft.NET\Framework\v4.0.30319</FrameworkPathOverride>
+    <FrameworkPathOverride Condition="'$(FrameworkPathOverride)' == '' and !Exists('$(ProgramFiles(x86))\Reference Assemblies\Microsoft\Framework\.NETFramework\$(TargetFrameworkVersion)\mscorlib.dll') and Exists('$(MSBuildProjectDirectory)\..\packages\Microsoft.NETFramework.ReferenceAssemblies.net472.1.0.3\build\.NETFramework\v4.7.2\mscorlib.dll')">$(MSBuildProjectDirectory)\..\packages\Microsoft.NETFramework.ReferenceAssemblies.net472.1.0.3\build\.NETFramework\v4.7.2</FrameworkPathOverride>
+    <NetFxFacadePath Condition="'$(FrameworkPathOverride)' != ''">$(FrameworkPathOverride)\Facades</NetFxFacadePath>
+    <NetFxFacadePath Condition="'$(NetFxFacadePath)' == ''">$(ProgramFiles(x86))\Reference Assemblies\Microsoft\Framework\.NETFramework\$(TargetFrameworkVersion)\Facades</NetFxFacadePath>
     <FileAlignment>512</FileAlignment>
     <HdtAppPath Condition="'$(HdtAppPath)' == '' and '$(HDT_APP_PATH)' != ''">$(HDT_APP_PATH)</HdtAppPath>
     <HdtAppPath Condition="'$(HdtAppPath)' == ''">$(LOCALAPPDATA)\HearthstoneDeckTracker\app-1.53.0</HdtAppPath>
@@ -85,20 +87,37 @@
     <Reference Include="System.Data.DataSetExtensions" />
     <Reference Include="Microsoft.CSharp" />
     <Reference Include="netstandard">
-      <HintPath>C:\Windows\Microsoft.NET\Framework\v4.0.30319\netstandard.dll</HintPath>
+      <HintPath>$(NetFxFacadePath)\netstandard.dll</HintPath>
     </Reference>
     <Reference Include="System.Data" />
     <Reference Include="System.Xml" />
     <Reference Include="WindowsBase" />
   </ItemGroup>
   <ItemGroup>
+	<Compile Include="AdvisorBehaviorCollector.cs" />
+	<Compile Include="AdvisorBehaviorOutbox.cs" />
+	<Compile Include="AdvisorBehaviorPendingTracker.cs" />
+	<Compile Include="AdvisorGameStateExtractor.cs" />
+	<Compile Include="AdvisorHdtRootCandidateBinder.cs" />
+	<Compile Include="AdvisorModels.cs" />
+	<Compile Include="AdvisorPanel.cs" />
+	<Compile Include="AdvisorRecommendationController.cs" />
+	<Compile Include="AdvisorResultOutbox.cs" />
+	<Compile Include="AdvisorUserMessages.cs" />
+	<Compile Include="AdvisorView.cs" />
+	<Compile Include="AdvisorWireProtocol.cs" />
+	<Compile Include="AdvisorWorkerClient.cs" />
+	<Compile Include="AdvisorWorkerProcessManager.cs" />
     <Compile Include="AutoUpdater.cs" />
     <Compile Include="CardProximityRanker.cs" />
-    <Compile Include="CustomLog.cs" />
+	<Compile Include="CustomLog.cs" />
+	<Compile Include="HdtGameEventReplayGuard.cs" />
+	<Compile Include="HdtPowerTraceCollector.cs" />
     <Compile Include="HdtReplayInfo.cs" />
     <Compile Include="IOpponent.cs" />
-    <Compile Include="KnownOriginalCardCounter.cs" />
-    <Compile Include="MatchHistoryRecorder.cs" />
+	<Compile Include="KnownOriginalCardCounter.cs" />
+	<Compile Include="LocalMetaDataService.cs" />
+	<Compile Include="MatchHistoryRecorder.cs" />
     <Compile Include="IMetaRetriever.cs" />
     <Compile Include="MetaDashboardData.cs" />
     <Compile Include="MetaDashboardPanel.cs" />
@@ -112,6 +131,7 @@
     <Compile Include="PatchStateService.cs" />
     <Compile Include="PostGameMetaRefresher.cs" />
     <Compile Include="QuickDashboardRefresher.cs" />
+    <Compile Include="RecommendationStatistics.cs" />
     <Compile Include="RefreshTaskService.cs" />
     <Compile Include="PredictionInfo.cs" />
     <Compile Include="PredictionController.cs" />

@@ -44,7 +44,7 @@ namespace MetaCompanion
 			var fileInfo = new FileInfo(_logFile);
 			if (!fileInfo.Exists)
 			{
-				Log.Info("Creating " + logFileName);
+				Log.Info("正在初始化插件辅助日志。");
 				File.Create(_logFile).Dispose();
 			}
 		}

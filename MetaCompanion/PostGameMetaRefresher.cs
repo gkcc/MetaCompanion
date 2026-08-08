@@ -4,18 +4,32 @@ using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
+	using System.Web.Script.Serialization;
 
 namespace MetaCompanion
 {
 	internal class PostGameMetaRefresher
 	{
 		private const string DefaultDeckRankRanges =
-			"DIAMOND_THROUGH_LEGEND,DIAMOND_FOUR_THROUGH_DIAMOND_ONE,PLATINUM,GOLD,BRONZE_THROUGH_GOLD";
+			"DIAMOND_THROUGH_LEGEND";
 		private const int DefaultDeckLimitPerRange = 250;
+		private static readonly string[] FullPremiumTimeRanges =
+		{
+			"LAST_30_DAYS",
+			"CURRENT_PATCH",
+			"CURRENT_EXPANSION",
+			"CURRENT_SEASON"
+		};
 
 		private readonly object _lock = new object();
+		private readonly QuickDashboardRefresher _canonicalRefresher;
 		private DateTime _lastStartedAt = DateTime.MinValue;
 		private bool _isRunning;
+
+		public PostGameMetaRefresher(QuickDashboardRefresher canonicalRefresher = null)
+		{
+			_canonicalRefresher = canonicalRefresher;
+		}
 
 		public bool TryRefreshAfterGame(PluginConfig config, Action onCompleted)
 		{
@@ -30,6 +44,13 @@ namespace MetaCompanion
 			if (!File.Exists(scriptPath))
 			{
 				Log.Warn("Post-game local meta refresh script not found: " + scriptPath);
+				return false;
+			}
+
+			var refreshPlan = BuildRefreshPlan(config, MetaCompanionPlugin.DataDirectory, DateTime.Now);
+			if (!refreshPlan.IncludeFullDataRefresh && !refreshPlan.IncludeDeckSnapshotRefresh)
+			{
+				Log.Debug("Post-game external data refresh has no work; canonical quick refresh is sufficient.");
 				return false;
 			}
 
@@ -52,8 +73,6 @@ namespace MetaCompanion
 				_isRunning = true;
 				_lastStartedAt = DateTime.Now;
 			}
-
-			var refreshPlan = BuildRefreshPlan(config, MetaCompanionPlugin.DataDirectory, DateTime.Now);
 			Task.Run(async () =>
 				{
 					try
@@ -65,7 +84,14 @@ namespace MetaCompanion
 						}
 
 						RunRefresh(scriptPath, config, refreshPlan);
-						onCompleted?.Invoke();
+						if (_canonicalRefresher != null)
+						{
+							_canonicalRefresher.ForceRefresh(config, onCompleted);
+						}
+						else
+						{
+							onCompleted?.Invoke();
+						}
 					}
 					catch (Exception ex)
 					{
@@ -132,25 +158,34 @@ namespace MetaCompanion
 			string branchCandidateTimeRangeOverride = null,
 			bool premiumStopOnUnsupported = false,
 			bool includeDeckSnapshotRefresh = false,
-			bool includePersonalRecommendations = true)
+			bool includePersonalRecommendations = true,
+			bool includeLocalMeta = true,
+			bool skipPersonalRecommendations = false)
 		{
 			config = config ?? new PluginConfig();
 			var arguments = "-NoProfile -ExecutionPolicy Bypass -File " + Quote(scriptPath) +
-				" -LocalMeta" +
+				(includeLocalMeta ? " -LocalMeta" : "") +
 				(includePersonalRecommendations ? " -PersonalRecommendations" : "") +
 				" -RecommendationTop " + Math.Max(1, config.LocalRecommendationTop)
 					.ToString(CultureInfo.InvariantCulture) +
-				" -PersonalRecommendationHistoryDays " + Math.Max(1, config.LocalRecommendationHistoryDays)
+				" -PersonalRecommendationHistoryDays " + Math.Max(0, config.LocalRecommendationHistoryDays)
+					.ToString(CultureInfo.InvariantCulture) +
+				" -PersonalRecommendationHistoryMatches " + Math.Max(0, config.LocalRecommendationHistoryMatches)
 					.ToString(CultureInfo.InvariantCulture) +
 				" -PersonalRecommendationLocalWeight " + config.LocalRecommendationWeight
 					.ToString(CultureInfo.InvariantCulture) +
 				" -LocalMetaMinConfidence " + Math.Max(0, config.LocalMetaMinConfidence)
 					.ToString(CultureInfo.InvariantCulture);
+			if (skipPersonalRecommendations)
+			{
+				arguments += " -SkipPersonalRecommendations";
+			}
 
 			if (includeDeckSnapshotRefresh || includeFullDataRefresh)
 			{
+				var rankRange = NormalizeValue(config.PostGameRankRange, DefaultDeckRankRanges);
 				arguments +=
-					" -RankRanges " + Quote(DefaultDeckRankRanges) +
+					" -RankRanges " + Quote(rankRange) +
 					" -LimitPerRange " + DefaultDeckLimitPerRange.ToString(CultureInfo.InvariantCulture) +
 					" -MaxDecks " + Math.Max(1, config.PostGameDataRefreshMaxDecks)
 						.ToString(CultureInfo.InvariantCulture) +
@@ -162,15 +197,17 @@ namespace MetaCompanion
 			{
 				var premiumTimeRange = NormalizeValue(
 					premiumTimeRangeOverride,
-					NormalizeValue(config.PostGamePrimaryTimeRange, "CURRENT_PATCH"));
+					NormalizeValue(config.PostGamePrimaryTimeRange, "LAST_7_DAYS"));
 				var metaTimeRange = NormalizeValue(
 					metaTimeRangeOverride,
-					NormalizeValue(config.PostGamePrimaryTimeRange, "CURRENT_PATCH"));
+					NormalizeValue(config.PostGamePrimaryTimeRange, "LAST_7_DAYS"));
 				var branchCandidateTimeRange = NormalizeValue(
 					branchCandidateTimeRangeOverride,
-					NormalizeValue(config.PostGamePrimaryTimeRange, "CURRENT_PATCH"));
+					NormalizeValue(config.PostGamePrimaryTimeRange, "LAST_7_DAYS"));
 				arguments +=
 					" -Premium -Meta -Branches" +
+					" -RemoteRankRange " + Quote(NormalizeValue(
+						config.PostGameRankRange, DefaultDeckRankRanges)) +
 					" -PremiumTimeRange " + Quote(premiumTimeRange) +
 					" -MetaTimeRange " + Quote(metaTimeRange) +
 					" -BranchCandidateTimeRange " + Quote(branchCandidateTimeRange) +
@@ -192,16 +229,28 @@ namespace MetaCompanion
 			bool useFallbackRanges = false)
 		{
 			refreshPlan = refreshPlan ?? new PostGameRefreshPlan();
+			var primaryTimeRange = NormalizeValue(refreshPlan.PrimaryTimeRange, "LAST_7_DAYS");
+			var keepPatchScopedData = string.Equals(
+				primaryTimeRange,
+				"CURRENT_PATCH",
+				StringComparison.OrdinalIgnoreCase);
 			return BuildArguments(
 				scriptPath,
 				config,
 				refreshPlan.IncludeFullDataRefresh,
-				useFallbackRanges ? refreshPlan.PremiumFallbackTimeRange : refreshPlan.PrimaryTimeRange,
-				useFallbackRanges ? refreshPlan.MetaFallbackTimeRange : refreshPlan.PrimaryTimeRange,
-				useFallbackRanges ? refreshPlan.PremiumFallbackTimeRange : refreshPlan.PrimaryTimeRange,
-				refreshPlan.IncludeFullDataRefresh && !useFallbackRanges,
+				useFallbackRanges ? refreshPlan.PremiumFallbackTimeRange : primaryTimeRange,
+				useFallbackRanges && !keepPatchScopedData
+					? refreshPlan.MetaFallbackTimeRange
+					: primaryTimeRange,
+				useFallbackRanges && !keepPatchScopedData
+					? refreshPlan.MetaFallbackTimeRange
+					: primaryTimeRange,
+				refreshPlan.IncludeFullDataRefresh && !useFallbackRanges &&
+					PremiumTimeRangeSupportsAllEndpoints(primaryTimeRange),
 				refreshPlan.IncludeDeckSnapshotRefresh,
-				refreshPlan.IncludePersonalRecommendations);
+				false,
+				false,
+				true);
 		}
 
 		internal static PostGameRefreshPlan BuildRefreshPlan(
@@ -225,9 +274,15 @@ namespace MetaCompanion
 			}
 
 			var deckSnapshotFresh = IsFresh(GetDeckSnapshotPath(dataDirectory), now, maxAge);
-			var branchSnapshotFresh = IsFresh(GetBranchSnapshotPath(dataDirectory), now, maxAge);
+			var requestedTimeRange = NormalizeValue(config.PostGamePrimaryTimeRange, "LAST_7_DAYS");
+			var requestedRankRange = NormalizeValue(config.PostGameRankRange, DefaultDeckRankRanges);
+			var branchSnapshotFresh = IsFresh(GetBranchSnapshotPath(dataDirectory), now, maxAge) &&
+				BranchSnapshotMatchesScope(
+					GetBranchSnapshotPath(dataDirectory), requestedTimeRange, requestedRankRange);
 			var premiumMetaFresh = IsFresh(GetMetaSummaryPath(dataDirectory), now, maxAge) &&
-				IsFresh(GetMetaMatrixPath(dataDirectory), now, maxAge);
+				IsFresh(GetMetaMatrixPath(dataDirectory), now, maxAge) &&
+				MetaSnapshotMatchesScope(
+					GetMetaSummaryPath(dataDirectory), requestedTimeRange, requestedRankRange);
 			var hasPremiumMetaCache = HasPremiumMetaCache(dataDirectory);
 			var hasPremiumCookie = HasPremiumCookie(dataDirectory);
 
@@ -247,10 +302,80 @@ namespace MetaCompanion
 				plan.IncludePersonalRecommendations = hasPremiumMetaCache;
 			}
 
-			plan.PrimaryTimeRange = NormalizeValue(config.PostGamePrimaryTimeRange, "CURRENT_PATCH");
+			plan.PrimaryTimeRange = NormalizeValue(config.PostGamePrimaryTimeRange, "LAST_7_DAYS");
 			plan.MetaFallbackTimeRange = NormalizeValue(config.PostGameMetaFallbackTimeRange, "LAST_1_DAY");
 			plan.PremiumFallbackTimeRange = NormalizeValue(config.PostGamePremiumFallbackTimeRange, "LAST_7_DAYS");
 			return plan;
+		}
+
+		private static bool MetaSnapshotMatchesScope(
+			string path,
+			string expectedTimeRange,
+			string expectedRankRange)
+		{
+			if (string.IsNullOrWhiteSpace(path) || !File.Exists(path))
+			{
+				return false;
+			}
+			try
+			{
+				var serializer = new JavaScriptSerializer { MaxJsonLength = int.MaxValue };
+				var root = serializer.DeserializeObject(File.ReadAllText(path)) as
+					System.Collections.Generic.Dictionary<string, object>;
+				if (root == null)
+				{
+					return false;
+				}
+				object timeRange;
+				object rankRange;
+				return root.TryGetValue("time_range", out timeRange) &&
+					root.TryGetValue("rank_range", out rankRange) &&
+					string.Equals(Convert.ToString(timeRange), expectedTimeRange,
+						StringComparison.OrdinalIgnoreCase) &&
+					string.Equals(Convert.ToString(rankRange), expectedRankRange,
+						StringComparison.OrdinalIgnoreCase);
+			}
+			catch
+			{
+				return false;
+			}
+		}
+
+		private static bool BranchSnapshotMatchesScope(
+			string path,
+			string expectedTimeRange,
+			string expectedRankRange)
+		{
+			if (string.IsNullOrWhiteSpace(path) || !File.Exists(path))
+			{
+				return false;
+			}
+			try
+			{
+				var comments = File.ReadLines(path)
+					.Take(20)
+					.Where(line => line.StartsWith("#", StringComparison.Ordinal))
+					.ToList();
+				var timeRange = ReadCommentValue(comments, "# CandidateTimeRange:");
+				var rankRange = ReadCommentValue(comments, "# RankRange:");
+				return string.Equals(timeRange, expectedTimeRange,
+						StringComparison.OrdinalIgnoreCase) &&
+					string.Equals(rankRange, expectedRankRange,
+						StringComparison.OrdinalIgnoreCase);
+			}
+			catch
+			{
+				return false;
+			}
+		}
+
+		private static string ReadCommentValue(
+			System.Collections.Generic.IEnumerable<string> lines,
+			string prefix)
+		{
+			var line = lines.FirstOrDefault(value => value.StartsWith(
+				prefix, StringComparison.OrdinalIgnoreCase));
+			return line == null ? "" : line.Substring(prefix.Length).Trim();
 		}
 
 		internal static bool IsFullDataRefreshNeeded(
@@ -313,7 +438,9 @@ namespace MetaCompanion
 				}
 
 				Log.Warn("Post-game full data refresh failed with primary time range " +
-					refreshPlan.PrimaryTimeRange + "; retrying with fallback ranges. " + ex.Message);
+					refreshPlan.PrimaryTimeRange +
+					"; retrying with safe fallback ranges while keeping CURRENT_PATCH Meta and branches pinned. " +
+					ex.Message);
 				var fallbackLogPath = Path.Combine(
 					logDirectory,
 					"post-game-refresh-fallback-" +
@@ -390,6 +517,13 @@ namespace MetaCompanion
 			value = (value ?? "").Trim();
 			return string.IsNullOrEmpty(value) ? fallback : value;
 		}
+
+		internal static bool PremiumTimeRangeSupportsAllEndpoints(string value)
+		{
+			return FullPremiumTimeRanges.Contains(
+				NormalizeValue(value, "LAST_7_DAYS"),
+				StringComparer.OrdinalIgnoreCase);
+		}
 	}
 
 	internal class PostGameRefreshPlan
@@ -397,7 +531,7 @@ namespace MetaCompanion
 		public bool IncludeDeckSnapshotRefresh { get; set; }
 		public bool IncludeFullDataRefresh { get; set; }
 		public bool IncludePersonalRecommendations { get; set; } = true;
-		public string PrimaryTimeRange { get; set; } = "CURRENT_PATCH";
+		public string PrimaryTimeRange { get; set; } = "LAST_7_DAYS";
 		public string MetaFallbackTimeRange { get; set; } = "LAST_1_DAY";
 		public string PremiumFallbackTimeRange { get; set; } = "LAST_7_DAYS";
 
@@ -407,7 +541,9 @@ namespace MetaCompanion
 			{
 				return IncludeFullDataRefresh &&
 					(!string.Equals(PrimaryTimeRange, MetaFallbackTimeRange, StringComparison.OrdinalIgnoreCase) ||
-						!string.Equals(PrimaryTimeRange, PremiumFallbackTimeRange, StringComparison.OrdinalIgnoreCase));
+						!string.Equals(PrimaryTimeRange, PremiumFallbackTimeRange, StringComparison.OrdinalIgnoreCase) ||
+						IncludeDeckSnapshotRefresh ||
+						PostGameMetaRefresher.PremiumTimeRangeSupportsAllEndpoints(PrimaryTimeRange));
 			}
 		}
 	}

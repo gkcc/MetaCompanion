@@ -26,6 +26,7 @@ namespace MetaCompanion
 		public DateTime? LatestLogTime { get; set; }
 		public bool LatestLogSucceeded { get; set; }
 		public bool LatestLogFailed { get; set; }
+		public bool LatestLogDeferred { get; set; }
 		public bool LatestLogBusy { get; set; }
 		public List<string> LatestLogSummaryLines { get; set; } = new List<string>();
 		public string ToolsStatus { get; set; } = "";
@@ -45,6 +46,21 @@ namespace MetaCompanion
 		public bool CanOpenLatestLog
 		{
 			get { return !string.IsNullOrWhiteSpace(LatestLogPath) && File.Exists(LatestLogPath); }
+		}
+
+		public bool OptionalRefreshComponentsNotInstalled
+		{
+			get
+			{
+				return !RefreshScriptExists &&
+					!InstallScriptExists &&
+					!ScheduledTaskInstalled;
+			}
+		}
+
+		public bool RefreshScriptsComplete
+		{
+			get { return RefreshScriptExists && InstallScriptExists; }
 		}
 	}
 
@@ -68,16 +84,22 @@ namespace MetaCompanion
 		public const string ScheduledTaskName = "Meta Companion Remote Cache Refresh";
 		public const string RefreshScriptFileName = "Run-MetaCompanionRefresh.ps1";
 		public const string InstallScriptFileName = "Install-MetaCompanionRefreshTask.ps1";
+		private const int ScheduledTaskNotFoundHResult = unchecked((int)0x80070002);
 
-		private const int LogTailLineCount = 8;
-		private static readonly Regex CookieValueRegex = new Regex(
-			@"(?i)\b(cookie|set-cookie|cookiepath)\b\s*[:=]\s*("".*?""|'.*?'|\S+)",
+		private static readonly Regex CredentialValueRegex = new Regex(
+			@"(?i)\b(cookie|set-cookie|cookiepath|token|access[_-]?token|refresh[_-]?token|authorization|api[_-]?key)\b\s*[:=]\s*("".*?""|'.*?'|Bearer\s+\S+|\S+)",
+			RegexOptions.Compiled | RegexOptions.CultureInvariant);
+		private static readonly Regex BearerValueRegex = new Regex(
+			@"(?i)\bBearer\s+[A-Za-z0-9._~+/=-]+",
 			RegexOptions.Compiled | RegexOptions.CultureInvariant);
 		private static readonly Regex HtmlTitleRegex = new Regex(
 			@"(?is)<title>\s*(.*?)\s*</title>",
 			RegexOptions.Compiled | RegexOptions.CultureInvariant);
 		private static readonly Regex RefreshFailureRegex = new Regex(
-			@"(?i)(TerminatingError|returned HTTP [45]\d\d|curl\.exe failed|No HSReplay cookie found|Cookie file is empty|Exception calling)",
+			@"(?i)(TerminatingError|returned HTTP [45]\d\d|返回 HTTP [45]\d\d|curl\.exe[^\r\n]*(?:failed|失败)|No HSReplay cookie found|未找到 HSReplay Cookie|Cookie file is empty|Cookie 文件为空|Exception calling)",
+			RegexOptions.Compiled | RegexOptions.CultureInvariant);
+		private static readonly Regex RefreshOutcomeRegex = new Regex(
+			@"META_COMPANION_REFRESH_OUTCOME=(?<outcome>[A-Z_]+)",
 			RegexOptions.Compiled | RegexOptions.CultureInvariant);
 
 		private readonly string _dataDirectory;
@@ -157,8 +179,11 @@ namespace MetaCompanion
 			}
 			catch (Exception ex)
 			{
-				snapshot.ScheduledTaskError = SummarizeException(ex);
-				Log.Warn("Refresh scheduled task status check failed: " + snapshot.ScheduledTaskError);
+				if (!IsScheduledTaskNotFound(ex))
+				{
+					snapshot.ScheduledTaskError = SummarizeException(ex);
+					Log.Warn("Refresh scheduled task status check failed: " + snapshot.ScheduledTaskError);
+				}
 			}
 
 			ApplyLatestLog(snapshot);
@@ -200,7 +225,7 @@ namespace MetaCompanion
 				return new RefreshTaskLaunchResult
 				{
 					Started = false,
-					Message = "高级刷新脚本未安装，无法启动自动刷新安装。"
+					Message = "自动刷新组件不完整。请重新安装插件后重试。"
 				};
 			}
 
@@ -214,7 +239,7 @@ namespace MetaCompanion
 				return new RefreshTaskLaunchResult
 				{
 					Started = false,
-					Message = "高级刷新脚本未安装，无法立即刷新。"
+					Message = "立即刷新不可用。请重新安装插件以补全刷新组件。"
 				};
 			}
 
@@ -238,7 +263,7 @@ namespace MetaCompanion
 					Started = true,
 					ProcessId = processId,
 					Message = keepWindowOpen
-						? actionName + "已在 PowerShell 窗口中启动；完成后可关闭窗口。"
+						? actionName + "已在刷新窗口中启动；完成后可关闭窗口。"
 						: actionName + "脚本已启动。"
 				};
 			}
@@ -249,7 +274,9 @@ namespace MetaCompanion
 				return new RefreshTaskLaunchResult
 				{
 					Started = false,
-					Message = actionName + "脚本启动失败: " + summary
+					Message = SettingsDiagnostics.BuildUserFacingFailure(
+						actionName,
+						"请确认 Windows 脚本组件可用后重试")
 				};
 			}
 		}
@@ -297,7 +324,7 @@ namespace MetaCompanion
 			snapshot.LatestLogPath = latest.FullName;
 			snapshot.LatestLogTime = latest.LastWriteTime;
 			ApplyLatestLogOutcome(snapshot, latest.FullName);
-			snapshot.LatestLogSummaryLines = ReadLogTail(latest.FullName, LogTailLineCount);
+			snapshot.LatestLogSummaryLines = BuildLatestLogSummary(snapshot);
 		}
 
 		private static void ApplyLatestLogOutcome(RefreshTaskSnapshot snapshot, string path)
@@ -305,9 +332,31 @@ namespace MetaCompanion
 			try
 			{
 				var text = ReadAllTextShared(path);
+				var transcriptEnded =
+					text.IndexOf("Windows PowerShell 脚本结束", StringComparison.OrdinalIgnoreCase) >= 0 ||
+					text.IndexOf("Windows PowerShell transcript end", StringComparison.OrdinalIgnoreCase) >= 0;
+				var outcomeMatches = RefreshOutcomeRegex.Matches(text);
+				if (outcomeMatches.Count > 0)
+				{
+					var outcome = outcomeMatches[outcomeMatches.Count - 1]
+						.Groups["outcome"].Value;
+					snapshot.LatestLogFailed = string.Equals(
+						outcome, "FAILED", StringComparison.OrdinalIgnoreCase);
+					snapshot.LatestLogDeferred = string.Equals(
+						outcome, "DEFERRED", StringComparison.OrdinalIgnoreCase);
+					snapshot.LatestLogSucceeded = !snapshot.LatestLogFailed &&
+						!snapshot.LatestLogDeferred;
+					return;
+				}
+				if (transcriptEnded && text.IndexOf(
+						"本次停止分支与推荐刷新，请稍后重试",
+						StringComparison.OrdinalIgnoreCase) >= 0)
+				{
+					snapshot.LatestLogDeferred = true;
+					return;
+				}
 				snapshot.LatestLogFailed = RefreshFailureRegex.IsMatch(text);
-				snapshot.LatestLogSucceeded = !snapshot.LatestLogFailed &&
-					text.IndexOf("Windows PowerShell 脚本结束", StringComparison.OrdinalIgnoreCase) >= 0;
+				snapshot.LatestLogSucceeded = !snapshot.LatestLogFailed && transcriptEnded;
 			}
 			catch (IOException ex)
 			{
@@ -334,29 +383,40 @@ namespace MetaCompanion
 				.FirstOrDefault();
 		}
 
-		private static List<string> ReadLogTail(string path, int lineCount)
+		private static List<string> BuildLatestLogSummary(RefreshTaskSnapshot snapshot)
 		{
-			try
-			{
-				var lines = ReadAllTextShared(path)
-					.Split(new[] { "\r\n", "\n" }, StringSplitOptions.None)
-					.Where(line => !string.IsNullOrWhiteSpace(line))
-					.ToList();
-
-				return lines
-					.Skip(Math.Max(0, lines.Count - lineCount))
-					.Select(SanitizeLogLine)
-					.ToList();
-			}
-			catch (Exception ex)
+			if (snapshot.LatestLogBusy)
 			{
 				return new List<string>
 				{
-					ex is IOException
-						? "刷新正在运行，日志仍在写入；请稍后刷新状态，或看弹出的 PowerShell 窗口。"
-						: "日志摘要读取失败: " + SummarizeException(ex)
+					"数据刷新正在进行，请稍后点击“刷新状态”。"
 				};
 			}
+			if (snapshot.LatestLogFailed)
+			{
+				return new List<string>
+				{
+					"最近一次数据刷新失败。请先重试；仍失败时可打开刷新日志（开发者用，其中可能含英文技术信息）。"
+				};
+			}
+			if (snapshot.LatestLogDeferred)
+			{
+				return new List<string>
+				{
+					"HSReplay 当前补丁数据仍在生成；现有缓存已保留，请稍后重试。"
+				};
+			}
+			if (snapshot.LatestLogSucceeded)
+			{
+				return new List<string>
+				{
+					"最近一次数据刷新已完成。"
+				};
+			}
+			return new List<string>
+			{
+				"尚未确认刷新结果。请稍后点击“刷新状态”；刷新日志仅供排查，可能含英文技术信息。"
+			};
 		}
 
 		private static string ReadAllTextShared(string path)
@@ -372,11 +432,6 @@ namespace MetaCompanion
 			}
 		}
 
-		private static string SanitizeLogLine(string line)
-		{
-			return SanitizeDiagnosticText(line);
-		}
-
 		internal static string SanitizeDiagnosticText(string text)
 		{
 			if (string.IsNullOrWhiteSpace(text))
@@ -384,7 +439,8 @@ namespace MetaCompanion
 				return "";
 			}
 
-			var sanitized = CookieValueRegex.Replace(text, "$1=[redacted]");
+			var sanitized = CredentialValueRegex.Replace(text, "$1=[redacted]");
+			sanitized = BearerValueRegex.Replace(sanitized, "Bearer [redacted]");
 			return CollapseHtmlDiagnosticText(sanitized);
 		}
 
@@ -397,9 +453,13 @@ namespace MetaCompanion
 			}
 
 			var prefix = text.Substring(0, htmlIndex).TrimEnd();
-			if (prefix.EndsWith("Body:", StringComparison.OrdinalIgnoreCase))
+			foreach (var responsePrefix in new[] { "Body:", "Response:", "响应：", "响应:" })
 			{
-				prefix = prefix.Substring(0, prefix.Length - "Body:".Length).TrimEnd();
+				if (prefix.EndsWith(responsePrefix, StringComparison.OrdinalIgnoreCase))
+				{
+					prefix = prefix.Substring(0, prefix.Length - responsePrefix.Length).TrimEnd();
+					break;
+				}
 			}
 
 			var html = text.Substring(htmlIndex);
@@ -448,14 +508,14 @@ namespace MetaCompanion
 
 		private static string BuildToolsStatus(RefreshTaskSnapshot snapshot)
 		{
-			if (!snapshot.ToolsDirectoryExists || !snapshot.RefreshScriptExists)
+			if (snapshot.OptionalRefreshComponentsNotInstalled)
 			{
-				return "高级刷新脚本未安装";
+				return "可选自动刷新组件未安装；不影响现有数据、预测和实战建议。";
 			}
 
-			if (!snapshot.InstallScriptExists)
+			if (!snapshot.RefreshScriptsComplete)
 			{
-				return "高级刷新脚本不完整: 缺少 " + InstallScriptFileName;
+				return "高级自动刷新组件不完整，请安装完整组件。";
 			}
 
 			return "高级刷新脚本已安装";
@@ -465,16 +525,23 @@ namespace MetaCompanion
 		{
 			if (!string.IsNullOrWhiteSpace(snapshot.ScheduledTaskError))
 			{
-				return "自动刷新状态读取失败: " + snapshot.ScheduledTaskError;
+				return SettingsDiagnostics.BuildUserFacingFailure(
+					"读取自动刷新状态",
+					"请点击“刷新状态”重试");
 			}
 
-			if (!snapshot.RefreshScriptExists)
+			if (snapshot.OptionalRefreshComponentsNotInstalled)
+			{
+				return "可选自动刷新组件未安装；不影响现有数据、预测和实战建议。";
+			}
+
+			if (!snapshot.RefreshScriptsComplete)
 			{
 				if (snapshot.ScheduledTaskInstalled)
 				{
-					return "自动刷新计划任务已安装，但设置页脚本未安装";
+					return "自动刷新计划仍存在，但高级刷新组件不完整。";
 				}
-				return "自动刷新不可用: 缺少高级刷新脚本";
+				return "高级自动刷新组件不完整，暂时无法安装计划。";
 			}
 
 			if (snapshot.ScheduledTaskInstalled &&
@@ -485,7 +552,7 @@ namespace MetaCompanion
 			}
 
 			return snapshot.ScheduledTaskInstalled
-				? "自动刷新已安装: " + ScheduledTaskName
+				? "自动刷新已安装"
 				: "自动刷新未安装";
 		}
 
@@ -493,19 +560,25 @@ namespace MetaCompanion
 		{
 			if (!snapshot.LatestLogTime.HasValue)
 			{
-				return "最近刷新日志: 未找到";
+				return snapshot.OptionalRefreshComponentsNotInstalled
+					? "最近刷新日志: 未找到（可选自动刷新组件未安装）"
+					: "最近刷新日志: 未找到";
 			}
 
 			var outcome = snapshot.LatestLogBusy
 				? "刷新中"
 				: snapshot.LatestLogFailed
 				? "失败"
+				: snapshot.LatestLogDeferred
+					? "等待上游数据"
 				: snapshot.LatestLogSucceeded
 					? "完成"
 					: "状态未知";
-			var scriptState = snapshot.RefreshScriptExists
-				? ""
-				: "；设置页脚本未安装";
+			var scriptState = snapshot.OptionalRefreshComponentsNotInstalled
+				? "；可选自动刷新组件未安装"
+				: snapshot.RefreshScriptsComplete
+					? ""
+					: "；高级自动刷新组件不完整";
 			return "最近刷新日志: " +
 				snapshot.LatestLogTime.Value.ToString("yyyy-MM-dd HH:mm", CultureInfo.InvariantCulture) +
 				"（" + outcome + scriptState + "）";
@@ -554,10 +627,9 @@ namespace MetaCompanion
 				}
 				return info;
 			}
-			catch (COMException ex)
+			catch (Exception ex)
 			{
-				const int FileNotFoundHResult = unchecked((int)0x80070002);
-				if (ex.ErrorCode == FileNotFoundHResult)
+				if (IsScheduledTaskNotFound(ex))
 				{
 					return new RefreshScheduledTaskInfo();
 				}
@@ -569,6 +641,11 @@ namespace MetaCompanion
 				ReleaseComObject(rootFolder);
 				ReleaseComObject(service);
 			}
+		}
+
+		internal static bool IsScheduledTaskNotFound(Exception ex)
+		{
+			return ex != null && ex.HResult == ScheduledTaskNotFoundHResult;
 		}
 
 		private static void ReleaseComObject(object value)

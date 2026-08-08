@@ -37,9 +37,11 @@ namespace MetaCompanion
 					case MetaDeckLoadStatus.Ready:
 						return "牌组库已加载: " + DeckCount.ToString(CultureInfo.InvariantCulture) + " 套";
 					case MetaDeckLoadStatus.Empty:
-						return "牌组库不可用: 未加载到可用牌组快照";
+						return "牌组库暂不可用。请刷新本地数据后重试。";
 					case MetaDeckLoadStatus.Failed:
-						return "牌组库加载失败: " + ErrorSummary;
+						return SettingsDiagnostics.BuildUserFacingFailure(
+							"牌组库加载",
+							"请刷新本地数据后重试");
 					default:
 						return "牌组库加载中";
 				}

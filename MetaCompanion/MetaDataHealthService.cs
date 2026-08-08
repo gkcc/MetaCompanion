@@ -58,14 +58,16 @@ namespace MetaCompanion
 			}
 			catch (Exception ex)
 			{
+				// The settings page is a user boundary. Keep the original exception in the
+				// developer log, but never render an English CLR type or filesystem detail.
+				Log.Warn("Data health inspection failed: " + ex);
 				return new MetaDataHealthSnapshot
 				{
 					OverallStatus = MetaDataHealthOverallStatus.Error,
 					UserMessage = "\u6570\u636e\u5065\u5eb7\u68c0\u67e5\u5931\u8d25\uff0c\u8bf7\u91cd\u65b0\u751f\u6210\u6570\u636e\u5feb\u7167\u3002",
 					DetailLines = new List<string>
 					{
-						"\u8bfb\u53d6\u672c\u5730\u6570\u636e\u72b6\u6001\u65f6\u9047\u5230\u9519\u8bef: " +
-							ex.GetType().Name
+						"\u8bfb\u53d6\u672c\u5730\u6570\u636e\u72b6\u6001\u5931\u8d25\uff1b\u8be6\u7ec6\u539f\u56e0\u5df2\u5199\u5165\u5f00\u53d1\u8005\u65e5\u5fd7\u3002"
 					}
 				};
 			}
@@ -351,9 +353,9 @@ namespace MetaCompanion
 			var lines = new List<string>
 			{
 				BuildCountLine("HSReplay \u724c\u7ec4\u5e93", deck, "\u5957"),
-				BuildPresenceLine("Premium summary.json", summary),
-				BuildPresenceLine("Premium \u5bf9\u9635\u77e9\u9635", matrix),
-				BuildPresenceLine("Premium manifest.json", manifest)
+				BuildPresenceLine("\u9ad8\u7ea7\u6570\u636e\u73af\u5883\u6458\u8981", summary),
+				BuildPresenceLine("\u9ad8\u7ea7\u6570\u636e\u5bf9\u9635\u77e9\u9635", matrix),
+				BuildPresenceLine("\u9ad8\u7ea7\u6570\u636e\u6e05\u5355", manifest)
 			};
 
 			if (metaDeckLoad != null)
@@ -363,29 +365,38 @@ namespace MetaCompanion
 
 			if (manifest.Exists)
 			{
-				AddValueLine(lines, "\u8fdc\u7a0b\u65f6\u95f4\u8303\u56f4", manifest.SelectedTimeRange);
+				AddValueLine(
+					lines,
+					"\u8fdc\u7a0b\u65f6\u95f4\u8303\u56f4",
+					FormatTimeRange(manifest.SelectedTimeRange));
 				AddValueLine(lines, "\u8865\u4e01\u7248\u672c", manifest.PatchVersion);
 			}
 
 			lines.Add(BuildCountLine("\u4e2a\u4eba\u63a8\u8350", recommendations, "\u884c"));
 			lines.Add(BuildCountLine("\u672c\u5730\u73af\u5883\u6837\u672c", localEnvironment, "\u5c40"));
 			lines.Add(cookie.HasValue
-				? "Premium Cookie \u5df2\u914d\u7f6e"
-				: "Premium Cookie \u672a\u914d\u7f6e");
+				? "HSReplay \u9ad8\u7ea7\u6570\u636e\u767b\u5f55\u51ed\u636e\uff1a\u5df2\u914d\u7f6e"
+				: "HSReplay \u9ad8\u7ea7\u6570\u636e\u767b\u5f55\u51ed\u636e\uff1a\u672a\u914d\u7f6e");
 
-			var missingTools = new List<string>();
-			if (!updateTool.Exists)
-			{
-				missingTools.Add("Update-MetaCompanionData.ps1");
-			}
-			if (!refreshTool.Exists)
-			{
-				missingTools.Add("Run-MetaCompanionRefresh.ps1");
-			}
-			lines.Add(missingTools.Count == 0
-				? "\u5237\u65b0\u811a\u672c: \u5df2\u5b89\u88c5"
-				: "\u5237\u65b0\u811a\u672c\u7f3a\u5931: " + string.Join(", ", missingTools.ToArray()));
+			lines.Add(updateTool.Exists && refreshTool.Exists
+				? "\u6570\u636e\u5237\u65b0\u7ec4\u4ef6\uff1a\u5df2\u5b89\u88c5"
+				: "\u6570\u636e\u5237\u65b0\u7ec4\u4ef6\uff1a\u4e0d\u5b8c\u6574\uff0c\u8bf7\u91cd\u65b0\u5b89\u88c5\u63d2\u4ef6");
 			return lines.Where(line => !string.IsNullOrWhiteSpace(line)).ToList();
+		}
+
+		private static string FormatTimeRange(string value)
+		{
+			switch ((value ?? "").Trim().ToUpperInvariant())
+			{
+				case "CURRENT_PATCH": return "\u5f53\u524d\u8865\u4e01";
+				case "LAST_1_DAY": return "\u6700\u8fd1 1 \u5929";
+				case "LAST_3_DAYS": return "\u6700\u8fd1 3 \u5929";
+				case "LAST_7_DAYS": return "\u6700\u8fd1 7 \u5929";
+				case "LAST_30_DAYS": return "\u6700\u8fd1 30 \u5929";
+				case "CURRENT_EXPANSION": return "\u5f53\u524d\u6269\u5c55\u5305";
+				case "CURRENT_SEASON": return "\u5f53\u524d\u8d5b\u5b63";
+				default: return string.IsNullOrWhiteSpace(value) ? "" : "\u5176\u4ed6\u65f6\u95f4\u8303\u56f4";
+			}
 		}
 
 		private static string BuildUserMessage(
@@ -434,7 +445,7 @@ namespace MetaCompanion
 			}
 			if (snapshot.PremiumAvailable)
 			{
-				return "Premium \u6570\u636e\u5df2\u540c\u6b65\uff0c\u63a8\u8350\u6570\u636e\u672a\u751f\u6210";
+				return "\u9ad8\u7ea7\u6570\u636e\u5df2\u540c\u6b65\uff0c\u63a8\u8350\u6570\u636e\u5c1a\u672a\u751f\u6210";
 			}
 			if (snapshot.LocalHistoryAvailable)
 			{

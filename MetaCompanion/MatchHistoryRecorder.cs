@@ -4,6 +4,7 @@ using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Text;
+using System.Web.Script.Serialization;
 
 namespace MetaCompanion
 {
@@ -14,7 +15,9 @@ namespace MetaCompanion
 			"match_id\tstarted_at\tended_at\tformat\tmode\tresult\topponent_class\t" +
 			"predicted_archetype\tconfidence_pct\tconfidence_label\tpossible_decks\t" +
 			"evidence_cards\tremaining_deck_cards\tclosest_deck\tcandidate_archetypes\tend_reason\t" +
-			"replay_file\treplay_path\thsreplay_upload_id\thsreplay_url\tkey_evidence_cards";
+			"replay_file\treplay_path\thsreplay_upload_id\thsreplay_url\tkey_evidence_cards\t" +
+			"recognition_model\ttop_probability_pct\tunknown_probability_pct\t" +
+			"archetype_distribution_json";
 		public const string TimelineHeader =
 			"match_id\ttimestamp\topponent_class\ttop_archetype\tconfidence_pct\t" +
 			"confidence_label\tpossible_decks\tevidence_cards\tremaining_deck_cards\t" +
@@ -185,6 +188,9 @@ namespace MetaCompanion
 		private string BuildHistoryRow(DateTime endedAt, string reason)
 		{
 			var replay = _replayInfoProvider(_startedAt, _opponentClass) ?? HdtReplayInfo.Empty;
+			var distribution = BuildDistribution(_lastPrediction);
+			var knownProbability = distribution.Sum(candidate => candidate.Probability);
+			var topProbability = distribution.Count == 0 ? 0.0 : distribution[0].Probability;
 			return JoinTsv(new[]
 			{
 				_matchId,
@@ -211,7 +217,11 @@ namespace MetaCompanion
 				replay.ReplayPath,
 				replay.UploadId,
 				replay.ReplayUrl,
-				_lastPrediction.FormatKeyEvidence(6)
+				_lastPrediction.FormatKeyEvidence(6),
+				"prediction_softmax_v2_fit",
+				(topProbability * 100.0).ToString("0.######", CultureInfo.InvariantCulture),
+				((1.0 - knownProbability) * 100.0).ToString("0.######", CultureInfo.InvariantCulture),
+				SerializeDistribution(distribution, 1.0 - knownProbability)
 			});
 		}
 
@@ -299,6 +309,60 @@ namespace MetaCompanion
 					candidate.ConfidencePercent.ToString(CultureInfo.InvariantCulture) + "% score=" +
 					candidate.Score.ToString(CultureInfo.InvariantCulture) + " branchCount=" +
 					candidate.BranchCount.ToString(CultureInfo.InvariantCulture)));
+		}
+
+		private static List<PredictionInfo.ArchetypeCandidate> BuildDistribution(
+			PredictionInfo prediction)
+		{
+			var source = prediction?.ArchetypeDistribution ??
+				new List<PredictionInfo.ArchetypeCandidate>();
+			var grouped = source
+				.Where(candidate => candidate != null &&
+					!string.IsNullOrWhiteSpace(candidate.Name) &&
+					candidate.Probability > 0.0)
+				.GroupBy(candidate => candidate.Name, StringComparer.OrdinalIgnoreCase)
+				.Select(group => new PredictionInfo.ArchetypeCandidate(
+					group.First().Name,
+					(int)Math.Round(group.Sum(candidate => candidate.Probability) * 100.0),
+					group.Max(candidate => candidate.Score),
+					group.Sum(candidate => candidate.BranchCount),
+					group.Sum(candidate => candidate.Probability)))
+				.OrderByDescending(candidate => candidate.Probability)
+				.ThenBy(candidate => candidate.Name)
+				.ToList();
+			var total = grouped.Sum(candidate => candidate.Probability);
+			if (total <= 1.0)
+			{
+				return grouped;
+			}
+
+			return grouped
+				.Select(candidate => new PredictionInfo.ArchetypeCandidate(
+					candidate.Name,
+					(int)Math.Round(candidate.Probability / total * 100.0),
+					candidate.Score,
+					candidate.BranchCount,
+					candidate.Probability / total))
+				.ToList();
+		}
+
+		private static string SerializeDistribution(
+			IEnumerable<PredictionInfo.ArchetypeCandidate> distribution,
+			double unknownProbability)
+		{
+			var values = (distribution ?? Enumerable.Empty<PredictionInfo.ArchetypeCandidate>())
+				.Select(candidate => new Dictionary<string, object>
+					{
+						{ "name", candidate.Name },
+						{ "probability", Math.Round(candidate.Probability, 6) }
+					})
+				.ToList();
+			values.Add(new Dictionary<string, object>
+			{
+				{ "name", "Unknown" },
+				{ "probability", Math.Round(Math.Max(0.0, Math.Min(1.0, unknownProbability)), 6) }
+			});
+			return new JavaScriptSerializer().Serialize(values);
 		}
 
 		private static string ToTimestamp(DateTime value)

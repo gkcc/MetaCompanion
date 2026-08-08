@@ -14,7 +14,8 @@ namespace MetaCompanion
 			int? remainingDeckCards = null, string closestDeckName = null,
 			List<CardInfo> closestDeckRemainingCards = null,
 			List<ArchetypeCandidate> candidateArchetypes = null,
-			List<Card> keyEvidenceCards = null)
+			List<Card> keyEvidenceCards = null,
+			List<ArchetypeCandidate> archetypeDistribution = null)
 		{
 			NumPossibleDecks = numPossibleDecks;
 			NumPossibleCards = numPossibleCards;
@@ -23,6 +24,7 @@ namespace MetaCompanion
 			CandidateDeckNames = candidateDeckNames ?? new List<string>();
 			CandidateArchetypes = candidateArchetypes ??
 				CandidateDeckNames.Select(name => new ArchetypeCandidate(name, 0, 0, 0)).ToList();
+			ArchetypeDistribution = archetypeDistribution ?? CandidateArchetypes;
 			EvidenceCards = evidenceCards;
 			RemainingDeckCards = remainingDeckCards;
 			ClosestDeckName = closestDeckName;
@@ -49,6 +51,8 @@ namespace MetaCompanion
 		public List<string> CandidateDeckNames { get; }
 
 		public List<ArchetypeCandidate> CandidateArchetypes { get; }
+
+		public List<ArchetypeCandidate> ArchetypeDistribution { get; }
 
 		public int EvidenceCards { get; }
 
@@ -132,17 +136,30 @@ namespace MetaCompanion
 		public class ArchetypeCandidate
 		{
 			public ArchetypeCandidate(string name, int confidencePercent, int score, int branchCount)
+				: this(name, confidencePercent, score, branchCount,
+					Math.Max(0.0, Math.Min(1.0, confidencePercent / 100.0)))
+			{
+			}
+
+			internal ArchetypeCandidate(
+				string name,
+				int confidencePercent,
+				int score,
+				int branchCount,
+				double probability)
 			{
 				Name = name;
 				ConfidencePercent = confidencePercent;
 				Score = score;
 				BranchCount = branchCount;
+				Probability = Math.Max(0.0, Math.Min(1.0, probability));
 			}
 
 			public string Name { get; }
 			public int ConfidencePercent { get; }
 			public int Score { get; }
 			public int BranchCount { get; }
+			public double Probability { get; }
 
 			public override string ToString()
 			{

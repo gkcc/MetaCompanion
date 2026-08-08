@@ -68,10 +68,14 @@ namespace MetaCompanionTests.Tests
 			StringAssert.Contains(historyLines[0], "replay_file");
 			StringAssert.Contains(historyLines[0], "hsreplay_url");
 			StringAssert.Contains(historyLines[0], "key_evidence_cards");
+			StringAssert.Contains(historyLines[0], "archetype_distribution_json");
 			StringAssert.Contains(historyLines[1], "game.hdtreplay");
 			StringAssert.Contains(historyLines[1], "abc123");
 			StringAssert.Contains(historyLines[1], "score=300 branchCount=2");
 			StringAssert.Contains(historyLines[1], "Deadly Shotx2");
+			StringAssert.Contains(historyLines[1], "prediction_softmax_v2_fit");
+			StringAssert.Contains(historyLines[1], "\"name\":\"Spell Hunter\"");
+			StringAssert.Contains(historyLines[1], "\"name\":\"Unknown\"");
 			StringAssert.Contains(timelineLines[0], "key_evidence_cards");
 			StringAssert.Contains(timelineLines[1], "score=300 branchCount=2");
 		}

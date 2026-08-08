@@ -84,11 +84,15 @@ namespace MetaCompanionTests.Tests
 			Assert.AreEqual(
 				"\u5bf9\u5c40\u9884\u6d4b\u4e0e\u63a8\u8350\u6570\u636e\u53ef\u7528",
 				snapshot.UserMessage);
-			StringAssert.Contains(details, "\u8fdc\u7a0b\u65f6\u95f4\u8303\u56f4: CURRENT_PATCH");
+			StringAssert.Contains(details, "\u8fdc\u7a0b\u65f6\u95f4\u8303\u56f4: \u5f53\u524d\u8865\u4e01");
 			StringAssert.Contains(details, "\u8865\u4e01\u7248\u672c: 35.6.2");
 			StringAssert.Contains(details, "\u4e2a\u4eba\u63a8\u8350: 2 \u884c");
 			StringAssert.Contains(details, "\u672c\u5730\u73af\u5883\u6837\u672c: 7 \u5c40");
-			StringAssert.Contains(details, "Premium Cookie \u5df2\u914d\u7f6e");
+			StringAssert.Contains(details, "HSReplay \u9ad8\u7ea7\u6570\u636e\u767b\u5f55\u51ed\u636e\uff1a\u5df2\u914d\u7f6e");
+			Assert.IsFalse(details.Contains("CURRENT_PATCH"));
+			Assert.IsFalse(details.Contains("summary.json"));
+			Assert.IsFalse(details.Contains("manifest.json"));
+			Assert.IsFalse(details.Contains("Cookie"));
 			Assert.IsFalse(details.Contains("secret-cookie-value"));
 		}
 
@@ -107,6 +111,10 @@ namespace MetaCompanionTests.Tests
 			StringAssert.Contains(
 				snapshot.UserMessage,
 				"\u6570\u636e\u5065\u5eb7\u68c0\u67e5\u5931\u8d25");
+			var details = Details(snapshot);
+			StringAssert.Contains(details, "\u5f00\u53d1\u8005\u65e5\u5fd7");
+			Assert.IsFalse(details.Contains("InvalidDataException"));
+			Assert.IsFalse(details.Contains("manifest.json"));
 		}
 
 		[TestMethod]
@@ -124,9 +132,9 @@ namespace MetaCompanionTests.Tests
 			Assert.AreEqual(
 				"\u5bf9\u5c40\u9884\u6d4b\u4e0e\u63a8\u8350\u6570\u636e\u53ef\u7528\uff0c\u5237\u65b0\u811a\u672c\u7f3a\u5931",
 				snapshot.UserMessage);
-			StringAssert.Contains(details, "\u5237\u65b0\u811a\u672c\u7f3a\u5931");
-			StringAssert.Contains(details, "Update-MetaCompanionData.ps1");
-			StringAssert.Contains(details, "Run-MetaCompanionRefresh.ps1");
+			StringAssert.Contains(details, "\u6570\u636e\u5237\u65b0\u7ec4\u4ef6\uff1a\u4e0d\u5b8c\u6574");
+			StringAssert.Contains(details, "\u8bf7\u91cd\u65b0\u5b89\u88c5\u63d2\u4ef6");
+			Assert.IsFalse(details.Contains(".ps1"));
 		}
 
 		[TestMethod]
@@ -141,11 +149,13 @@ namespace MetaCompanionTests.Tests
 
 			var snapshot = Inspect();
 
-			StringAssert.Contains(Details(snapshot), "Premium Cookie \u672a\u914d\u7f6e");
+			StringAssert.Contains(
+				Details(snapshot),
+				"HSReplay \u9ad8\u7ea7\u6570\u636e\u767b\u5f55\u51ed\u636e\uff1a\u672a\u914d\u7f6e");
 		}
 
 		[TestMethod]
-		public void Inspect_MetaDeckLoadFailure_ShowsFailureSummary()
+		public void Inspect_MetaDeckLoadFailure_HidesTechnicalSummaryFromUser()
 		{
 			WriteFullPremiumData();
 			WriteTools();
@@ -157,11 +167,15 @@ namespace MetaCompanionTests.Tests
 					_now));
 
 			var snapshot = Inspect();
+			var stored = MetaDeckLoadStatusStore.Read(_tempDirectory);
 
 			Assert.AreEqual(MetaDataHealthOverallStatus.Error, snapshot.OverallStatus);
 			StringAssert.Contains(snapshot.UserMessage, "牌组库加载失败");
-			StringAssert.Contains(snapshot.UserMessage, "broken snapshot");
-			StringAssert.Contains(Details(snapshot), "InvalidDataException: broken snapshot");
+			StringAssert.Contains(snapshot.UserMessage, "刷新本地数据后重试");
+			Assert.IsFalse(snapshot.UserMessage.Contains("broken snapshot"));
+			Assert.IsFalse(Details(snapshot).Contains("InvalidDataException"));
+			Assert.IsFalse(Details(snapshot).Contains("broken snapshot"));
+			Assert.AreEqual("InvalidDataException: broken snapshot", stored.ErrorSummary);
 		}
 
 		private MetaDataHealthSnapshot Inspect()

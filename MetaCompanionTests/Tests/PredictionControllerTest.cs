@@ -193,6 +193,72 @@ namespace MetaCompanionTests.Tests
 		}
 
 		[TestMethod]
+		public void CandidateArchetypeDistribution_PreservesKnownMassBeyondDisplayedTopThree()
+		{
+			AddMetaDeck("Hunter", new List<string> {"Tracking"});
+			_metaDecks[0].Name = "Tracking Hunter";
+			AddMetaDeck("Hunter", new List<string> {"Alleycat"});
+			_metaDecks[1].Name = "Beast Hunter";
+			AddMetaDeck("Hunter", new List<string> {"Bear Trap"});
+			_metaDecks[2].Name = "Secret Hunter";
+			AddMetaDeck("Hunter", new List<string> {"Deadly Shot"});
+			_metaDecks[3].Name = "Control Hunter";
+			var tracking = Database.GetCardFromName("Tracking");
+			var knownCards = new Dictionary<string, int> {{tracking.Id, 1}};
+
+			var distribution = PredictionController.BuildCandidateArchetypeDistribution(
+				_metaDecks, knownCards, 1);
+			var displayed = PredictionController.BuildCandidateArchetypes(
+				_metaDecks, knownCards, 1);
+
+			Assert.AreEqual(4, distribution.Count);
+			Assert.AreEqual(3, displayed.Count);
+			Assert.AreEqual(0.375, distribution.Sum(candidate => candidate.Probability), 0.000001);
+			Assert.IsTrue(
+				displayed.Sum(candidate => candidate.Probability) <
+				distribution.Sum(candidate => candidate.Probability));
+			Assert.AreEqual("Tracking Hunter", distribution[0].Name);
+		}
+
+		[TestMethod]
+		public void CandidateArchetypeDistribution_ReservesUnknownForPoorCatalogFit()
+		{
+			AddMetaDeck("Hunter", new List<string> {"Tracking"});
+			_metaDecks[0].Name = "Tracking Hunter";
+			var tracking = Database.GetCardFromName("Tracking");
+			var deadlyShot = Database.GetCardFromName("Deadly Shot");
+			var knownCards = new Dictionary<string, int>
+			{
+				{tracking.Id, 1},
+				{deadlyShot.Id, 1}
+			};
+
+			var distribution = PredictionController.BuildCandidateArchetypeDistribution(
+				_metaDecks, knownCards, 2);
+
+			Assert.AreEqual(0.125, distribution.Sum(candidate => candidate.Probability), 0.000001);
+		}
+
+		[TestMethod]
+		public void CandidateArchetypeDistribution_AutomaticRecognitionKeepsFivePercentUnknown()
+		{
+			var cardNames = new List<string>
+			{
+				"Tracking", "Animal Companion", "Deadly Shot", "Flare", "Arcane Shot", "Alleycat"
+			};
+			AddMetaDeck("Hunter", cardNames);
+			_metaDecks[0].Name = "Complete Hunter";
+			var knownCards = cardNames
+				.Select(name => Database.GetCardFromName(name))
+				.ToDictionary(card => card.Id, card => 1);
+
+			var distribution = PredictionController.BuildCandidateArchetypeDistribution(
+				_metaDecks, knownCards, 6);
+
+			Assert.AreEqual(0.95, distribution.Sum(candidate => candidate.Probability), 0.000001);
+		}
+
+		[TestMethod]
 		public void CandidateArchetype_UsesFullClassEvidenceAfterSequentialFilterNarrowsTooFar()
 		{
 			var opponent = new MockOpponent("Hunter");

@@ -10,12 +10,21 @@ using System.Windows.Media;
 
 namespace MetaCompanion
 {
+	internal enum LocalSampleActionKind
+	{
+		ApplyFilters,
+		Clear,
+		RestoreCurrentPatch
+	}
+
 	internal class MetaDashboardPanel : Border
 	{
 		private const double DistributionBarWidth = 318.0;
 		private const double ClassOverviewBarHeight = 10.0;
 		private const double DistributionBarHeight = 16.0;
 		private const double MinScaledBarWidth = 18.0;
+		private const string LoadFailureStatus =
+			"\u9700\u5904\u7406\uff1a\u63a8\u8350\u9762\u677f\u6682\u65f6\u65e0\u6cd5\u52a0\u8f7d\u3002\u8bf7\u5728\u8bbe\u7f6e\u9875\u5237\u65b0\u6216\u91cd\u65b0\u751f\u6210\u6570\u636e\u3002";
 		private const string DashboardToolTip =
 			"\u4f20\u7edf\u5bf9\u6218\u5165\u53e3\u663e\u793a\u3002\u63a8\u8350\u6765\u81ea HSReplay \u5bf9\u9635\u80dc\u7387\u548c\u672c\u5730\u8fd1\u671f\u5bf9\u624b\u5206\u5e03\uff0c\u4e0d\u662f\u5f53\u524d\u5bf9\u624b\u5b9e\u65f6\u8bc6\u522b\u3002\u8fdb\u5165\u5b9e\u9645\u5bf9\u5c40\u540e\u4f1a\u81ea\u52a8\u9690\u85cf\u3002";
 		private const string RecommendationsToolTip =
@@ -31,6 +40,7 @@ namespace MetaCompanion
 
 		private readonly Action _closeAction;
 		private readonly Func<string, string, bool> _correctionAction;
+		private readonly Action<LocalSampleActionKind, int, int> _localSampleAction;
 		private readonly TextBlock _title;
 		private readonly TextBlock _subtitle;
 		private readonly StackPanel _lastGame;
@@ -38,18 +48,45 @@ namespace MetaCompanion
 		private readonly StackPanel _environmentChart;
 		private readonly StackPanel _environment;
 		private readonly Grid _header;
+		private readonly Dictionary<int, Button> _localSampleDayPresetButtons =
+			new Dictionary<int, Button>();
+		private readonly Dictionary<int, Button> _localSampleMatchPresetButtons =
+			new Dictionary<int, Button>();
+		private Expander _localSampleExpander;
+		private TextBlock _localSampleHeader;
+		private TextBlock _localSampleActionStatus;
+		private Button _applyLocalSampleButton;
+		private Button _clearLocalSampleButton;
+		private Button _restoreLocalSampleButton;
 		private TextBox _correctionTextBox;
 		private MetaDashboardLastGame _currentLastGame;
+		private int _localSampleDays = 3;
+		private int _localSampleMatches;
+		private int _appliedLocalSampleDays = 3;
+		private int _appliedLocalSampleMatches;
+		private int _localSampleGames;
+		private bool _localSamplesCleared;
+		private bool _localSampleBusy;
+		private bool _hasPendingLocalSampleSelection;
 
 		public MetaDashboardPanel(Action closeAction)
-			: this(closeAction, null)
+			: this(closeAction, null, null)
 		{
 		}
 
 		public MetaDashboardPanel(Action closeAction, Func<string, string, bool> correctionAction)
+			: this(closeAction, correctionAction, null)
+		{
+		}
+
+		internal MetaDashboardPanel(
+			Action closeAction,
+			Func<string, string, bool> correctionAction,
+			Action<LocalSampleActionKind, int, int> localSampleAction)
 		{
 			_closeAction = closeAction;
 			_correctionAction = correctionAction;
+			_localSampleAction = localSampleAction;
 			Width = 368;
 			Background = Brush("#EA171E27");
 			BorderBrush = Brush("#806D7C8C");
@@ -81,7 +118,7 @@ namespace MetaCompanion
 
 			var close = new Button
 			{
-				Content = "x",
+				Content = "\u00d7",
 				Width = 24,
 				Height = 22,
 				Padding = new Thickness(0),
@@ -98,14 +135,15 @@ namespace MetaCompanion
 				Foreground = Brush("#FFA4B8CC"),
 				FontSize = 11,
 				Margin = new Thickness(0, 2, 0, 9),
-				TextTrimming = TextTrimming.CharacterEllipsis,
+				TextWrapping = TextWrapping.Wrap,
+				TextTrimming = TextTrimming.None,
 				ToolTip = DashboardToolTip
 			};
 			root.Children.Add(_subtitle);
+			root.Children.Add(CreateLocalSampleControls());
 
-			root.Children.Add(SectionTitle("\u6700\u8fd1\u4e00\u5c40\u8bc6\u522b", LastGameToolTip));
-			_lastGame = new StackPanel { Margin = new Thickness(0, 4, 0, 9) };
-			root.Children.Add(_lastGame);
+			// 最近一局仍保留在底层数据中，但不再占用流派推荐面板布局。
+			_lastGame = new StackPanel();
 
 			root.Children.Add(SectionTitle("\u63a8\u8350\u6d41\u6d3e", RecommendationsToolTip));
 			_recommendations = new StackPanel { Margin = new Thickness(0, 4, 0, 9) };
@@ -121,17 +159,269 @@ namespace MetaCompanion
 
 		public UIElement DragHandle => _header;
 		internal StackPanel LastGamePanel => _lastGame;
+		internal StackPanel RecommendationsPanel => _recommendations;
 		internal StackPanel EnvironmentChartPanel => _environmentChart;
 		internal StackPanel EnvironmentListPanel => _environment;
+		internal Expander LocalSampleExpander => _localSampleExpander;
+		internal IDictionary<int, Button> LocalSampleDayPresetButtons =>
+			_localSampleDayPresetButtons;
+		internal IDictionary<int, Button> LocalSampleMatchPresetButtons =>
+			_localSampleMatchPresetButtons;
+		internal TextBlock LocalSampleActionStatus => _localSampleActionStatus;
+		internal Button ApplyLocalSampleButton => _applyLocalSampleButton;
+		internal Button ClearLocalSampleButton => _clearLocalSampleButton;
+		internal Button RestoreLocalSampleButton => _restoreLocalSampleButton;
+		internal bool HasPendingLocalSampleSelection => _hasPendingLocalSampleSelection;
+
+		private UIElement CreateLocalSampleControls()
+		{
+			_localSampleHeader = new TextBlock
+			{
+				Foreground = Brush("#FFBFD0E0"),
+				FontSize = 11,
+				FontWeight = FontWeights.SemiBold,
+				TextWrapping = TextWrapping.Wrap
+			};
+			_localSampleExpander = new Expander
+			{
+				Header = _localSampleHeader,
+				IsExpanded = false,
+				Margin = new Thickness(0, 0, 0, 9),
+				ToolTip = "本地样本只用于流派推荐加权。最近天数和最近场数同时生效，且始终不会越过当前补丁起点。"
+			};
+
+			var body = new StackPanel();
+			body.Children.Add(CreateLocalSamplePresetRow(
+				"天数",
+				new[] { 0, 1, 3, 7, 14, 30 },
+				true));
+			body.Children.Add(CreateLocalSamplePresetRow(
+				"场数",
+				new[] { 0, 10, 20, 50, 100 },
+				false));
+
+			var actions = new WrapPanel();
+			_applyLocalSampleButton = ActionButton("应用筛选", () =>
+				SubmitLocalSampleAction(LocalSampleActionKind.ApplyFilters));
+			_clearLocalSampleButton = ActionButton("清空数据", () =>
+				SubmitLocalSampleAction(LocalSampleActionKind.Clear));
+			_restoreLocalSampleButton = ActionButton("恢复本补丁全部", () =>
+				SubmitLocalSampleAction(LocalSampleActionKind.RestoreCurrentPatch));
+			_restoreLocalSampleButton.MinWidth = 102;
+			actions.Children.Add(_applyLocalSampleButton);
+			actions.Children.Add(_clearLocalSampleButton);
+			actions.Children.Add(_restoreLocalSampleButton);
+			body.Children.Add(actions);
+
+			_localSampleActionStatus = new TextBlock
+			{
+				Foreground = Brush("#FFA4B8CC"),
+				FontSize = 10,
+				TextWrapping = TextWrapping.Wrap,
+				Margin = new Thickness(0, 5, 0, 0)
+			};
+			body.Children.Add(_localSampleActionStatus);
+
+			_localSampleExpander.Content = new Border
+			{
+				Background = Brush("#401F2A34"),
+				BorderBrush = Brush("#506D7C8C"),
+				BorderThickness = new Thickness(1),
+				CornerRadius = new CornerRadius(3),
+				Padding = new Thickness(8, 7, 8, 7),
+				Margin = new Thickness(0, 4, 0, 0),
+				Child = body
+			};
+			SetLocalSampleState(3, 0, false, "", false);
+			return _localSampleExpander;
+		}
+
+		private UIElement CreateLocalSamplePresetRow(
+			string label,
+			IEnumerable<int> values,
+			bool isDays)
+		{
+			var row = new WrapPanel
+			{
+				Margin = new Thickness(0, 0, 0, 6)
+			};
+			row.Children.Add(new TextBlock
+			{
+				Text = label,
+				Width = 34,
+				Foreground = Brush("#FFD6E2EE"),
+				FontSize = 10.5,
+				VerticalAlignment = VerticalAlignment.Center
+			});
+			foreach (var value in values)
+			{
+				var preset = value;
+				var text = isDays
+					? value == 0 ? "本补丁" : value.ToString(CultureInfo.InvariantCulture) + "天"
+					: value == 0 ? "不限" : value.ToString(CultureInfo.InvariantCulture) + "场";
+				var button = ActionButton(text, () => SelectLocalSamplePreset(isDays, preset));
+				button.MinWidth = value == 0 && isDays ? 48 : 38;
+				button.Padding = new Thickness(5, 2, 5, 2);
+				button.Margin = new Thickness(0, 0, 4, 0);
+				if (isDays)
+				{
+					_localSampleDayPresetButtons[value] = button;
+				}
+				else
+				{
+					_localSampleMatchPresetButtons[value] = button;
+				}
+				row.Children.Add(button);
+			}
+			return row;
+		}
+
+		private void SelectLocalSamplePreset(bool isDays, int value)
+		{
+			if (_localSampleBusy)
+			{
+				return;
+			}
+			if (isDays)
+			{
+				_localSampleDays = value;
+			}
+			else
+			{
+				_localSampleMatches = value;
+			}
+			_hasPendingLocalSampleSelection =
+				_localSampleDays != _appliedLocalSampleDays ||
+				_localSampleMatches != _appliedLocalSampleMatches;
+			_localSampleActionStatus.Text = "已选择 " + FormatLocalSampleWindow() +
+				"，点击“应用筛选”后生效。";
+			RefreshLocalSampleHeader();
+			RefreshLocalSampleButtons();
+		}
+
+		internal void SetLocalSampleState(
+			int historyDays,
+			int historyMatches,
+			bool wasCleared,
+			string actionStatus,
+			bool isBusy)
+		{
+			_appliedLocalSampleDays = Math.Max(0, Math.Min(365, historyDays));
+			_appliedLocalSampleMatches = Math.Max(0, Math.Min(10000, historyMatches));
+			_localSampleDays = _appliedLocalSampleDays;
+			_localSampleMatches = _appliedLocalSampleMatches;
+			_hasPendingLocalSampleSelection = false;
+			_localSamplesCleared = wasCleared;
+			_localSampleBusy = isBusy;
+			if (_localSampleActionStatus != null)
+			{
+				_localSampleActionStatus.Text = actionStatus ?? "";
+			}
+			RefreshLocalSampleHeader();
+			RefreshLocalSampleButtons();
+		}
+
+		private void RefreshLocalSampleHeader()
+		{
+			if (_localSampleHeader == null)
+			{
+				return;
+			}
+			if (_localSamplesCleared)
+			{
+				_localSampleHeader.Text = "本地样本 · 已清空后新增 " +
+					_localSampleGames.ToString(CultureInfo.InvariantCulture) + " 局";
+				return;
+			}
+			_localSampleHeader.Text = "本地样本 · " + FormatLocalSampleWindow() + " · " +
+				_localSampleGames.ToString(CultureInfo.InvariantCulture) + " 局";
+		}
+
+		private string FormatLocalSampleWindow()
+		{
+			var days = _localSampleDays == 0
+				? "本补丁全部天数"
+				: "最近 " + _localSampleDays.ToString(CultureInfo.InvariantCulture) + " 天";
+			var matches = _localSampleMatches == 0
+				? "不限场数"
+				: "最近 " + _localSampleMatches.ToString(CultureInfo.InvariantCulture) + " 场";
+			return days + " / " + matches;
+		}
+
+		private void RefreshLocalSampleButtons()
+		{
+			var enabled = !_localSampleBusy && _localSampleAction != null;
+			if (_applyLocalSampleButton != null)
+			{
+				_applyLocalSampleButton.IsEnabled = enabled;
+				_clearLocalSampleButton.IsEnabled = enabled;
+				_restoreLocalSampleButton.IsEnabled = enabled;
+			}
+			foreach (var pair in _localSampleDayPresetButtons)
+			{
+				StyleLocalSamplePresetButton(pair.Value, pair.Key == _localSampleDays, enabled);
+			}
+			foreach (var pair in _localSampleMatchPresetButtons)
+			{
+				StyleLocalSamplePresetButton(pair.Value, pair.Key == _localSampleMatches, enabled);
+			}
+		}
+
+		private static void StyleLocalSamplePresetButton(
+			Button button,
+			bool selected,
+			bool enabled)
+		{
+			if (button == null)
+			{
+				return;
+			}
+			button.IsEnabled = enabled;
+			button.Background = Brush(selected ? "#FF2F6F89" : "#FF25313B");
+			button.Foreground = Brush(selected ? "#FFFFFFFF" : "#FFBFD0E0");
+			button.BorderBrush = Brush(selected ? "#FF7DD3FC" : "#FF596773");
+			button.FontWeight = selected ? FontWeights.SemiBold : FontWeights.Normal;
+		}
+
+		private void SubmitLocalSampleAction(LocalSampleActionKind action)
+		{
+			if (_localSampleBusy || _localSampleAction == null)
+			{
+				return;
+			}
+			_localSampleAction(action, _localSampleDays, _localSampleMatches);
+		}
 
 		public void Update(string title, MetaDashboardSnapshot snapshot)
 		{
+			try
+			{
+				UpdateCore(title, snapshot);
+			}
+			catch (Exception ex)
+			{
+				Log.Warn("Meta dashboard panel update failed: " + ex);
+				ShowLoadFailure(title);
+			}
+		}
+
+		private void UpdateCore(string title, MetaDashboardSnapshot snapshot)
+		{
 			_title.Text = title ?? "\u5361\u7ec4\u6d41\u6d3e\u63a8\u8350";
 			_title.ToolTip = DashboardToolTip;
-			if (snapshot == null || (!snapshot.HasContent && snapshot.LastGame == null))
+			if (snapshot == null)
 			{
-				_subtitle.Text = "\u6682\u65e0\u672c\u5730\u63a8\u8350\u7f13\u5b58";
-				FillItems(_recommendations, Enumerable.Empty<MetaDashboardItem>(),
+				ShowLoadFailure(title);
+				return;
+			}
+
+			_localSampleGames = GetSampleGames(snapshot);
+			RefreshLocalSampleHeader();
+			_subtitle.Text = BuildSubtitle(snapshot);
+			_subtitle.ToolTip = BuildSubtitleToolTip(snapshot);
+			if (!snapshot.HasContent && snapshot.LastGame == null)
+			{
+				FillRecommendations(Enumerable.Empty<MetaDashboardItem>(),
 					"\u5148\u8fd0\u884c\u4e00\u6b21\u6570\u636e\u66f4\u65b0\u540e\u663e\u793a\u63a8\u8350");
 				FillLastGame(null);
 				FillEnvironmentChart(_environmentChart, Enumerable.Empty<MetaDashboardClassDistribution>());
@@ -139,12 +429,27 @@ namespace MetaCompanion
 				return;
 			}
 
-			_subtitle.Text = BuildSubtitle(snapshot);
-			_subtitle.ToolTip = BuildSubtitleToolTip(snapshot);
 			FillLastGame(snapshot.LastGame);
-			FillItems(_recommendations, snapshot.Recommendations, "\u6682\u65e0\u63a8\u8350\u7ed3\u679c");
+			FillRecommendations(snapshot.Recommendations, "\u6682\u65e0\u63a8\u8350\u7ed3\u679c");
 			FillEnvironmentChart(_environmentChart, snapshot.EnvironmentClasses);
 			FillItems(_environment, snapshot.Environment, "\u6682\u65e0\u8fd1\u671f\u5bf9\u624b\u5206\u5e03");
+		}
+
+		internal void ShowLoadFailure(string title)
+		{
+			_title.Text = title ?? "\u5361\u7ec4\u6d41\u6d3e\u63a8\u8350";
+			_title.ToolTip = DashboardToolTip;
+			_localSampleGames = 0;
+			RefreshLocalSampleHeader();
+			_subtitle.Text = LoadFailureStatus;
+			_subtitle.ToolTip = LoadFailureStatus;
+			FillLastGame(null);
+			FillRecommendations(Enumerable.Empty<MetaDashboardItem>(),
+				"\u8bf7\u5728\u8bbe\u7f6e\u9875\u5237\u65b0\u6570\u636e\u540e\u91cd\u8bd5");
+			FillEnvironmentChart(
+				_environmentChart, Enumerable.Empty<MetaDashboardClassDistribution>());
+			FillItems(_environment, Enumerable.Empty<MetaDashboardItem>(),
+				"\u6682\u65e0\u53ef\u7528\u7684\u8fd1\u671f\u5bf9\u624b\u5206\u5e03");
 		}
 
 		private void FillLastGame(MetaDashboardLastGame item)
@@ -217,10 +522,12 @@ namespace MetaCompanion
 				_lastGame.Children.Add(new TextBlock
 				{
 					Text = (index + 1).ToString(CultureInfo.InvariantCulture) + ". " +
-						candidate.Name + " " +
+						MetaDashboardSnapshot.FormatArchetypeDisplayName(candidate.Name) + " " +
 						candidate.ConfidencePercent.ToString(CultureInfo.InvariantCulture) +
-						"% score " + candidate.Score.ToString(CultureInfo.InvariantCulture) +
-						" branchCount " + candidate.BranchCount.ToString(CultureInfo.InvariantCulture),
+						(candidate.IsProbability
+							? "%"
+							: "% / \u5339\u914d\u5206 " + candidate.Score.ToString(CultureInfo.InvariantCulture) +
+								" / \u5206\u652f " + candidate.BranchCount.ToString(CultureInfo.InvariantCulture)),
 					Foreground = Brush("#FFBFD0E0"),
 					FontSize = 10.5,
 					Margin = new Thickness(0, index == 0 ? 4 : 1, 0, 0),
@@ -239,7 +546,7 @@ namespace MetaCompanion
 
 			_lastGame.Children.Add(new TextBlock
 			{
-				Text = "\u5173\u952e\u8bc1\u636e: " + string.Join(", ", item.KeyEvidenceCards.ToArray()),
+				Text = "\u5173\u952e\u8bc1\u636e\uff1a" + string.Join("\u3001", item.KeyEvidenceCards.ToArray()),
 				Foreground = Brush("#FFA4B8CC"),
 				FontSize = 10.5,
 				Margin = new Thickness(0, 4, 0, 0),
@@ -268,7 +575,8 @@ namespace MetaCompanion
 				? new List<string>()
 				: item.Candidates
 					.Select(candidate => candidate.Name)
-					.Where(name => !string.IsNullOrWhiteSpace(name))
+					.Where(name => !string.IsNullOrWhiteSpace(name) &&
+						!MetaDashboardSnapshot.IsUnknownArchetypePlaceholder(name))
 					.Distinct()
 					.ToList();
 
@@ -365,8 +673,11 @@ namespace MetaCompanion
 			}
 			catch (Exception ex)
 			{
+				Log.Warn("Unable to open dashboard target: " + ex);
 				MessageBox.Show(
-					"\u6253\u5f00\u5931\u8d25: " + ex.Message,
+					SettingsDiagnostics.BuildUserFacingFailure(
+						"打开内容",
+						"请确认文件或链接仍然有效后重试"),
 					"Meta Companion",
 					MessageBoxButton.OK,
 					MessageBoxImage.Warning);
@@ -416,22 +727,41 @@ namespace MetaCompanion
 
 		private static string BuildSubtitle(MetaDashboardSnapshot snapshot)
 		{
-			var text = snapshot.UpdatedAt.HasValue
-				? "\u66f4\u65b0 " + snapshot.UpdatedAt.Value.ToString("MM-dd HH:mm")
-				: "\u8bfb\u53d6\u672c\u5730\u7f13\u5b58";
+			if (snapshot == null)
+			{
+				return LoadFailureStatus;
+			}
+
+			var parts = new List<string>();
+			if (!string.IsNullOrWhiteSpace(snapshot.UserStatusMessage))
+			{
+				parts.Add(snapshot.UserStatusMessage);
+			}
+			if (snapshot.UpdatedAt.HasValue)
+			{
+				parts.Add("\u66f4\u65b0 " + snapshot.UpdatedAt.Value.ToString("MM-dd HH:mm"));
+			}
 			var sampleGames = GetSampleGames(snapshot);
 			var remoteSource = GetRemoteSourceText(snapshot);
-			var sampleText = sampleGames > 0
-				? text + " \u00b7 \u6837\u672c " + sampleGames.ToString(CultureInfo.InvariantCulture) + "\u5c40"
-				: text;
-			return string.IsNullOrWhiteSpace(remoteSource)
-				? sampleText
-				: sampleText + " \u00b7 \u8fdc\u7a0b " + remoteSource;
+			if (sampleGames > 0)
+			{
+				parts.Add("\u6837\u672c " +
+					sampleGames.ToString(CultureInfo.InvariantCulture) + "\u5c40");
+			}
+			var summary = string.Join(" \u00b7 ", parts.ToArray());
+			if (string.IsNullOrWhiteSpace(remoteSource))
+				return summary;
+			return (string.IsNullOrWhiteSpace(summary) ? "" : summary + Environment.NewLine) +
+				"\u8fdc\u7a0b " + remoteSource;
 		}
 
 		private static string BuildSubtitleToolTip(MetaDashboardSnapshot snapshot)
 		{
 			var lines = new List<string> { DashboardToolTip };
+			if (snapshot != null && !string.IsNullOrWhiteSpace(snapshot.UserStatusMessage))
+			{
+				lines.Add(snapshot.UserStatusMessage);
+			}
 			var sampleGames = GetSampleGames(snapshot);
 			if (sampleGames > 0)
 			{
@@ -754,6 +1084,147 @@ namespace MetaCompanion
 				line.Children.Add(detail);
 
 				target.Children.Add(line);
+			}
+		}
+
+		private void FillRecommendations(
+			IEnumerable<MetaDashboardItem> items,
+			string emptyText)
+		{
+			_recommendations.Children.Clear();
+			var list = items == null
+				? new List<MetaDashboardItem>()
+				: items.ToList();
+			if (list.Count == 0)
+			{
+				_recommendations.Children.Add(new TextBlock
+				{
+					Text = emptyText,
+					Foreground = Brush("#FF8FA1B2"),
+					FontSize = 12,
+					TextWrapping = TextWrapping.Wrap,
+					ToolTip = emptyText
+				});
+				return;
+			}
+
+			var hasRepresentativeDeckCode = list.Any(item =>
+				!string.IsNullOrWhiteSpace(item.HighestWinRateDeckCode) ||
+				!string.IsNullOrWhiteSpace(item.MostPopularDeckCode));
+			if (!hasRepresentativeDeckCode)
+			{
+				_recommendations.Children.Add(new TextBlock
+				{
+					Text = "\u5f53\u524d\u53e3\u5f84\u6682\u65e0\u540c\u8303\u56f4\u5361\u7ec4\u4ee3\u7801",
+					Foreground = Brush("#FF8FA1B2"),
+					FontSize = 10.5,
+					TextWrapping = TextWrapping.Wrap,
+					ToolTip = "HSReplay \u6682\u672a\u63d0\u4f9b\u4e0e\u5f53\u524d\u65f6\u95f4\u548c\u6bb5\u4f4d\u8303\u56f4\u4e00\u81f4\u7684\u4ee3\u8868\u5361\u7ec4\uff1b\u63a8\u8350\u6392\u5e8f\u4ecd\u7136\u6709\u6548\u3002"
+				});
+			}
+
+			for (var index = 0; index < list.Count; index++)
+			{
+				var item = list[index];
+				var itemToolTip = string.IsNullOrWhiteSpace(item.ToolTip)
+					? item.Title
+					: item.ToolTip;
+				var row = new StackPanel
+				{
+					Margin = new Thickness(0, index == 0 && hasRepresentativeDeckCode ? 0 : 7, 0, 0),
+					ToolTip = itemToolTip
+				};
+				var header = new Grid { ToolTip = itemToolTip };
+				header.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(22) });
+				header.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+				header.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+
+				var rank = new TextBlock
+				{
+					Text = (index + 1).ToString(CultureInfo.InvariantCulture),
+					Foreground = Brush("#FFB7C8D8"),
+					FontSize = 12,
+					FontWeight = FontWeights.SemiBold,
+					VerticalAlignment = VerticalAlignment.Center
+				};
+				Grid.SetColumn(rank, 0);
+				header.Children.Add(rank);
+
+				var title = new TextBlock
+				{
+					Text = item.Title,
+					Foreground = Brush("#FFF2F6FA"),
+					FontSize = 12,
+					TextTrimming = TextTrimming.CharacterEllipsis,
+					VerticalAlignment = VerticalAlignment.Center,
+					ToolTip = itemToolTip
+				};
+				Grid.SetColumn(title, 1);
+				header.Children.Add(title);
+
+				var detail = new TextBlock
+				{
+					Text = item.Detail,
+					Foreground = Brush("#FFA4B8CC"),
+					FontSize = 10.5,
+					Margin = new Thickness(8, 0, 0, 0),
+					VerticalAlignment = VerticalAlignment.Center,
+					ToolTip = itemToolTip
+				};
+				Grid.SetColumn(detail, 2);
+				header.Children.Add(detail);
+				row.Children.Add(header);
+
+				var actions = new WrapPanel { Margin = new Thickness(22, 4, 0, 0) };
+				AddDeckCodeButton(actions, "胜率最高", item.HighestWinRateDeckCode);
+				AddDeckCodeButton(actions, "使用最多", item.MostPopularDeckCode);
+				if (actions.Children.Count > 0)
+				{
+					row.Children.Add(actions);
+				}
+				_recommendations.Children.Add(row);
+			}
+		}
+
+		private void AddDeckCodeButton(Panel target, string label, string deckCode)
+		{
+			if (target == null || string.IsNullOrWhiteSpace(deckCode))
+			{
+				return;
+			}
+
+			Button button = null;
+			button = ActionButton(label, () =>
+			{
+				if (CopyDeckCode(deckCode, label) && button != null)
+				{
+					button.Content = "已复制";
+					button.ToolTip = label + "卡组代码已复制";
+				}
+			});
+			button.MinWidth = 70;
+			button.ToolTip = "复制该流派的" + label + "卡组代码";
+			target.Children.Add(button);
+		}
+
+		private static bool CopyDeckCode(string deckCode, string label)
+		{
+			try
+			{
+				Clipboard.SetText(deckCode);
+				return true;
+			}
+			catch (Exception ex)
+			{
+				Log.Warn("Copy representative deck code failed: " + ex.Message);
+				MessageBox.Show(
+					SettingsDiagnostics.BuildUserFacingFailure(
+						"复制" + label + "卡组代码",
+						"请稍后重试；若仍失败，请检查系统剪贴板是否被其他程序占用"),
+					"Meta Companion",
+					MessageBoxButton.OK,
+					MessageBoxImage.Warning);
+				return false;
 			}
 		}
 

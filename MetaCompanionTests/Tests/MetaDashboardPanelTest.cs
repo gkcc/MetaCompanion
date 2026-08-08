@@ -33,6 +33,114 @@ namespace MetaCompanionTests.Tests
 		}
 
 		[TestMethod]
+		public void Constructor_DoesNotAttachLastGameCorrectionLayout()
+		{
+			var panel = new MetaDashboardPanel(null);
+
+			Assert.IsNull(panel.LastGamePanel.Parent);
+			var visibleText = string.Join("\n", ((StackPanel)panel.Child).Children
+				.OfType<TextBlock>()
+				.Select(block => block.Text));
+			Assert.IsFalse(visibleText.Contains("最近一局"));
+		}
+
+		[TestMethod]
+		public void LocalSampleControls_AreVisibleOnDashboardAndDispatchAllThreeActions()
+		{
+			var calls = 0;
+			var observedAction = LocalSampleActionKind.Clear;
+			var observedDays = -1;
+			var observedMatches = -1;
+			var panel = new MetaDashboardPanel(null, null, (action, days, matches) =>
+			{
+				calls++;
+				observedAction = action;
+				observedDays = days;
+				observedMatches = matches;
+			});
+			panel.SetLocalSampleState(3, 0, false, "", false);
+			panel.Update("卡组流派推荐", new MetaDashboardSnapshot());
+
+			Assert.IsNotNull(panel.LocalSampleExpander.Parent,
+				"本地样本入口必须直接出现在流派推荐面板，而不是只藏在设置页。");
+			var header = panel.LocalSampleExpander.Header as TextBlock;
+			Assert.IsNotNull(header);
+			StringAssert.Contains(header.Text, "最近 3 天");
+			StringAssert.Contains(header.Text, "不限场数");
+
+			panel.LocalSampleDayPresetButtons[7]
+				.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+			panel.LocalSampleMatchPresetButtons[20]
+				.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+			panel.ApplyLocalSampleButton.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+			Assert.AreEqual(1, calls);
+			Assert.AreEqual(LocalSampleActionKind.ApplyFilters, observedAction);
+			Assert.AreEqual(7, observedDays);
+			Assert.AreEqual(20, observedMatches);
+
+			panel.ClearLocalSampleButton.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+			Assert.AreEqual(2, calls);
+			Assert.AreEqual(LocalSampleActionKind.Clear, observedAction);
+
+			panel.RestoreLocalSampleButton.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+			Assert.AreEqual(3, calls);
+			Assert.AreEqual(LocalSampleActionKind.RestoreCurrentPatch, observedAction);
+		}
+
+		[TestMethod]
+		public void LocalSampleControls_UseMousePresetsWithoutOverlayTextBoxes()
+		{
+			var panel = new MetaDashboardPanel(null, null, (action, days, matches) => { });
+			panel.SetLocalSampleState(3, 0, false, "", false);
+
+			CollectionAssert.AreEquivalent(
+				new[] { 0, 1, 3, 7, 14, 30 },
+				panel.LocalSampleDayPresetButtons.Keys.ToArray());
+			CollectionAssert.AreEquivalent(
+				new[] { 0, 10, 20, 50, 100 },
+				panel.LocalSampleMatchPresetButtons.Keys.ToArray());
+			var content = panel.LocalSampleExpander.Content as Border;
+			Assert.IsNotNull(content);
+			var body = content.Child as StackPanel;
+			Assert.IsNotNull(body);
+			Assert.AreEqual(0, body.Children
+				.OfType<WrapPanel>()
+				.SelectMany(row => row.Children.OfType<TextBox>())
+				.Count(), "HDT 不激活浮窗中不能再放依赖键盘焦点的输入框。");
+
+			panel.LocalSampleDayPresetButtons[14]
+				.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+			panel.LocalSampleMatchPresetButtons[50]
+				.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+			StringAssert.Contains(panel.LocalSampleActionStatus.Text, "最近 14 天");
+			StringAssert.Contains(panel.LocalSampleActionStatus.Text, "最近 50 场");
+			StringAssert.Contains(panel.LocalSampleActionStatus.Text, "应用筛选");
+		}
+
+		[TestMethod]
+		public void LocalSampleControls_VisibleDashboardPollPreservesPendingPreset()
+		{
+			var panel = new MetaDashboardPanel(null, null, (action, days, matches) => { });
+			panel.SetLocalSampleState(3, 0, false, "本地样本筛选已应用。", false);
+			panel.Visibility = Visibility.Visible;
+
+			panel.LocalSampleDayPresetButtons[0]
+				.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+
+			Assert.IsTrue(panel.HasPendingLocalSampleSelection);
+			Assert.IsFalse(MetaDashboardView.ShouldSyncLocalSamplePanelState(panel),
+				"每秒一次的可见面板刷新不得用已应用配置覆盖尚未应用的筛选草稿。");
+			var header = panel.LocalSampleExpander.Header as TextBlock;
+			Assert.IsNotNull(header);
+			StringAssert.Contains(header.Text, "本补丁全部天数");
+			StringAssert.Contains(panel.LocalSampleActionStatus.Text, "已选择");
+
+			panel.Visibility = Visibility.Collapsed;
+			Assert.IsTrue(MetaDashboardView.ShouldSyncLocalSamplePanelState(panel),
+				"面板重新打开时应从已应用配置重新同步状态。");
+		}
+
+		[TestMethod]
 		public void Update_WithEmptySnapshot_ShowsEmptyEnvironmentState()
 		{
 			var panel = new MetaDashboardPanel(null);
@@ -43,6 +151,90 @@ namespace MetaCompanionTests.Tests
 			var empty = panel.EnvironmentChartPanel.Children[0] as TextBlock;
 			Assert.IsNotNull(empty);
 			StringAssert.Contains(empty.Text, "\u6682\u65e0");
+			var status = ((StackPanel)panel.Child).Children
+				.OfType<TextBlock>()
+				.Single(text => text.Text.StartsWith("\u63d0\u793a\uff1a"));
+			StringAssert.Contains(status.Text, "\u8bf7\u5148\u8fd0\u884c\u4e00\u6b21\u6570\u636e\u66f4\u65b0");
+		}
+
+		[TestMethod]
+		public void Update_WithReadIssue_ShowsSafeChineseActionAndPartialData()
+		{
+			var recommendationDirectory = Path.Combine(
+				_tempDirectory, "Premium", "Meta", "latest");
+			Directory.CreateDirectory(recommendationDirectory);
+			var recommendationPath = Path.Combine(
+				recommendationDirectory, "personal_recommendations.tsv");
+			File.WriteAllText(
+				recommendationPath,
+				"rank\tname\tplayer_class" + Environment.NewLine +
+				"1\t\u5143\u7d20\u8428\tSHAMAN" + Environment.NewLine,
+				Encoding.UTF8);
+			WriteEnvironmentRows(
+				"1\t56\t\u4efb\u52a1\u7267\tPRIEST\t4\t4\t45\t95\t3\t1\t75");
+
+			MetaDashboardSnapshot snapshot;
+			using (new FileStream(
+				recommendationPath,
+				FileMode.Open,
+				FileAccess.Read,
+				FileShare.None))
+			{
+				snapshot = MetaDashboardSnapshot.Load(_tempDirectory);
+			}
+			var panel = new MetaDashboardPanel(null);
+
+			panel.Update("\u5361\u7ec4\u6d41\u6d3e\u63a8\u8350", snapshot);
+
+			var status = ((StackPanel)panel.Child).Children
+				.OfType<TextBlock>()
+				.Single(text => text.Text.StartsWith("\u9700\u5904\u7406\uff1a"));
+			StringAssert.Contains(
+				status.Text,
+				"\u8bf7\u5728\u8bbe\u7f6e\u9875\u5237\u65b0\u6216\u91cd\u65b0\u751f\u6210\u6570\u636e");
+			Assert.AreEqual(1, panel.EnvironmentListPanel.Children.Count,
+				"\u8bfb\u53d6\u6545\u969c\u4e0d\u5e94\u9690\u85cf\u5176\u4ed6\u5df2\u52a0\u8f7d\u6570\u636e\u3002");
+			Assert.IsFalse(status.Text.Contains("IOException"));
+			Assert.IsFalse(status.Text.Contains("Exception"));
+			Assert.IsFalse(status.Text.Contains("Error"));
+			Assert.IsFalse(status.Text.Contains("failed"));
+			Assert.IsFalse(status.Text.Contains(_tempDirectory));
+		}
+
+		[TestMethod]
+		public void Update_WithNullSnapshot_ShowsSafeChineseFailureState()
+		{
+			var panel = new MetaDashboardPanel(null);
+
+			panel.Update("\u5361\u7ec4\u6d41\u6d3e\u63a8\u8350", null);
+
+			var status = ((StackPanel)panel.Child).Children
+				.OfType<TextBlock>()
+				.Single(text => text.Text.StartsWith("\u9700\u5904\u7406\uff1a"));
+			StringAssert.Contains(status.Text, "\u8bf7\u5728\u8bbe\u7f6e\u9875\u5237\u65b0");
+			Assert.IsFalse(status.Text.Contains("Exception"));
+		}
+
+		[TestMethod]
+		public void Update_RecommendationsWithoutSameScopeDeckCodesShowsShortChineseNotice()
+		{
+			var recommendationDirectory = Path.Combine(
+				_tempDirectory, "Premium", "Meta", "latest");
+			Directory.CreateDirectory(recommendationDirectory);
+			File.WriteAllText(
+				Path.Combine(recommendationDirectory, "personal_recommendations.tsv"),
+				"rank\tname\tplayer_class\texpected_win_rate" + Environment.NewLine +
+				"1\t\u5146\u793a\u8428\tSHAMAN\t58.2" + Environment.NewLine,
+				Encoding.UTF8);
+			var panel = new MetaDashboardPanel(null);
+
+			panel.Update("\u5361\u7ec4\u6d41\u6d3e\u63a8\u8350", MetaDashboardSnapshot.Load(_tempDirectory));
+
+			var notice = panel.RecommendationsPanel.Children
+				.OfType<TextBlock>()
+				.Single();
+			Assert.AreEqual("\u5f53\u524d\u53e3\u5f84\u6682\u65e0\u540c\u8303\u56f4\u5361\u7ec4\u4ee3\u7801", notice.Text);
+			StringAssert.Contains(notice.ToolTip.ToString(), "\u63a8\u8350\u6392\u5e8f\u4ecd\u7136\u6709\u6548");
 		}
 
 		[TestMethod]
@@ -124,9 +316,17 @@ namespace MetaCompanionTests.Tests
 				.OfType<TextBlock>()
 				.Single(text => text.Text.Contains("\u8fdc\u7a0b"));
 			StringAssert.Contains(subtitle.Text, "\u8fdc\u7a0b");
+			StringAssert.Contains(subtitle.Text, Environment.NewLine + "\u8fdc\u7a0b");
+			Assert.AreEqual(TextWrapping.Wrap, subtitle.TextWrapping);
+			Assert.AreEqual(TextTrimming.None, subtitle.TextTrimming);
 			StringAssert.Contains(subtitle.Text, "35.6.2\u8865\u4e01\u540e");
 			StringAssert.Contains(subtitle.ToolTip.ToString(), "HSReplay \u8fdc\u7a0b\u6570\u636e\u6e90");
 			StringAssert.Contains(subtitle.ToolTip.ToString(), "35.6.2\u8865\u4e01\u540e");
+			StringAssert.Contains(subtitle.ToolTip.ToString(), "\u6807\u51c6\u6a21\u5f0f\uff08\u5929\u68af\uff09");
+			StringAssert.Contains(subtitle.ToolTip.ToString(), "\u5168\u90e8\u5730\u533a");
+			Assert.IsFalse(subtitle.ToolTip.ToString().Contains("CURRENT_PATCH"));
+			Assert.IsFalse(subtitle.ToolTip.ToString().Contains("RANKED_STANDARD"));
+			Assert.IsFalse(subtitle.ToolTip.ToString().Contains("ALL"));
 		}
 
 		[TestMethod]
@@ -149,9 +349,38 @@ namespace MetaCompanionTests.Tests
 				.OfType<TextBlock>()
 				.Select(block => block.Text));
 			StringAssert.Contains(text, "\u704c\u6ce8\u8d3c");
-			StringAssert.Contains(text, "39% score 120 branchCount 1");
+			StringAssert.Contains(text, "39% / \u5339\u914d\u5206 120 / \u5206\u652f 1");
+			Assert.IsFalse(text.Contains("score"));
+			Assert.IsFalse(text.Contains("branchCount"));
 			StringAssert.Contains(text, "\u4f4e\u7f6e\u4fe1\uff0c\u4ec5\u4f9b\u53c2\u8003");
 			StringAssert.Contains(text, "\u8ff7\u4f60\u5305");
+		}
+
+		[TestMethod]
+		public void Update_ExactUnknownPlaceholderNeverAppearsInVisibleLastGameText()
+		{
+			File.WriteAllText(
+				Path.Combine(_tempDirectory, "local_meta_archetypes.tsv"),
+				"game_id\tresult\topponent_hero\tpredicted_archetype\tconfidence_pct\t" +
+					"candidate_archetypes" + Environment.NewLine +
+				"g1\tunknown\tMage\tUnknown\t25\tUnknown:25% score=12 branchCount=1" +
+					Environment.NewLine,
+				Encoding.UTF8);
+			var panel = new MetaDashboardPanel(null);
+
+			panel.Update("title", MetaDashboardSnapshot.Load(_tempDirectory));
+
+			var visibleText = string.Join("\n",
+				panel.LastGamePanel.Children.OfType<TextBlock>().Select(block => block.Text)
+					.Concat(panel.LastGamePanel.Children.OfType<WrapPanel>()
+						.SelectMany(row => row.Children.OfType<TextBox>())
+						.Select(box => box.Text))
+					.Concat(panel.LastGamePanel.Children.OfType<WrapPanel>()
+						.SelectMany(row => row.Children.OfType<Button>())
+						.Select(button => Convert.ToString(button.Content))));
+			StringAssert.Contains(visibleText, "\u672a\u8bc6\u522b\u6d41\u6d3e");
+			Assert.IsFalse(visibleText.Contains("Unknown"));
+			Assert.IsFalse(visibleText.Contains("unknown"));
 		}
 
 		[TestMethod]

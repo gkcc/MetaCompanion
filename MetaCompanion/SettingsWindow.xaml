@@ -9,12 +9,14 @@
 		BorderThickness="1"
 		Title="Meta Companion 设置"
 		Width="460"
+		MaxHeight="760"
 		ResizeMode="NoResize"
 		SizeToContent="Height">
 	<ScrollViewer VerticalScrollBarVisibility="Auto"
 			HorizontalScrollBarVisibility="Disabled">
 	<Grid Margin="18">
 		<Grid.RowDefinitions>
+			<RowDefinition Height="Auto"/>
 			<RowDefinition Height="Auto"/>
 			<RowDefinition Height="Auto"/>
 			<RowDefinition Height="Auto"/>
@@ -49,15 +51,189 @@
 						Content="启用 HDT 牌表内嵌预测"
 						Margin="0,8,0,0"
 						ToolTip="对局早中期把预测的前几张牌写入 HDT 对手牌表；不会修改 HDT 的全局显示设置。"/>
+				<CheckBox IsChecked="{Binding EnableLiveAdvisor}"
+						Content="启用实战策略建议（实验性）"
+						Margin="0,8,0,0"
+						ToolTip="在我方回合调用本机求解器，显示最多三条完整行动线；只给建议，不会自动操作游戏。"/>
+				<CheckBox IsChecked="{Binding EnableAdvisorTrainingLog}"
+						Content="保存脱敏对局数据（用于后续训练）"
+						Margin="0,8,0,0"
+						ToolTip="即使关闭实战建议，也会在本机分别保存双方行为语料与严格轨迹。行为语料不会冒充可直接训练的强化学习轨迹，也不保存账号或对手身份。"/>
+				<Grid Margin="0,10,0,0">
+					<Grid.ColumnDefinitions>
+						<ColumnDefinition Width="105"/>
+						<ColumnDefinition Width="*"/>
+					</Grid.ColumnDefinitions>
+					<TextBlock Text="求解器模式"
+							VerticalAlignment="Center"/>
+					<TextBlock Grid.Column="1"
+							Text="仅 Rust 求解器"
+							VerticalAlignment="Center"
+							FontWeight="SemiBold"
+							Foreground="#FF25313B"/>
+				</Grid>
+				<TextBlock Text="HDT 实时建议只会启动通过完整正确性检查的 Rust 求解器，不再安装或回退到 Python 实时后端。Python 仅保留为显式运行的离线训练、评测和数据审计工具；单个局面规则覆盖不足、达到搜索上限或被取消时仍保留 Rust。"
+						TextWrapping="Wrap"
+						Foreground="#FF596773"
+						FontSize="11"
+						Margin="105,4,0,0"/>
 			</StackPanel>
 		</Border>
 
 		<StackPanel Grid.Row="2" Margin="0,0,0,14">
-			<TextBlock Text="数据源" FontWeight="SemiBold"/>
-			<TextBlock Text="{Binding DataStatus}"
+			<TextBlock Text="对局数据" FontWeight="SemiBold"/>
+			<TextBlock Text="建议模型"
+					FontWeight="SemiBold"
+					Margin="0,5,0,0"/>
+			<ItemsControl ItemsSource="{Binding AdvisorModelStatusLines}"
+					Margin="0,2,0,3">
+				<ItemsControl.ItemTemplate>
+					<DataTemplate>
+						<TextBlock Text="{Binding}"
+								TextWrapping="Wrap"
+								Foreground="#FF596773"
+								Margin="0,2,0,0"/>
+					</DataTemplate>
+				</ItemsControl.ItemTemplate>
+			</ItemsControl>
+			<TextBlock Text="本方模型与对手模型彼此独立，只调整搜索顺序；都不会生成动作、覆盖战术分数或把模仿结果标成最优。"
+					TextWrapping="Wrap"
+					Foreground="#FF596773"
+					FontSize="11"
+					Margin="0,2,0,4"/>
+			<TextBlock Text="{Binding TrainingLogStatusMessage}"
+					TextWrapping="Wrap"
+					Foreground="#FF25313B"
+					Margin="0,4,0,0"/>
+			<TextBlock Text="{Binding TrainingLogLastUpdatedMessage}"
+					TextWrapping="Wrap"
+					Foreground="#FF596773"
+					Margin="0,3,0,0"/>
+			<ItemsControl ItemsSource="{Binding TrainingLogModelCoverageLines}"
+					Margin="0,3,0,0">
+				<ItemsControl.ItemTemplate>
+					<DataTemplate>
+						<TextBlock Text="{Binding}"
+								TextWrapping="Wrap"
+								Foreground="#FF596773"
+								Margin="0,2,0,0"/>
+					</DataTemplate>
+				</ItemsControl.ItemTemplate>
+			</ItemsControl>
+			<TextBlock Text="模型覆盖限制表示求解器主动回避不确定局面，不代表插件发生故障。"
 					TextWrapping="Wrap"
 					Foreground="#FF596773"
 					Margin="0,4,0,0"/>
+			<TextBlock Text="{Binding TrainingLogReadIssueMessage}"
+					TextWrapping="Wrap"
+					Foreground="#FFB42318"
+					Margin="0,3,0,0"/>
+			<TextBlock Text="{Binding TrainingLogLegacyMessage}"
+					TextWrapping="Wrap"
+					Foreground="#FF596773"
+					Margin="0,3,0,0"/>
+			<TextBlock Text="{Binding TrainingLogDeveloperNote}"
+					TextWrapping="Wrap"
+					Foreground="#FF7C8791"
+					FontSize="11"
+					Margin="0,4,0,0"/>
+		</StackPanel>
+
+		<StackPanel Grid.Row="3" Margin="0,0,0,14">
+			<TextBlock Text="数据源" FontWeight="SemiBold"/>
+			<TextBlock Text="远端推荐口径"
+					FontWeight="SemiBold"
+					Margin="0,7,0,0"/>
+			<Grid Margin="0,5,0,0">
+				<Grid.ColumnDefinitions>
+					<ColumnDefinition Width="70"/>
+					<ColumnDefinition Width="*"/>
+				</Grid.ColumnDefinitions>
+				<Grid.RowDefinitions>
+					<RowDefinition Height="Auto"/>
+					<RowDefinition Height="Auto"/>
+				</Grid.RowDefinitions>
+				<TextBlock Text="时间范围" VerticalAlignment="Center"/>
+				<ComboBox Grid.Column="1"
+						SelectedIndex="{Binding RemoteTimeRangeIndex}"
+						ToolTip="远端 HSReplay 环境、对阵矩阵和代表卡组统一使用这个时间范围。">
+					<ComboBoxItem Content="最近 7 天（推荐）"/>
+					<ComboBoxItem Content="最近 1 天"/>
+					<ComboBoxItem Content="最近 3 天"/>
+					<ComboBoxItem Content="当前补丁"/>
+				</ComboBox>
+				<TextBlock Grid.Row="1" Text="段位范围" VerticalAlignment="Center" Margin="0,5,0,0"/>
+				<ComboBox Grid.Row="1" Grid.Column="1"
+						Margin="0,5,0,0"
+						SelectedIndex="{Binding RemoteRankRangeIndex}"
+						ToolTip="只筛选 HSReplay 远端大数据，不筛选本地 HDT 历史。">
+					<ComboBoxItem Content="钻石—传说（推荐）"/>
+					<ComboBoxItem Content="传说"/>
+					<ComboBoxItem Content="传说前 1000"/>
+					<ComboBoxItem Content="钻 4—钻 1"/>
+					<ComboBoxItem Content="钻石"/>
+					<ComboBoxItem Content="白金"/>
+					<ComboBoxItem Content="黄金"/>
+					<ComboBoxItem Content="青铜—黄金"/>
+				</ComboBox>
+			</Grid>
+			<TextBlock Text="段位只作用于远端大数据。修改后请点击下方“立即刷新”，三份远端数据会按同一口径更新。"
+					TextWrapping="Wrap"
+					Foreground="#FF596773"
+					FontSize="11"
+					Margin="70,4,0,0"/>
+			<TextBlock Text="{Binding RemoteScopeStatus}"
+					TextWrapping="Wrap"
+					Foreground="#FF596773"
+					Margin="0,5,0,0"/>
+
+			<TextBlock Text="本地样本筛选"
+					FontWeight="SemiBold"
+					Margin="0,9,0,0"/>
+			<Grid Margin="0,5,0,0">
+				<Grid.ColumnDefinitions>
+					<ColumnDefinition Width="70"/>
+					<ColumnDefinition Width="70"/>
+					<ColumnDefinition Width="70"/>
+					<ColumnDefinition Width="70"/>
+					<ColumnDefinition Width="*"/>
+				</Grid.ColumnDefinitions>
+				<TextBlock Text="最近天数" VerticalAlignment="Center"/>
+				<TextBox Grid.Column="1"
+						Text="{Binding LocalRecommendationHistoryDays, UpdateSourceTrigger=LostFocus}"
+						ToolTip="0 表示不限制天数；无论如何都不会越过当前补丁起点。"/>
+				<TextBlock Grid.Column="2" Text="最近场数" VerticalAlignment="Center" Margin="10,0,0,0"/>
+				<TextBox Grid.Column="3"
+						Text="{Binding LocalRecommendationHistoryMatches, UpdateSourceTrigger=LostFocus}"
+						ToolTip="0 表示不限制场数；与最近天数同时生效。"/>
+				<TextBlock Grid.Column="4" Text="0 = 不限" VerticalAlignment="Center" Foreground="#FF596773" Margin="8,0,0,0"/>
+			</Grid>
+			<TextBlock Text="{Binding LocalSampleStatus}"
+					TextWrapping="Wrap"
+					Foreground="#FF596773"
+					Margin="0,5,0,0"/>
+			<WrapPanel Margin="0,7,0,0">
+				<Button Margin="0,0,8,0"
+						Padding="10,4"
+						IsEnabled="{Binding CanManageLocalMeta}"
+						Click="ButtonApplyLocalFilters_Click">应用筛选</Button>
+				<Button Margin="0,0,8,0"
+						Padding="10,4"
+						IsEnabled="{Binding CanManageLocalMeta}"
+						Click="ButtonClearLocalSamples_Click">清空本地对战数据</Button>
+				<Button Padding="10,4"
+						IsEnabled="{Binding CanManageLocalMeta}"
+						ToolTip="恢复当前补丁全部可用历史，并把天数和场数设为不限。"
+						Click="ButtonRestoreLocalSamples_Click">恢复本补丁全部</Button>
+			</WrapPanel>
+			<TextBlock Text="{Binding LocalMetaActionStatus}"
+					TextWrapping="Wrap"
+					Foreground="#FF25313B"
+					Margin="0,5,0,0"/>
+			<TextBlock Text="{Binding DataStatus}"
+					TextWrapping="Wrap"
+					Foreground="#FF596773"
+					Margin="0,9,0,0"/>
 			<TextBlock Text="{Binding RecommendationStatus}"
 					TextWrapping="Wrap"
 					Foreground="#FF596773"
@@ -68,12 +244,16 @@
 					Margin="0,3,0,0"/>
 		</StackPanel>
 
-		<StackPanel Grid.Row="3" Margin="0,0,0,14">
+		<StackPanel Grid.Row="4" Margin="0,0,0,14">
 			<TextBlock Text="数据健康" FontWeight="SemiBold"/>
+			<TextBlock Text="这里仅显示中文结论和下一步；原始异常不会直接显示。"
+					TextWrapping="Wrap"
+					Foreground="#FF596773"
+					Margin="0,4,0,0"/>
 			<TextBlock Text="{Binding DataHealthMessage}"
 					TextWrapping="Wrap"
 					Foreground="#FF25313B"
-					Margin="0,4,0,0"/>
+					Margin="0,3,0,0"/>
 			<ItemsControl ItemsSource="{Binding DataHealthDetailLines}"
 					Margin="0,3,0,0">
 				<ItemsControl.ItemTemplate>
@@ -93,11 +273,17 @@
 						Padding="12,5"
 						Click="ButtonCopyDiagnostics_Click">复制诊断信息</Button>
 				<Button Padding="12,5"
-						Click="ButtonOpenLogDirectory_Click">打开日志目录</Button>
+						ToolTip="用于排查问题，内容可能包含英文技术信息；日常状态请查看上方中文摘要。"
+						Click="ButtonOpenLogDirectory_Click">打开开发者日志目录</Button>
 			</WrapPanel>
+			<TextBlock Text="开发者日志可能含英文技术信息，也可能包含 HDT 其他组件的记录；其中的普通信息或其他组件报错不等于本插件故障。"
+					TextWrapping="Wrap"
+					Foreground="#FF7C8791"
+					FontSize="11"
+					Margin="0,6,0,0"/>
 		</StackPanel>
 
-		<StackPanel Grid.Row="4" Margin="0,0,0,14">
+		<StackPanel Grid.Row="5" Margin="0,0,0,14">
 			<TextBlock Text="自动刷新" FontWeight="SemiBold"/>
 			<TextBlock Text="{Binding RefreshToolsStatus}"
 					TextWrapping="Wrap"
@@ -130,18 +316,26 @@
 				<Button Margin="0,0,8,0"
 						Padding="12,5"
 						IsEnabled="{Binding CanRunRefreshNow}"
+						ToolTip="刷新终端可能显示英文技术信息；完成后请返回此页查看中文摘要。"
 						Click="ButtonRunRefreshNow_Click">立即刷新（打开终端）</Button>
 				<Button Padding="12,5"
 						IsEnabled="{Binding CanOpenRefreshLog}"
-						Click="ButtonOpenRefreshLog_Click">打开刷新日志</Button>
+						ToolTip="仅供排查问题，可能包含英文技术信息；打开前会再次确认。"
+						Click="ButtonOpenRefreshLog_Click">打开开发者刷新日志</Button>
 			</WrapPanel>
+			<TextBlock Text="刷新终端和开发者刷新日志可能显示英文技术信息；是否成功请以本页中文摘要为准。"
+					TextWrapping="Wrap"
+					Foreground="#FF7C8791"
+					FontSize="11"
+					Margin="0,6,0,0"/>
 		</StackPanel>
 
-		<WrapPanel Grid.Row="5" HorizontalAlignment="Right">
+		<WrapPanel Grid.Row="6" HorizontalAlignment="Right">
 			<Button Margin="0,0,8,0" Padding="12,5"
 					Click="ButtonResetLayout_Click">重置浮窗位置</Button>
 			<Button Padding="12,5"
-					Click="ButtonOpenData_Click">打开数据目录</Button>
+					ToolTip="高级入口：文件名和文件内容可能包含英文，仅在排查或导出数据时使用。"
+					Click="ButtonOpenData_Click">打开数据目录（高级）</Button>
 		</WrapPanel>
 	</Grid>
 	</ScrollViewer>

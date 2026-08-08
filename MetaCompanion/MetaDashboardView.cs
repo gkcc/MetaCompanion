@@ -17,6 +17,8 @@ namespace MetaCompanion
 		private readonly PluginConfig _config;
 		private MetaDashboardPanel _panel;
 		private DispatcherTimer _hideTimer;
+		private bool _localSampleActionRunning;
+		private string _localSampleActionStatus = "";
 
 		public MetaDashboardView(PluginConfig config)
 		{
@@ -75,18 +77,67 @@ namespace MetaCompanion
 
 		private void Show(string title, TimeSpan duration)
 		{
-			RunOnOverlayThread(() =>
+			try
 				{
-					if (!EnsurePanel())
-					{
-						return;
-					}
+					RunOnOverlayThread(() =>
+						{
+							try
+							{
+								var shouldSyncLocalSampleState =
+									ShouldSyncLocalSamplePanelState(_panel);
+								if (!EnsurePanel())
+								{
+									return;
+								}
 
-					_panel.Update(title, MetaDashboardSnapshot.Load(MetaCompanionPlugin.DataDirectory));
-					_panel.Visibility = Visibility.Visible;
-					PositionPanel();
-					RestartTimer(duration);
-				});
+								var snapshot = MetaDashboardSnapshot.Load(
+									MetaCompanionPlugin.DataDirectory);
+								_panel.Update(title, snapshot);
+								if (shouldSyncLocalSampleState)
+								{
+									UpdateLocalSamplePanelState();
+								}
+								_panel.Visibility = Visibility.Visible;
+								PositionPanel();
+								RestartTimer(duration);
+							}
+							catch (Exception ex)
+							{
+								Log.Warn("Meta dashboard display failed: " + ex);
+								ShowLoadFailure(title);
+							}
+						});
+				}
+			catch (Exception ex)
+			{
+				Log.Warn("Meta dashboard display scheduling failed: " + ex);
+			}
+		}
+
+		internal static bool ShouldSyncLocalSamplePanelState(MetaDashboardPanel panel)
+		{
+			return panel == null ||
+				panel.Visibility != Visibility.Visible ||
+				!panel.HasPendingLocalSampleSelection;
+		}
+
+		private void ShowLoadFailure(string title)
+		{
+			if (_panel == null)
+			{
+				return;
+			}
+
+			try
+			{
+				_panel.ShowLoadFailure(title);
+				_panel.Visibility = Visibility.Visible;
+				PositionPanel();
+			}
+			catch (Exception ex)
+			{
+				Log.Warn("Meta dashboard failure status display failed: " + ex);
+			}
 		}
 
 		private bool EnsurePanel()
@@ -99,7 +150,11 @@ namespace MetaCompanion
 
 			if (_panel == null)
 			{
-				_panel = new MetaDashboardPanel(HideByUser, ApplyLastGameCorrection);
+				_panel = new MetaDashboardPanel(
+					HideByUser,
+					ApplyLastGameCorrection,
+					HandleLocalSampleAction);
+				UpdateLocalSamplePanelState();
 				OverlayDragHelper.Enable(_panel, _panel.DragHandle, SaveDashboardPosition);
 			}
 
@@ -122,6 +177,131 @@ namespace MetaCompanion
 		{
 			UserDismissed = true;
 			Hide();
+		}
+
+		private async void HandleLocalSampleAction(
+			LocalSampleActionKind action,
+			int historyDays,
+			int historyMatches)
+		{
+			if (_localSampleActionRunning)
+			{
+				return;
+			}
+
+			Func<LocalMetaDataActionResult> operation;
+			var busyText = "正在重建本地样本，请稍候……";
+			switch (action)
+			{
+				case LocalSampleActionKind.ApplyFilters:
+					_config.LocalRecommendationHistoryDays = Math.Max(0, Math.Min(365, historyDays));
+					_config.LocalRecommendationHistoryMatches = Math.Max(0, Math.Min(10000, historyMatches));
+					_config.Save();
+					operation = () => LocalMetaDataService.RebuildWithCurrentFilters(
+						_config,
+						MetaCompanionPlugin.DataDirectory,
+						DateTime.Now);
+					busyText = "正在应用最近天数和场数筛选……";
+					break;
+				case LocalSampleActionKind.Clear:
+					var confirmation = MessageBox.Show(
+						"只会清空插件当前用于推荐加权的本地对战数据；HDT 原始对战历史不会删除，之后可一键恢复。是否继续？",
+						"Meta Companion",
+						MessageBoxButton.YesNo,
+						MessageBoxImage.Question,
+						MessageBoxResult.No);
+					if (confirmation != MessageBoxResult.Yes)
+					{
+						return;
+					}
+					operation = () => LocalMetaDataService.ClearLocalSamples(
+						_config,
+						MetaCompanionPlugin.DataDirectory,
+						DateTime.Now);
+					busyText = "正在清空插件本地对战数据……";
+					break;
+				case LocalSampleActionKind.RestoreCurrentPatch:
+					operation = () => LocalMetaDataService.RestoreCurrentPatchHistory(
+						_config,
+						MetaCompanionPlugin.DataDirectory,
+						DateTime.Now);
+					busyText = "正在从 HDT 历史恢复当前补丁全部数据……";
+					break;
+				default:
+					return;
+			}
+
+			await RunLocalSampleActionAsync(operation, busyText);
+		}
+
+		private async Task RunLocalSampleActionAsync(
+			Func<LocalMetaDataActionResult> operation,
+			string busyText)
+		{
+			if (_localSampleActionRunning || operation == null)
+			{
+				return;
+			}
+
+			_localSampleActionRunning = true;
+			_localSampleActionStatus = busyText;
+			UpdateLocalSamplePanelState();
+			try
+			{
+				var result = await Task.Run(operation);
+				_config.Save();
+				_localSampleActionStatus = result == null
+					? "本地样本处理完成。"
+					: result.Message;
+				RefreshDashboardSnapshotAfterLocalSampleAction();
+			}
+			catch (Exception ex)
+			{
+				_config.Save();
+				Log.Warn("Dashboard local sample action failed: " + ex);
+				_localSampleActionStatus = SettingsDiagnostics.BuildUserFacingFailure(
+					"处理本地样本",
+					"原始 HDT 历史未被删除，请稍后重试");
+				MessageBox.Show(
+					_localSampleActionStatus,
+					"Meta Companion",
+					MessageBoxButton.OK,
+					MessageBoxImage.Warning);
+			}
+			finally
+			{
+				_localSampleActionRunning = false;
+				UpdateLocalSamplePanelState();
+			}
+		}
+
+		private void RefreshDashboardSnapshotAfterLocalSampleAction()
+		{
+			if (_panel == null)
+			{
+				return;
+			}
+			try
+			{
+				_panel.Update(
+					"卡组流派推荐",
+					MetaDashboardSnapshot.Load(MetaCompanionPlugin.DataDirectory));
+			}
+			catch (Exception ex)
+			{
+				Log.Warn("Dashboard local sample reload failed: " + ex);
+				_localSampleActionStatus += " 面板暂未重载，下次打开时会显示新结果。";
+			}
+		}
+
+		private void UpdateLocalSamplePanelState()
+		{
+			_panel?.SetLocalSampleState(
+				_config.LocalRecommendationHistoryDays,
+				_config.LocalRecommendationHistoryMatches,
+				_config.LocalRecommendationHistoryClearedAt > DateTime.MinValue,
+				_localSampleActionStatus,
+				_localSampleActionRunning);
 		}
 
 		private bool ApplyLastGameCorrection(string matchId, string correctedArchetype)
@@ -162,7 +342,7 @@ namespace MetaCompanion
 						}
 						catch (Exception ex)
 						{
-							Log.Warn("Manual match correction refresh failed: " + ex.Message);
+							Log.Warn("Manual match correction refresh failed: " + ex);
 							RunOnOverlayThread(() =>
 								MessageBox.Show(
 									"\u4fee\u6b63\u5df2\u5199\u5165\uff0c\u4f46\u7acb\u5373\u5237\u65b0\u672c\u5730\u73af\u5883\u5931\u8d25\uff1b\u4e0b\u5c40\u540e\u4f1a\u518d\u5c1d\u8bd5\u5237\u65b0\u3002",
@@ -175,8 +355,11 @@ namespace MetaCompanion
 			}
 			catch (Exception ex)
 			{
+				Log.Warn("Manual match correction write failed: " + ex);
 				MessageBox.Show(
-					"\u4fee\u6b63\u5199\u5165\u5931\u8d25: " + ex.Message,
+					SettingsDiagnostics.BuildUserFacingFailure(
+						"保存修正",
+						"请稍后重试；若仍失败，请打开插件日志查看原因"),
 					"Meta Companion",
 					MessageBoxButton.OK,
 					MessageBoxImage.Warning);

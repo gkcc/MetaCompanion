@@ -10,7 +10,9 @@
     <RootNamespace>MetaCompanionTests</RootNamespace>
     <AssemblyName>MetaCompanionTests</AssemblyName>
     <TargetFrameworkVersion>v4.7.2</TargetFrameworkVersion>
-    <FrameworkPathOverride Condition="'$(FrameworkPathOverride)' == '' and !Exists('$(ProgramFiles(x86))\Reference Assemblies\Microsoft\Framework\.NETFramework\$(TargetFrameworkVersion)\mscorlib.dll') and Exists('$(WINDIR)\Microsoft.NET\Framework\v4.0.30319\mscorlib.dll')">$(WINDIR)\Microsoft.NET\Framework\v4.0.30319</FrameworkPathOverride>
+    <FrameworkPathOverride Condition="'$(FrameworkPathOverride)' == '' and !Exists('$(ProgramFiles(x86))\Reference Assemblies\Microsoft\Framework\.NETFramework\$(TargetFrameworkVersion)\mscorlib.dll') and Exists('$(MSBuildProjectDirectory)\..\packages\Microsoft.NETFramework.ReferenceAssemblies.net472.1.0.3\build\.NETFramework\v4.7.2\mscorlib.dll')">$(MSBuildProjectDirectory)\..\packages\Microsoft.NETFramework.ReferenceAssemblies.net472.1.0.3\build\.NETFramework\v4.7.2</FrameworkPathOverride>
+    <NetFxFacadePath Condition="'$(FrameworkPathOverride)' != ''">$(FrameworkPathOverride)\Facades</NetFxFacadePath>
+    <NetFxFacadePath Condition="'$(NetFxFacadePath)' == ''">$(ProgramFiles(x86))\Reference Assemblies\Microsoft\Framework\.NETFramework\$(TargetFrameworkVersion)\Facades</NetFxFacadePath>
     <FileAlignment>512</FileAlignment>
     <ProjectTypeGuids>{3AC096D0-A1C2-E12C-1390-A8335801FDAB};{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}</ProjectTypeGuids>
     <VisualStudioVersion Condition="'$(VisualStudioVersion)' == ''">15.0</VisualStudioVersion>
@@ -87,18 +89,27 @@
     <Reference Include="System.Xaml" />
     <Reference Include="WindowsBase" />
     <Reference Include="System.Runtime">
-      <HintPath>C:\Windows\Microsoft.NET\Framework\v4.0.30319\System.Runtime.dll</HintPath>
+      <HintPath>$(NetFxFacadePath)\System.Runtime.dll</HintPath>
     </Reference>
     <Reference Include="netstandard">
-      <HintPath>C:\Windows\Microsoft.NET\Framework\v4.0.30319\netstandard.dll</HintPath>
+      <HintPath>$(NetFxFacadePath)\netstandard.dll</HintPath>
     </Reference>
   </ItemGroup>
   <ItemGroup>
     <Compile Include="Mocks\MockOpponent.cs" />
+	<Compile Include="Tests\AdvisorBehaviorCollectorTest.cs" />
+	<Compile Include="Tests\AdvisorBehaviorOutboxTest.cs" />
+	<Compile Include="Tests\AdvisorBehaviorPendingTrackerTest.cs" />
+	<Compile Include="Tests\AdvisorIntegrationTest.cs" />
+	<Compile Include="Tests\AdvisorResultOutboxTest.cs" />
+	<Compile Include="Tests\AdvisorUserMessagesTest.cs" />
+	<Compile Include="Tests\AdvisorWorkerProcessManagerTest.cs" />
     <Compile Include="Tests\CardProximityRankerTest.cs" />
-    <Compile Include="Tests\HdtConfigMutationTest.cs" />
+	<Compile Include="Tests\HdtConfigMutationTest.cs" />
+	<Compile Include="Tests\HdtPowerTraceCollectorTest.cs" />
     <Compile Include="Tests\MetaCompanionPluginTest.cs" />
     <Compile Include="Tests\LogTest.cs" />
+	<Compile Include="Tests\LogSafetyTest.cs" />
     <Compile Include="Tests\MatchHistoryRecorderTest.cs" />
     <Compile Include="Tests\MetaDashboardDataTest.cs" />
     <Compile Include="Tests\MetaDashboardPanelTest.cs" />
@@ -110,6 +121,7 @@
     <Compile Include="Tests\PluginConfigTest.cs" />
     <Compile Include="Tests\PostGameMetaRefresherTest.cs" />
     <Compile Include="Tests\QuickDashboardRefresherTest.cs" />
+    <Compile Include="Tests\RecommendationStatisticsTest.cs" />
     <Compile Include="Tests\ReleaseToolScriptTest.cs" />
     <Compile Include="Tests\RefreshTaskServiceTest.cs" />
     <Compile Include="Tests\SettingsWindowTest.cs" />

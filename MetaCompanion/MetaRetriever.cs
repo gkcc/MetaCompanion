@@ -20,7 +20,7 @@ namespace MetaCompanion
 			var deckCodeDecks = LoadDeckCodeDecks();
 			if (deckCodeDecks.Count > 0)
 			{
-				Log.Info("Meta retrieved from deck code file, " + deckCodeDecks.Count + " decks loaded.");
+				Log.Info("已从牌组代码快照加载 " + deckCodeDecks.Count + " 套牌。");
 				LogDeckClassCounts(deckCodeDecks);
 				return Task.FromResult(deckCodeDecks);
 			}
@@ -33,7 +33,7 @@ namespace MetaCompanion
 
 			Log.Debug("Loading legacy MetaStats file");
 			List<Deck> metaDecks = XmlManager<List<Deck>>.Load(MetaFilePath);
-			Log.Info("Meta retrieved, " + metaDecks.Count + " decks loaded.");
+			Log.Info("已从旧版环境数据加载 " + metaDecks.Count + " 套牌。");
 			LogDeckClassCounts(metaDecks);
 			return Task.FromResult(metaDecks);
 		}
@@ -43,8 +43,8 @@ namespace MetaCompanion
 			var classCounts = decks
 				.GroupBy(deck => NormalizeClass(deck.Class))
 				.OrderBy(group => group.Key)
-				.Select(group => group.Key + "=" + group.Count());
-			Log.Info("Meta deck class counts: " + string.Join(", ", classCounts));
+				.Select(group => LocalizeClassName(group.Key) + "=" + group.Count());
+			Log.Info("牌组库职业分布：" + string.Join("，", classCounts));
 		}
 
 		private List<Deck> LoadDeckCodeDecks()
@@ -61,10 +61,10 @@ namespace MetaCompanion
 				dataDirectory);
 			if (existingFiles.Count == 0)
 			{
-				Log.Info("No deck code file found in " + dataDirectory);
+				Log.Info("未找到牌组代码数据源。");
 				return new List<Deck>();
 			}
-			Log.Info("Reading deck codes from preferred sources: " + string.Join(", ", existingFiles));
+			Log.Info("正在读取 " + existingFiles.Count + " 个首选牌组代码数据源。");
 
 			HearthDb.Cards.LoadBaseData();
 
@@ -138,12 +138,20 @@ namespace MetaCompanion
 			var existing = new HashSet<string>(existingFiles, StringComparer.OrdinalIgnoreCase);
 			var selected = new List<string>();
 			var hsGuruDeckCodeFilePath = Path.Combine(dataDirectory, "hsguru_deckcodes.txt");
+			var archetypeModelDeckCodeFilePath = Path.Combine(dataDirectory, "archetype_model_branches.tsv");
 			var archetypeBranchDeckCodeFilePath = Path.Combine(dataDirectory, "archetype_deck_branches.tsv");
 			if (existing.Contains(hsGuruDeckCodeFilePath))
 			{
 				selected.Add(hsGuruDeckCodeFilePath);
 			}
 
+			if (existing.Contains(archetypeModelDeckCodeFilePath))
+			{
+				selected.Add(archetypeModelDeckCodeFilePath);
+			}
+
+			// Legacy fallback for installations created before model and representative
+			// branch snapshots were split.
 			if (existing.Contains(archetypeBranchDeckCodeFilePath))
 			{
 				selected.Add(archetypeBranchDeckCodeFilePath);
@@ -158,6 +166,7 @@ namespace MetaCompanion
 				Path.Combine(dataDirectory, "deckcodes.txt"),
 				Path.Combine(dataDirectory, "hsreplay_deckcodes.txt"),
 				Path.Combine(dataDirectory, "hsguru_deckcodes.txt"),
+				Path.Combine(dataDirectory, "archetype_model_branches.tsv"),
 				Path.Combine(dataDirectory, "archetype_deck_branches.tsv")
 			};
 		}
@@ -175,12 +184,23 @@ namespace MetaCompanion
 			var manualDeckCodeFilePath = Path.Combine(dataDirectory, "deckcodes.txt");
 			var hsReplayDeckCodeFilePath = Path.Combine(dataDirectory, "hsreplay_deckcodes.txt");
 			var hsGuruDeckCodeFilePath = Path.Combine(dataDirectory, "hsguru_deckcodes.txt");
+			var archetypeModelDeckCodeFilePath = Path.Combine(dataDirectory, "archetype_model_branches.tsv");
 			var archetypeBranchDeckCodeFilePath = Path.Combine(dataDirectory, "archetype_deck_branches.tsv");
 			if (existing.Contains(manualDeckCodeFilePath))
 			{
 				selected.Add(manualDeckCodeFilePath);
 			}
 
+			if (existing.Contains(archetypeModelDeckCodeFilePath) &&
+				IsCurrentPatchBranchSnapshot(archetypeModelDeckCodeFilePath, dataDirectory))
+			{
+				selected.Add(archetypeModelDeckCodeFilePath);
+				return selected;
+			}
+
+			// Keep the old branch file as a migration fallback. New refreshes write
+			// recognition data to archetype_model_branches.tsv and reserve this file
+			// for same-scope representative deck copy buttons.
 			if (existing.Contains(archetypeBranchDeckCodeFilePath) &&
 				IsCurrentPatchBranchSnapshot(archetypeBranchDeckCodeFilePath, dataDirectory))
 			{
@@ -199,6 +219,11 @@ namespace MetaCompanion
 				selected.Add(hsGuruDeckCodeFilePath);
 			}
 
+			if (existing.Contains(archetypeModelDeckCodeFilePath))
+			{
+				selected.Add(archetypeModelDeckCodeFilePath);
+			}
+
 			if (existing.Contains(archetypeBranchDeckCodeFilePath))
 			{
 				selected.Add(archetypeBranchDeckCodeFilePath);
@@ -212,6 +237,7 @@ namespace MetaCompanion
 			{
 				var candidateTimeRange = "";
 				DateTimeOffset? candidateAsOf = null;
+				var candidatePatchVersion = "";
 				foreach (var rawLine in File.ReadLines(path).Take(32))
 				{
 					var line = rawLine.Trim();
@@ -223,15 +249,32 @@ namespace MetaCompanion
 					{
 						candidateAsOf = ParseDateTimeOffset(line.Substring("# CandidateAsOf:".Length).Trim());
 					}
+					else if (line.StartsWith("# PatchVersion:", StringComparison.OrdinalIgnoreCase))
+					{
+						candidatePatchVersion = line.Substring("# PatchVersion:".Length).Trim();
+					}
 					else if (!line.StartsWith("#", StringComparison.Ordinal) && line.Length > 0)
 					{
 						break;
 					}
 				}
 
-				if (!string.Equals(candidateTimeRange, "CURRENT_PATCH", StringComparison.OrdinalIgnoreCase))
+				if (!IsSupportedBranchTimeRange(candidateTimeRange))
 				{
 					return false;
+				}
+				if (string.Equals(
+					candidateTimeRange,
+					"CURRENT_PATCH",
+					StringComparison.OrdinalIgnoreCase))
+				{
+					var candidatePublicPatch = NormalizePublicPatchVersion(candidatePatchVersion);
+					var localPublicPatch = ReadLocalPublicPatchVersion(dataDirectory);
+					return !string.IsNullOrWhiteSpace(candidatePublicPatch) &&
+						string.Equals(
+							candidatePublicPatch,
+							localPublicPatch,
+							StringComparison.OrdinalIgnoreCase);
 				}
 
 				var patchTime = ReadPatchMarkerTime(dataDirectory);
@@ -254,6 +297,14 @@ namespace MetaCompanion
 			}
 		}
 
+		private static bool IsSupportedBranchTimeRange(string value)
+		{
+			return string.Equals(value, "CURRENT_PATCH", StringComparison.OrdinalIgnoreCase) ||
+				string.Equals(value, "LAST_1_DAY", StringComparison.OrdinalIgnoreCase) ||
+				string.Equals(value, "LAST_3_DAYS", StringComparison.OrdinalIgnoreCase) ||
+				string.Equals(value, "LAST_7_DAYS", StringComparison.OrdinalIgnoreCase);
+		}
+
 		private static DateTimeOffset? ReadPatchMarkerTime(string dataDirectory)
 		{
 			var markerPath = Path.Combine(dataDirectory, "patch_marker.txt");
@@ -262,6 +313,38 @@ namespace MetaCompanion
 				return null;
 			}
 			return ParseDateTimeOffset(File.ReadAllText(markerPath).Trim());
+		}
+
+		private static string ReadLocalPublicPatchVersion(string dataDirectory)
+		{
+			if (string.IsNullOrWhiteSpace(dataDirectory))
+			{
+				return "";
+			}
+			var path = Path.Combine(dataDirectory, "patch_version.txt");
+			try
+			{
+				return File.Exists(path)
+					? NormalizePublicPatchVersion(File.ReadAllText(path, Encoding.UTF8))
+					: "";
+			}
+			catch
+			{
+				return "";
+			}
+		}
+
+		private static string NormalizePublicPatchVersion(string value)
+		{
+			if (string.IsNullOrWhiteSpace(value))
+			{
+				return "";
+			}
+			var match = Regex.Match(
+				value,
+				@"\b(?<version>\d+\.\d+\.\d+)(?:\.\d+)?\b",
+				RegexOptions.CultureInvariant);
+			return match.Success ? match.Groups["version"].Value : "";
 		}
 
 		private static DateTimeOffset? ParseDateTimeOffset(string value)
@@ -437,6 +520,39 @@ namespace MetaCompanion
 					return "Warrior";
 				default:
 					return playerClass;
+			}
+		}
+
+		private static string LocalizeClassName(string playerClass)
+		{
+			switch (NormalizeClass(playerClass))
+			{
+				case "Death Knight":
+					return "死亡骑士";
+				case "Demon Hunter":
+					return "恶魔猎手";
+				case "Druid":
+					return "德鲁伊";
+				case "Hunter":
+					return "猎人";
+				case "Mage":
+					return "法师";
+				case "Paladin":
+					return "圣骑士";
+				case "Priest":
+					return "牧师";
+				case "Rogue":
+					return "潜行者";
+				case "Shaman":
+					return "萨满祭司";
+				case "Warlock":
+					return "术士";
+				case "Warrior":
+					return "战士";
+				case "Neutral":
+					return "中立";
+				default:
+					return "未知职业";
 			}
 		}
 

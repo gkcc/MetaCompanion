@@ -196,8 +196,9 @@ namespace MetaCompanion
 			var closestDeck = SelectClosestDeck(_engine.ClassDecks, knownOriginalCards);
 			var closestDeckRemainingCards = BuildClosestDeckRemainingCards(
 				closestDeck, knownOriginalCards);
-			var candidateArchetypes = BuildCandidateArchetypes(
+			var archetypeDistribution = BuildCandidateArchetypeDistribution(
 				_engine.ClassDecks, knownOriginalCards, evidenceCards);
+			var candidateArchetypes = archetypeDistribution.Take(3).ToList();
 			var candidateDeckNames = candidateArchetypes
 				.Select(candidate => candidate.Name)
 				.ToList();
@@ -212,7 +213,8 @@ namespace MetaCompanion
 				closestDeck?.Name,
 				closestDeckRemainingCards,
 				candidateArchetypes,
-				keyEvidenceCards);
+				keyEvidenceCards,
+				archetypeDistribution);
 			_predictionLog.Write(predictionInfo);
 			OnPredictionUpdate.ForEach(callback => callback.Invoke(predictionInfo));
 		}
@@ -302,12 +304,23 @@ namespace MetaCompanion
 			IEnumerable<Deck> decks, IDictionary<string, int> knownOriginalCardCounts,
 			int evidenceCards)
 		{
+			return BuildCandidateArchetypeDistribution(
+				decks, knownOriginalCardCounts, evidenceCards)
+				.Take(3)
+				.ToList();
+		}
+
+		internal static List<PredictionInfo.ArchetypeCandidate> BuildCandidateArchetypeDistribution(
+			IEnumerable<Deck> decks, IDictionary<string, int> knownOriginalCardCounts,
+			int evidenceCards)
+		{
 			if (decks == null)
 			{
 				return new List<PredictionInfo.ArchetypeCandidate>();
 			}
 
-			var groups = decks
+			var deckList = decks.ToList();
+			var groups = deckList
 				.Where(deck => !string.IsNullOrWhiteSpace(deck.Name) &&
 					deck.Name != "Imported Meta Deck")
 				.GroupBy(deck => deck.Name)
@@ -316,7 +329,11 @@ namespace MetaCompanion
 						Name = group.Key,
 						BestScore = group.Max(deck => ScoreDeck(deck, knownOriginalCardCounts)),
 						AverageScore = group.Average(deck => ScoreDeck(deck, knownOriginalCardCounts)),
-						BranchCount = group.Count()
+						BranchCount = group.Count(),
+						ArchetypeCoverage = CalculateObservedCoverage(
+							group, knownOriginalCardCounts, evidenceCards),
+						BestBranchCoverage = group.Max(deck => CalculateObservedCoverage(
+							new[] { deck }, knownOriginalCardCounts, evidenceCards))
 					})
 				.OrderByDescending(group => group.BestScore)
 				.ThenByDescending(group => group.AverageScore)
@@ -334,18 +351,57 @@ namespace MetaCompanion
 				.Select(group => Math.Exp((group.BestScore - maxScore) / 125.0))
 				.ToList();
 			var totalWeight = weights.Sum();
-			var evidenceFactor = evidenceCards <= 0
+			var evidenceReliability = evidenceCards <= 0
 				? 0.0
-				: Math.Min(1.0, 0.25 + evidenceCards * 0.125);
+				: Math.Min(0.95, 0.25 + Math.Min(evidenceCards, 6) * 0.125);
+			var catalogCoverage = CalculateObservedCoverage(
+				deckList, knownOriginalCardCounts, evidenceCards);
+			var bestFit = catalogCoverage *
+				(0.70 * groups[0].ArchetypeCoverage + 0.30 * groups[0].BestBranchCoverage);
+			var knownMass = Math.Min(0.95, evidenceReliability *
+				Math.Max(0.0, Math.Min(1.0, bestFit)));
 
 			return groups
 				.Select((group, index) => new PredictionInfo.ArchetypeCandidate(
 					group.Name,
-					(int)Math.Round(weights[index] / totalWeight * 100 * evidenceFactor),
+					(int)Math.Round(weights[index] / totalWeight * 100 * knownMass),
 					group.BestScore,
-					group.BranchCount))
-				.Take(3)
+					group.BranchCount,
+					weights[index] / totalWeight * knownMass))
 				.ToList();
+		}
+
+		private static double CalculateObservedCoverage(
+			IEnumerable<Deck> decks,
+			IDictionary<string, int> knownOriginalCardCounts,
+			int evidenceCards)
+		{
+			if (decks == null || knownOriginalCardCounts == null || evidenceCards <= 0)
+			{
+				return 0.0;
+			}
+
+			var maximumCopies = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+			foreach (var deck in decks.Where(deck => deck != null))
+			{
+				foreach (var group in deck.Cards
+					.Where(card => card != null && !string.IsNullOrWhiteSpace(card.Id))
+					.GroupBy(card => card.Id, StringComparer.OrdinalIgnoreCase))
+				{
+					var copies = group.Sum(card => Math.Max(1, card.Count));
+					int current;
+					maximumCopies.TryGetValue(group.Key, out current);
+					maximumCopies[group.Key] = Math.Max(current, copies);
+				}
+			}
+
+			var matchedCopies = knownOriginalCardCounts.Sum(pair =>
+			{
+				int available;
+				maximumCopies.TryGetValue(pair.Key, out available);
+				return Math.Min(Math.Max(0, pair.Value), Math.Max(0, available));
+			});
+			return Math.Max(0.0, Math.Min(1.0, matchedCopies / (double)evidenceCards));
 		}
 
 		private static int ScoreDeck(Deck deck, IDictionary<string, int> knownOriginalCardCounts)

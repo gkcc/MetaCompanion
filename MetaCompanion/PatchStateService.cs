@@ -20,6 +20,7 @@ namespace MetaCompanion
 	{
 		public bool PatchChanged { get; set; }
 		public string PatchVersion { get; set; } = "";
+		public string PatchEpoch { get; set; } = "";
 		public DateTime? PatchTime { get; set; }
 		public int ArchivedFileCount { get; set; }
 		public string ArchiveDirectory { get; set; } = "";
@@ -28,7 +29,7 @@ namespace MetaCompanion
 	internal static class PatchStateService
 	{
 		private static readonly Regex PatchVersionRegex =
-			new Regex(@"\b(\d+\.\d+\.\d+)(?:\.\d+)?\b", RegexOptions.Compiled);
+			new Regex(@"\b(\d+\.\d+\.\d+(?:\.\d+)?)\b", RegexOptions.Compiled);
 
 		private static readonly string[] ActiveLocalFiles =
 		{
@@ -63,13 +64,20 @@ namespace MetaCompanion
 			Directory.CreateDirectory(dataDirectory);
 			detectedPatch = detectedPatch ?? new HearthstonePatchInfo();
 			var patchVersion = NormalizePatchVersion(detectedPatch.Version);
-			var patchTime = detectedPatch.PatchTime;
+			var detectedPatchTime = detectedPatch.PatchTime;
 			var versionPath = GetPatchVersionPath(dataDirectory);
 			var markerPath = GetPatchMarkerPath(dataDirectory);
 			var storedVersion = NormalizePatchVersion(ReadTextIfExists(versionPath));
 			var storedMarker = ParseDate(ReadTextIfExists(markerPath));
+			var versionChanged = HasVersionChanged(storedVersion, patchVersion);
+			var patchTime = versionChanged &&
+				(!detectedPatchTime.HasValue ||
+					(storedMarker.HasValue && detectedPatchTime.Value <= storedMarker.Value))
+				? (DateTime?)now
+				: LaterOf(storedMarker, detectedPatchTime);
 
-			var patchChanged = IsPatchBoundary(storedVersion, storedMarker, patchVersion, patchTime);
+			var patchChanged = IsPatchBoundary(
+				storedVersion, storedMarker, patchVersion, detectedPatchTime);
 			if (patchChanged)
 			{
 				result.ArchiveDirectory = ArchiveActiveLocalFiles(
@@ -94,8 +102,18 @@ namespace MetaCompanion
 					Encoding.UTF8);
 			}
 
+			var patchEpoch = BuildPatchEpoch(patchVersion, patchTime);
+			if (!string.IsNullOrWhiteSpace(patchEpoch))
+			{
+				File.WriteAllText(
+					GetPatchEpochPath(dataDirectory),
+					patchEpoch + Environment.NewLine,
+					Encoding.UTF8);
+			}
+
 			result.PatchChanged = patchChanged;
 			result.PatchVersion = patchVersion;
+			result.PatchEpoch = patchEpoch;
 			result.PatchTime = patchTime;
 			return result;
 		}
@@ -109,23 +127,31 @@ namespace MetaCompanion
 			}
 
 			var version = "";
+			DateTime? patchTime = null;
+			var source = exePath;
 			var productDbPath = Path.Combine(Path.GetDirectoryName(exePath), ".product.db");
 			if (File.Exists(productDbPath))
 			{
 				version = NormalizePatchVersion(
 					Encoding.ASCII.GetString(File.ReadAllBytes(productDbPath)));
+				if (!string.IsNullOrWhiteSpace(version))
+				{
+					patchTime = File.GetLastWriteTime(productDbPath);
+					source = productDbPath;
+				}
 			}
 
 			if (string.IsNullOrWhiteSpace(version))
 			{
 				version = NormalizePatchVersion(FileVersionInfo.GetVersionInfo(exePath).ProductVersion);
+				patchTime = File.GetLastWriteTime(exePath);
 			}
 
 			return new HearthstonePatchInfo
 			{
 				Version = version,
-				PatchTime = File.GetLastWriteTime(exePath),
-				Source = exePath
+				PatchTime = patchTime,
+				Source = source
 			};
 		}
 
@@ -140,9 +166,7 @@ namespace MetaCompanion
 				return false;
 			}
 
-			if (!string.IsNullOrWhiteSpace(storedVersion) &&
-				!string.IsNullOrWhiteSpace(detectedVersion) &&
-				!string.Equals(storedVersion, detectedVersion, StringComparison.OrdinalIgnoreCase))
+			if (HasVersionChanged(storedVersion, detectedVersion))
 			{
 				return true;
 			}
@@ -150,6 +174,13 @@ namespace MetaCompanion
 			return detectedPatchTime.HasValue &&
 				storedMarker.HasValue &&
 				storedMarker.Value < detectedPatchTime.Value.AddMinutes(-1);
+		}
+
+		private static bool HasVersionChanged(string storedVersion, string detectedVersion)
+		{
+			return !string.IsNullOrWhiteSpace(storedVersion) &&
+				!string.IsNullOrWhiteSpace(detectedVersion) &&
+				!string.Equals(storedVersion, detectedVersion, StringComparison.OrdinalIgnoreCase);
 		}
 
 		private static string ArchiveActiveLocalFiles(
@@ -266,6 +297,36 @@ namespace MetaCompanion
 		private static string GetPatchVersionPath(string dataDirectory)
 		{
 			return Path.Combine(dataDirectory, "patch_version.txt");
+		}
+
+		private static string GetPatchEpochPath(string dataDirectory)
+		{
+			return Path.Combine(dataDirectory, "patch_epoch.txt");
+		}
+
+		private static DateTime? LaterOf(DateTime? first, DateTime? second)
+		{
+			if (!first.HasValue)
+			{
+				return second;
+			}
+			if (!second.HasValue)
+			{
+				return first;
+			}
+			return first.Value >= second.Value ? first : second;
+		}
+
+		private static string BuildPatchEpoch(string patchVersion, DateTime? patchTime)
+		{
+			if (string.IsNullOrWhiteSpace(patchVersion) && !patchTime.HasValue)
+			{
+				return "";
+			}
+			return (string.IsNullOrWhiteSpace(patchVersion) ? "unknown" : patchVersion) + "@" +
+				(patchTime.HasValue
+					? patchTime.Value.ToString("o", CultureInfo.InvariantCulture)
+					: "unknown");
 		}
 
 		private static string GetUniquePath(string path)

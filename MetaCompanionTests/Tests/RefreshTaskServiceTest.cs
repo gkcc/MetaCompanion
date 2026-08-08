@@ -4,6 +4,8 @@ using System;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
+using System.Reflection;
+using System.Runtime.InteropServices;
 using System.Text;
 
 namespace MetaCompanionTests.Tests
@@ -58,9 +60,16 @@ namespace MetaCompanionTests.Tests
 			Assert.IsFalse(snapshot.ToolsDirectoryExists);
 			Assert.IsFalse(snapshot.RefreshScriptExists);
 			Assert.IsFalse(snapshot.InstallScriptExists);
-			Assert.AreEqual("高级刷新脚本未安装", snapshot.ToolsStatus);
-			Assert.AreEqual("自动刷新不可用: 缺少高级刷新脚本", snapshot.ScheduledTaskStatus);
-			Assert.AreEqual("最近刷新日志: 未找到", snapshot.LatestLogStatus);
+			Assert.AreEqual(
+				"可选自动刷新组件未安装；不影响现有数据、预测和实战建议。",
+				snapshot.ToolsStatus);
+			Assert.AreEqual(
+				"可选自动刷新组件未安装；不影响现有数据、预测和实战建议。",
+				snapshot.ScheduledTaskStatus);
+			Assert.AreEqual(
+				"最近刷新日志: 未找到（可选自动刷新组件未安装）",
+				snapshot.LatestLogStatus);
+			Assert.IsTrue(snapshot.OptionalRefreshComponentsNotInstalled);
 			Assert.IsFalse(snapshot.CanInstallTask);
 			Assert.IsFalse(snapshot.CanRunRefresh);
 			Assert.IsFalse(snapshot.CanOpenLatestLog);
@@ -71,8 +80,13 @@ namespace MetaCompanionTests.Tests
 		{
 			var snapshot = CreateService(true).Inspect();
 
-			Assert.AreEqual("高级刷新脚本未安装", snapshot.ToolsStatus);
-			Assert.AreEqual("自动刷新计划任务已安装，但设置页脚本未安装", snapshot.ScheduledTaskStatus);
+			Assert.AreEqual(
+				"高级自动刷新组件不完整，请安装完整组件。",
+				snapshot.ToolsStatus);
+			Assert.AreEqual(
+				"自动刷新计划仍存在，但高级刷新组件不完整。",
+				snapshot.ScheduledTaskStatus);
+			Assert.IsFalse(snapshot.OptionalRefreshComponentsNotInstalled);
 			Assert.IsFalse(snapshot.CanInstallTask);
 			Assert.IsFalse(snapshot.CanRunRefresh);
 		}
@@ -91,6 +105,82 @@ namespace MetaCompanionTests.Tests
 			Assert.AreEqual("自动刷新未安装", snapshot.ScheduledTaskStatus);
 			Assert.IsTrue(snapshot.CanInstallTask);
 			Assert.IsTrue(snapshot.CanRunRefresh);
+		}
+
+		[TestMethod]
+		public void Inspect_CommunityToolsAndMissingTask_AreOptionalNoticeWithoutWarning()
+		{
+			WriteFile(Path.Combine("Tools", "Sync-BlizzardCardPools.ps1"), "");
+			WriteFile(Path.Combine("Tools", "Sync-HdtArenaAdvisorData.ps1"), "");
+			var service = new RefreshTaskService(
+				_tempDirectory,
+				(Func<string, RefreshScheduledTaskInfo>)(name =>
+				{
+					throw new FileNotFoundException("The system cannot find the file specified.");
+				}),
+				StartProcess);
+			Log.Info("community refresh inspection sentinel");
+			var logLineBeforeInspect = Log.PrevLine;
+
+			var snapshot = service.Inspect();
+			var toolsStatus = BuildSettingsRefreshStatus("BuildRefreshToolsStatus", snapshot);
+			var taskStatus = BuildSettingsRefreshStatus(
+				"BuildRefreshScheduledTaskStatus",
+				snapshot);
+			var latestStatus = BuildSettingsRefreshStatus("BuildRefreshLatestStatus", snapshot);
+
+			Assert.IsTrue(snapshot.ToolsDirectoryExists);
+			Assert.IsFalse(snapshot.RefreshScriptExists);
+			Assert.IsFalse(snapshot.InstallScriptExists);
+			Assert.IsFalse(snapshot.ScheduledTaskInstalled);
+			Assert.AreEqual("", snapshot.ScheduledTaskError);
+			Assert.IsTrue(snapshot.OptionalRefreshComponentsNotInstalled);
+			Assert.AreEqual(logLineBeforeInspect, Log.PrevLine);
+			foreach (var status in new[] { toolsStatus, taskStatus, latestStatus })
+			{
+				StringAssert.StartsWith(status, "提示：");
+				StringAssert.Contains(status, "可选自动刷新组件未安装");
+				StringAssert.Contains(status, "不影响现有数据、预测和实战建议");
+				Assert.IsFalse(status.Contains("需处理"));
+				Assert.IsFalse(status.Contains("失败"));
+				Assert.IsFalse(status.Contains("重新安装"));
+				Assert.IsFalse(status.Contains("立即刷新"));
+			}
+			Assert.IsFalse(snapshot.CanInstallTask);
+			Assert.IsFalse(snapshot.CanRunRefresh);
+		}
+
+		[TestMethod]
+		public void ScheduledTaskNotFound_UsesWindowsHResultAndRejectsOtherFailures()
+		{
+			Assert.IsTrue(RefreshTaskService.IsScheduledTaskNotFound(
+				new FileNotFoundException("localized missing task text")));
+			Assert.IsTrue(RefreshTaskService.IsScheduledTaskNotFound(
+				new COMException("different localized text", unchecked((int)0x80070002))));
+			Assert.IsFalse(RefreshTaskService.IsScheduledTaskNotFound(
+				new UnauthorizedAccessException("access denied")));
+			Assert.IsFalse(RefreshTaskService.IsScheduledTaskNotFound(null));
+		}
+
+		[TestMethod]
+		public void Inspect_PartialRefreshScripts_RemainActionRequired()
+		{
+			WriteFile(Path.Combine("Tools", "Run-MetaCompanionRefresh.ps1"), "");
+
+			var snapshot = CreateService(false).Inspect();
+
+			Assert.IsFalse(snapshot.OptionalRefreshComponentsNotInstalled);
+			Assert.IsFalse(snapshot.RefreshScriptsComplete);
+			foreach (var status in new[]
+			{
+				BuildSettingsRefreshStatus("BuildRefreshToolsStatus", snapshot),
+				BuildSettingsRefreshStatus("BuildRefreshScheduledTaskStatus", snapshot),
+				BuildSettingsRefreshStatus("BuildRefreshLatestStatus", snapshot)
+			})
+			{
+				StringAssert.StartsWith(status, "需处理：");
+				StringAssert.Contains(status, "组件不完整");
+			}
 		}
 
 		[TestMethod]
@@ -115,7 +205,7 @@ namespace MetaCompanionTests.Tests
 		}
 
 		[TestMethod]
-		public void Inspect_SelectsNewestRefreshLogAndReadsSanitizedTail()
+		public void Inspect_SelectsNewestRefreshLogWithoutDisplayingRawTail()
 		{
 			WriteToolScripts();
 			var oldLog = WriteLog(
@@ -135,34 +225,86 @@ namespace MetaCompanionTests.Tests
 			Assert.AreNotEqual(oldLog, snapshot.LatestLogPath);
 			Assert.AreEqual(_now, snapshot.LatestLogTime);
 			Assert.AreEqual("最近刷新日志: 2026-06-22 09:00（状态未知）", snapshot.LatestLogStatus);
-			Assert.AreEqual(8, snapshot.LatestLogSummaryLines.Count);
-			StringAssert.Contains(summary, "line 3");
-			StringAssert.Contains(summary, "Cookie=[redacted]");
+			Assert.AreEqual(1, snapshot.LatestLogSummaryLines.Count);
+			StringAssert.Contains(summary, "尚未确认刷新结果");
+			Assert.IsFalse(summary.Contains("line 3"));
+			Assert.IsFalse(summary.Contains("Cookie"));
 			Assert.IsFalse(summary.Contains("secret-cookie-value"));
 			Assert.IsTrue(snapshot.CanOpenLatestLog);
 		}
 
 		[TestMethod]
-		public void Inspect_CondensesHtmlErrorBodiesInRefreshLogTail()
+		public void Inspect_HtmlFailureDoesNotDisplayRawLogBody()
 		{
 			WriteToolScripts();
 			var htmlError =
-				"PS>TerminatingError(): \"HSReplay returned HTTP 403 for list_decks_by_win_rate_v2. " +
-				"Body: <!DOCTYPE html><html><head><title>Just a moment...</title></head>" +
+				"PS>TerminatingError(): \"HSReplay 返回 HTTP 403：list_decks_by_win_rate_v2。" +
+				"响应：<!DOCTYPE html><html><head><title>Just a moment...</title></head>" +
 				"<body><script src=\"https://challenges.cloudflare.com/test.js\"></script></body></html>\"";
 			WriteLog("refresh-20260622-080500.log", htmlError, _now);
 
 			var snapshot = CreateService(true).Inspect();
 			var summary = string.Join("\n", snapshot.LatestLogSummaryLines.ToArray());
 
-			StringAssert.Contains(summary, "HSReplay returned HTTP 403");
-			StringAssert.Contains(summary, "响应正文已省略: Cloudflare 验证页");
+			StringAssert.Contains(summary, "最近一次数据刷新失败");
+			StringAssert.Contains(summary, "打开刷新日志");
+			StringAssert.Contains(summary, "可能含英文技术信息");
 			Assert.AreEqual("最近刷新日志: 2026-06-22 09:00（失败）", snapshot.LatestLogStatus);
 			Assert.IsTrue(snapshot.LatestLogFailed);
 			Assert.IsFalse(snapshot.LatestLogSucceeded);
+			Assert.IsFalse(summary.Contains("HSReplay"));
+			Assert.IsFalse(summary.Contains("HTTP 403"));
+			Assert.IsFalse(summary.Contains("Cloudflare"));
 			Assert.IsFalse(summary.Contains("<!DOCTYPE html"));
 			Assert.IsFalse(summary.Contains("<script"));
 			Assert.IsFalse(summary.Contains("challenges.cloudflare.com"));
+			var userStatus = BuildSettingsRefreshStatus("BuildRefreshLatestStatus", snapshot);
+			StringAssert.StartsWith(userStatus, "需处理：");
+			StringAssert.Contains(userStatus, "最近一次数据刷新失败");
+			StringAssert.Contains(userStatus, "打开开发者刷新日志");
+		}
+
+		[TestMethod]
+		public void Inspect_DeferredOutcomeTreatsCaughtProducerErrorsAsWaitingForUpstream()
+		{
+			WriteToolScripts();
+			WriteLog(
+				"refresh-20260805-210505.log",
+				"PS>TerminatingError(): stale producer response" + Environment.NewLine +
+				"META_COMPANION_REFRESH_OUTCOME=DEFERRED" + Environment.NewLine +
+				"Windows PowerShell transcript end",
+				_now);
+
+			var snapshot = CreateService(true).Inspect();
+			var summary = string.Join("\n", snapshot.LatestLogSummaryLines.ToArray());
+
+			Assert.IsTrue(snapshot.LatestLogDeferred);
+			Assert.IsFalse(snapshot.LatestLogFailed);
+			Assert.IsFalse(snapshot.LatestLogSucceeded);
+			StringAssert.Contains(snapshot.LatestLogStatus, "等待上游数据");
+			StringAssert.Contains(summary, "HSReplay 当前补丁数据仍在生成");
+			Assert.IsFalse(summary.Contains("TerminatingError"));
+			Assert.IsFalse(summary.Contains("刷新失败"));
+		}
+
+		[TestMethod]
+		public void Inspect_CleanLegacyDeferralOverridesCaughtProducerErrorsAfterTranscriptEnds()
+		{
+			WriteToolScripts();
+			WriteLog(
+				"refresh-20260805-210505.log",
+				"PS>TerminatingError(): stale producer response" + Environment.NewLine +
+				"WARNING: HSReplay 数据仍在生成；本次停止分支与推荐刷新，请稍后重试。" +
+				Environment.NewLine +
+				"Windows PowerShell transcript end",
+				_now);
+
+			var snapshot = CreateService(true).Inspect();
+
+			Assert.IsTrue(snapshot.LatestLogDeferred);
+			Assert.IsFalse(snapshot.LatestLogFailed);
+			Assert.IsFalse(snapshot.LatestLogSucceeded);
+			StringAssert.Contains(snapshot.LatestLogStatus, "等待上游数据");
 		}
 
 		[TestMethod]
@@ -170,7 +312,7 @@ namespace MetaCompanionTests.Tests
 		{
 			WriteLog(
 				"refresh-20260622-080500.log",
-				"Remote cache already refreshed today; skipping. Use -Force to refresh anyway." +
+				"远端缓存今天已经刷新完成，已跳过。如需强制刷新，请使用 -Force。" +
 				Environment.NewLine +
 				"Windows PowerShell 脚本结束",
 				_now);
@@ -178,10 +320,16 @@ namespace MetaCompanionTests.Tests
 			var snapshot = CreateService(false).Inspect();
 
 			Assert.AreEqual(
-				"最近刷新日志: 2026-06-22 09:00（完成；设置页脚本未安装）",
+				"最近刷新日志: 2026-06-22 09:00（完成；可选自动刷新组件未安装）",
 				snapshot.LatestLogStatus);
 			Assert.IsTrue(snapshot.LatestLogSucceeded);
 			Assert.IsFalse(snapshot.LatestLogFailed);
+			var userStatus = BuildSettingsRefreshStatus("BuildRefreshLatestStatus", snapshot);
+			StringAssert.StartsWith(userStatus, "提示：");
+			StringAssert.Contains(userStatus, "可选自动刷新组件未安装");
+			StringAssert.Contains(userStatus, "不影响现有数据、预测和实战建议");
+			Assert.IsFalse(userStatus.Contains("需处理"));
+			Assert.IsFalse(userStatus.Contains("重试"));
 		}
 
 		[TestMethod]
@@ -224,7 +372,7 @@ namespace MetaCompanionTests.Tests
 
 				Assert.IsTrue(snapshot.LatestLogBusy);
 				Assert.AreEqual("最近刷新日志: 2026-06-22 09:00（刷新中）", snapshot.LatestLogStatus);
-				StringAssert.Contains(summary, "刷新正在运行");
+				StringAssert.Contains(summary, "数据刷新正在进行");
 				Assert.IsFalse(summary.Contains("日志摘要读取失败"));
 			}
 		}
@@ -255,11 +403,54 @@ namespace MetaCompanionTests.Tests
 
 			Assert.IsFalse(result.Started);
 			Assert.AreEqual(0, _startCount);
-			StringAssert.Contains(result.Message, "高级刷新脚本未安装");
+			StringAssert.Contains(result.Message, "立即刷新不可用");
+			StringAssert.Contains(result.Message, "重新安装插件");
 		}
 
 		[TestMethod]
-		public void Inspect_ScheduledTaskCheckerFailure_ShowsFailureSummary()
+		public void SanitizeDiagnosticText_RedactsCredentialVariants()
+		{
+			var sanitized = RefreshTaskService.SanitizeDiagnosticText(
+				"Cookie: cookie-secret Authorization: Bearer auth-secret " +
+				"access_token=<token-value> api-key=key-secret Bearer loose-secret");
+
+			StringAssert.Contains(sanitized, "Cookie=[redacted]");
+			StringAssert.Contains(sanitized, "Authorization=[redacted]");
+			StringAssert.Contains(sanitized, "access_token=[redacted]");
+			StringAssert.Contains(sanitized, "api-key=[redacted]");
+			StringAssert.Contains(sanitized, "Bearer [redacted]");
+			Assert.IsFalse(sanitized.Contains("cookie-secret"));
+			Assert.IsFalse(sanitized.Contains("auth-secret"));
+			Assert.IsFalse(sanitized.Contains("<token-value>"));
+			Assert.IsFalse(sanitized.Contains("key-secret"));
+			Assert.IsFalse(sanitized.Contains("loose-secret"));
+		}
+
+		[TestMethod]
+		public void StartRefreshNow_ProcessFailure_HidesTechnicalException()
+		{
+			WriteToolScripts();
+			var service = new RefreshTaskService(
+				_tempDirectory,
+				name => false,
+				startInfo =>
+				{
+					throw new InvalidOperationException(
+						"Access denied at C:\\Users\\Player\\secret-token.txt");
+				});
+
+			var result = service.StartRefreshNow();
+
+			Assert.IsFalse(result.Started);
+			StringAssert.Contains(result.Message, "立即刷新失败");
+			StringAssert.Contains(result.Message, "请确认 Windows 脚本组件可用后重试");
+			Assert.IsFalse(result.Message.Contains("PowerShell"));
+			Assert.IsFalse(result.Message.Contains("Access denied"));
+			Assert.IsFalse(result.Message.Contains("secret-token"));
+		}
+
+		[TestMethod]
+		public void Inspect_ScheduledTaskCheckerFailure_HidesTechnicalException()
 		{
 			WriteToolScripts();
 			var service = new RefreshTaskService(
@@ -272,8 +463,27 @@ namespace MetaCompanionTests.Tests
 
 			var snapshot = service.Inspect();
 
-			StringAssert.Contains(snapshot.ScheduledTaskStatus, "自动刷新状态读取失败");
-			StringAssert.Contains(snapshot.ScheduledTaskStatus, "access denied");
+			StringAssert.Contains(snapshot.ScheduledTaskStatus, "读取自动刷新状态失败");
+			StringAssert.Contains(snapshot.ScheduledTaskStatus, "刷新状态");
+			Assert.IsFalse(snapshot.ScheduledTaskStatus.Contains("access denied"));
+			Assert.IsFalse(snapshot.ScheduledTaskStatus.Contains("task scheduler"));
+			StringAssert.StartsWith(
+				BuildSettingsRefreshStatus("BuildRefreshScheduledTaskStatus", snapshot),
+				"需处理：");
+		}
+
+		private static string BuildSettingsRefreshStatus(
+			string methodName,
+			RefreshTaskSnapshot snapshot)
+		{
+			var settingsType = typeof(PluginConfig).Assembly.GetType(
+				"MetaCompanion.SettingsWindow",
+				true);
+			var method = settingsType.GetMethod(
+				methodName,
+				BindingFlags.Static | BindingFlags.NonPublic);
+			Assert.IsNotNull(method);
+			return (string)method.Invoke(null, new object[] { snapshot });
 		}
 
 		private RefreshTaskService CreateService(bool scheduledTaskExists)
