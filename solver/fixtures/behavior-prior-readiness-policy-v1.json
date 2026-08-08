@@ -1,0 +1,15 @@
+{
+  "schema": "behavior-imitation-prior-policy-v1",
+  "thresholds": {
+    "min_train_games": 2,
+    "min_validation_games": 2,
+    "min_test_games": 2,
+    "min_train_records": 2,
+    "min_validation_records": 2,
+    "min_test_records": 2,
+    "min_validation_seen_template_records": 2,
+    "max_validation_kind_log_loss_excess": 0.0,
+    "max_validation_seen_template_log_loss_excess": 0.0,
+    "max_validation_unseen_template_rate": 0.0
+  }
+}

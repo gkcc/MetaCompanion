@@ -1,0 +1,170 @@
+{
+  "schema_version": 1,
+  "suite_id": "oracle-visible-chance-v1",
+  "description": "Shared Rust/Python truth fixtures for reviewed visible random effects. Both implementations must independently bind the card rule and emit the same exact public outcome distribution.",
+  "fixtures": [
+    {
+      "id": "sleet-storm-selected-hero-then-random-enemy-minion",
+      "request": {
+        "api_version": "1.0",
+        "request_id": "chance-parity-sleet-storm-two-targets",
+        "state": {
+          "state_id": "chance-two-targets",
+          "turn": 1,
+          "active_player_id": "friendly",
+          "perspective_player_id": "friendly",
+          "friendly": {
+            "player_id": "friendly",
+            "hero": {
+              "entity_id": "friendly-hero",
+              "card_id": "HERO_FRIENDLY",
+              "card_type": "HERO",
+              "health": 30
+            },
+            "mana": 1,
+            "max_mana": 1,
+            "hand": [
+              {
+                "entity_id": "sleet",
+                "card_id": "CATA_485",
+                "name": "Sleet Storm",
+                "card_type": "SPELL",
+                "cost": 1,
+                "card_text": "[x]Deal $2 damage.\n Deal $1 damage to a\n random enemy minion.",
+                "effect_coverage": "unsupported",
+                "unsupported_effects": ["card_text_not_parsed"]
+              }
+            ]
+          },
+          "opponent": {
+            "player_id": "opponent",
+            "hero": {
+              "entity_id": "opponent-hero",
+              "card_id": "HERO_OPPONENT",
+              "card_type": "HERO",
+              "health": 30
+            },
+            "board": [
+              {
+                "entity_id": "open",
+                "card_id": "OPEN_MINION",
+                "card_type": "MINION",
+                "attack": 1,
+                "health": 3
+              },
+              {
+                "entity_id": "hidden",
+                "card_id": "STEALTH_MINION",
+                "card_type": "MINION",
+                "attack": 1,
+                "health": 3,
+                "stealth": true
+              }
+            ]
+          }
+        },
+        "options": {
+          "time_budget_ms": 500,
+          "max_iterations": 2000,
+          "max_depth": 6,
+          "top_k": 3
+        }
+      },
+      "action_id": "play_card:sleet:opponent-hero",
+      "expected": {
+        "matched_rule_id": "cata-sleet-storm-selected-and-random-damage-v1",
+        "deterministic_transition_rejected": true,
+        "outcomes": [
+          {
+            "probability": {"numerator": 1, "denominator": 2},
+            "friendly_mana": 0,
+            "friendly_hand_count": 0,
+            "opponent_hero_health": 28,
+            "opponent_minion_health": {"hidden": 2, "open": 3}
+          },
+          {
+            "probability": {"numerator": 1, "denominator": 2},
+            "friendly_mana": 0,
+            "friendly_hand_count": 0,
+            "opponent_hero_health": 28,
+            "opponent_minion_health": {"hidden": 3, "open": 2}
+          }
+        ]
+      }
+    },
+    {
+      "id": "sleet-storm-random-segment-fizzles-after-selected-lethal",
+      "request": {
+        "api_version": "1.0",
+        "request_id": "chance-parity-sleet-storm-fizzle",
+        "state": {
+          "state_id": "chance-fizzle",
+          "turn": 1,
+          "active_player_id": "friendly",
+          "perspective_player_id": "friendly",
+          "friendly": {
+            "player_id": "friendly",
+            "hero": {
+              "entity_id": "friendly-hero",
+              "card_id": "HERO_FRIENDLY",
+              "card_type": "HERO",
+              "health": 30
+            },
+            "mana": 1,
+            "max_mana": 1,
+            "hand": [
+              {
+                "entity_id": "sleet",
+                "card_id": "CATA_485",
+                "name": "Sleet Storm",
+                "card_type": "SPELL",
+                "cost": 1,
+                "card_text": "[x]Deal $2 damage.\n Deal $1 damage to a\n random enemy minion.",
+                "effect_coverage": "unsupported",
+                "unsupported_effects": ["card_text_not_parsed"]
+              }
+            ]
+          },
+          "opponent": {
+            "player_id": "opponent",
+            "hero": {
+              "entity_id": "opponent-hero",
+              "card_id": "HERO_OPPONENT",
+              "card_type": "HERO",
+              "health": 30
+            },
+            "board": [
+              {
+                "entity_id": "only",
+                "card_id": "ONLY_MINION",
+                "card_type": "MINION",
+                "attack": 1,
+                "health": 2
+              }
+            ]
+          }
+        },
+        "options": {
+          "time_budget_ms": 500,
+          "max_iterations": 2000,
+          "max_depth": 6,
+          "top_k": 3
+        }
+      },
+      "action_id": "play_card:sleet:only",
+      "expected": {
+        "matched_rule_id": "cata-sleet-storm-selected-and-random-damage-v1",
+        "deterministic_transition_rejected": true,
+        "outcomes": [
+          {
+            "probability": {"numerator": 1, "denominator": 1},
+            "friendly_mana": 0,
+            "friendly_hand_count": 0,
+            "opponent_hero_health": 30,
+            "opponent_minion_health": {}
+          }
+        ]
+      }
+    }
+  ]
+}

@@ -1,0 +1,158 @@
+{
+  "schema": "behavior-imitation-manifest-v1",
+  "imitation_schema": "behavior-imitation-example-v1",
+  "imitation_ready": true,
+  "rl_training_ready": false,
+  "source_behavior": {
+    "name": "behavior-prior-source-v1.jsonl",
+    "sha256": "a107ce7548563cb659ddecfc241e2944629d04120b3ddf0e97aa18d70854e479",
+    "bytes": 25860
+  },
+  "source_trajectory_results": {
+    "name": "behavior-prior-results-v1.jsonl",
+    "sha256": "e066ef82f5d03bcaec5753360f931eac419baf879797c0c5d00532ee5cb56eda",
+    "bytes": 4445
+  },
+  "imitation_dataset": {
+    "name": "behavior-prior-readiness-v1.jsonl",
+    "sha256": "a7d56e6ab7e74a2ed9df8349dd27e85d4e12f06089582bb3ec22ccda71237991",
+    "bytes": 27101,
+    "record_count": 6,
+    "game_count": 6,
+    "split_record_counts": {
+      "test": 2,
+      "train": 2,
+      "validation": 2
+    }
+  },
+  "audit": {
+    "schema": "behavior-learning-readiness-report-v1",
+    "behavior_input_sha256": "a107ce7548563cb659ddecfc241e2944629d04120b3ddf0e97aa18d70854e479",
+    "trajectory_input_sha256": "e066ef82f5d03bcaec5753360f931eac419baf879797c0c5d00532ee5cb56eda",
+    "policy": {
+      "min_unique_games": 6,
+      "min_behavior_records": 6,
+      "min_joined_result_games": 6,
+      "min_joined_behavior_records": 6,
+      "min_behavior_eligible_records": 6,
+      "min_local_eligible_records": 3,
+      "min_opponent_eligible_records": 3,
+      "min_distinct_action_kinds": 2,
+      "min_result_join_rate": 1.0,
+      "min_both_side_game_rate": 0.0,
+      "min_behavior_eligible_rate": 1.0,
+      "max_unknown_actor_rate": 0.0,
+      "max_unknown_identity_rate": 0.0,
+      "min_train_games": 2,
+      "min_validation_games": 2,
+      "min_test_games": 2
+    },
+    "policy_sha256": "1db8ffbbf131d869786a4f36504fe5a40fa7281a73f03025efd301a660727a13",
+    "metrics": {
+      "replay_behavior_record_count": 0,
+      "replay_play_card_record_count": 0,
+      "replay_play_source_still_actor_hand_post_count": 0,
+      "replay_play_source_still_actor_hand_post_affected_game_count": 0,
+      "replay_play_source_left_actor_hand_post_rate": 0.0,
+      "replay_attack_record_count": 0,
+      "replay_attack_source_readiness_explicit_count": 0,
+      "replay_attack_source_readiness_explicit_rate": 0.0,
+      "replay_end_turn_record_count": 0,
+      "replay_end_turn_active_player_unchanged_count": 0,
+      "behavior_record_count": 6,
+      "behavior_invalid_record_count": 0,
+      "unique_behavior_game_count": 6,
+      "behavior_eligible_record_count": 6,
+      "local_eligible_record_count": 3,
+      "opponent_eligible_record_count": 3,
+      "post_state_present_count": 6,
+      "unknown_actor_count": 0,
+      "unknown_identity_count": 0,
+      "distinct_action_kind_count": 2,
+      "both_side_game_count": 0,
+      "terminal_result_game_count": 6,
+      "joined_result_game_count": 6,
+      "joined_behavior_record_count": 6,
+      "joined_behavior_eligible_record_count": 6,
+      "behavior_without_result_game_count": 0,
+      "result_without_behavior_game_count": 0,
+      "conflicting_result_game_count": 0,
+      "duplicate_result_observation_count": 0,
+      "sequence_order_violation_count": 0,
+      "timestamp_regression_count": 0,
+      "adjacent_state_pair_count": 0,
+      "adjacent_state_match_count": 0,
+      "result_join_rate": 1.0,
+      "both_side_game_rate": 0.0,
+      "behavior_eligible_rate": 1.0,
+      "joined_behavior_eligible_rate": 1.0,
+      "post_state_present_rate": 1.0,
+      "unknown_actor_rate": 0.0,
+      "unknown_identity_rate": 0.0,
+      "adjacent_state_match_rate": 0.0,
+      "actor_side_counts": {
+        "local": 3,
+        "opponent": 3
+      },
+      "identity_status_counts": {
+        "exact_public_entity": 6
+      },
+      "boundary_status_counts": {
+        "isolated": 6
+      },
+      "action_kind_counts": {
+        "attack": 3,
+        "play_card": 3
+      },
+      "side_action_kind_counts": {
+        "local": {
+          "play_card": 3
+        },
+        "opponent": {
+          "attack": 3
+        }
+      },
+      "eligible_side_action_kind_counts": {
+        "local": {
+          "play_card": 3
+        },
+        "opponent": {
+          "attack": 3
+        }
+      },
+      "mode_counts": {
+        "standard": 6
+      },
+      "patch_counts": {
+        "fixture-patch": 6
+      },
+      "outcome_counts": {
+        "loss": 3,
+        "win": 3
+      },
+      "split_game_counts": {
+        "test": 2,
+        "train": 2,
+        "validation": 2
+      },
+      "split_eligible_record_counts": {
+        "test": 2,
+        "train": 2,
+        "validation": 2
+      }
+    },
+    "contract_passed": true,
+    "imitation_ready": true
+  },
+  "approved_uses": [
+    "behavior_cloning",
+    "opponent_behavior_modeling",
+    "search_ordering_prior"
+  ],
+  "prohibited_uses": [
+    "direct_rl_trajectory",
+    "optimal_action_ground_truth",
+    "hidden_opponent_card_reconstruction"
+  ],
+  "caveat": "该清单证明的只是公开行为语料通过了版本化联审；动作仍是观察样本，不是最优动作证明，且所有样本继续固定 rl_training_eligible=false。"
+}

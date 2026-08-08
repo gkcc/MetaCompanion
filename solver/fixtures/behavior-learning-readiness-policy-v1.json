@@ -1,0 +1,21 @@
+{
+  "schema": "behavior-learning-readiness-policy-v1",
+  "thresholds": {
+    "min_unique_games": 1,
+    "min_behavior_records": 3,
+    "min_joined_result_games": 1,
+    "min_joined_behavior_records": 3,
+    "min_behavior_eligible_records": 3,
+    "min_local_eligible_records": 2,
+    "min_opponent_eligible_records": 1,
+    "min_distinct_action_kinds": 2,
+    "min_result_join_rate": 1.0,
+    "min_both_side_game_rate": 1.0,
+    "min_behavior_eligible_rate": 1.0,
+    "max_unknown_actor_rate": 0.0,
+    "max_unknown_identity_rate": 0.0,
+    "min_train_games": 1,
+    "min_validation_games": 0,
+    "min_test_games": 0
+  }
+}

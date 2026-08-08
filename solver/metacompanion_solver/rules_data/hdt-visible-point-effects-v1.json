@@ -1,0 +1,1072 @@
+{
+  "schema_version": 1,
+  "ruleset_id": "hdt-visible-point-effects-v1",
+  "status": "complete",
+  "description": "Explicitly reviewed visible effects for the real-HDT rules slice, including exact random-target outcome distributions where declared. Exact matching requires explicit evidence for declared intrinsic mechanics and conditional targets; this file is not a free-text parser or a complete Hearthstone ruleset.",
+  "source": {
+    "provider": "Blizzard Hearthstone Card Library plus HDT CardDefs",
+    "official_pool_run_id": "20260731T190715937Z-222942a6",
+    "card_defs_build": "247416",
+    "rules_generated_from_free_text": false,
+    "reviewed_utc": "2026-08-01T00:00:00Z",
+    "observed_transition_evidence": {
+      "schema": "advisor-behavior-v1",
+      "corpus_run_id": "hdt-replay-import-state-v9",
+      "corpus_sha256": "a7456478ff8638405de1d4cdb24552a39790db705d2d26e37b971608c6facfda",
+      "isolation_contract": "boundary_status=isolated plus source ownership and action-kind checks",
+      "includes_friendly_and_opponent_actions": true,
+      "actual_choices_are_not_optimality_labels": true
+    }
+  },
+  "matching_contract": "card_id+normalized_english_text_sha256+card_type+required_intrinsic_mechanics+declared_context_guards",
+  "rules": [
+    {
+      "rule_id": "core-fireball-point-damage-v1",
+      "card_ids": ["CORE_CS2_029"],
+      "card_type": "SPELL",
+      "accepted_texts": [
+        {
+          "normalized": "Deal 6 damage.",
+          "sha256": "c4511dfa5d7f8d7e36e8ae82694389796d7c99a70b99bd3539295a2bde829a0f"
+        }
+      ],
+      "effects": [
+        {"kind": "damage", "amount": 6, "target": "any_character"}
+      ],
+      "resolved_mechanics": []
+    },
+    {
+      "rule_id": "core-arcane-shot-point-damage-v1",
+      "card_ids": ["CORE_DS1_185"],
+      "card_type": "SPELL",
+      "accepted_texts": [
+        {
+          "normalized": "Deal 2 damage.",
+          "sha256": "57d593ff6f3bef34f83494903f9da54c57ab12d4644ab6c49531166b62bd6c1c"
+        }
+      ],
+      "effects": [
+        {"kind": "damage", "amount": 2, "target": "any_character"}
+      ],
+      "resolved_mechanics": []
+    },
+    {
+      "rule_id": "core-holy-smite-minion-damage-v1",
+      "card_ids": ["CORE_CS1_130"],
+      "card_type": "SPELL",
+      "accepted_texts": [
+        {
+          "normalized": "Deal 3 damage to a minion.",
+          "sha256": "7cf48e2b85053827179384bebb9b2dd591898a10387908dbd3a253e705dc4279"
+        }
+      ],
+      "effects": [
+        {"kind": "damage", "amount": 3, "target": "any_minion"}
+      ],
+      "resolved_mechanics": []
+    },
+    {
+      "rule_id": "core-drain-soul-lifesteal-minion-damage-v1",
+      "card_ids": ["CORE_ICC_055"],
+      "card_type": "SPELL",
+      "accepted_texts": [
+        {
+          "normalized": "Lifesteal Deal 3 damage to a minion.",
+          "sha256": "eeff54ec0b96f86885f3752d15e045fb001321e6ad05ea75f23a524a24205056"
+        }
+      ],
+      "effects": [
+        {"kind": "damage", "amount": 3, "target": "any_minion"}
+      ],
+      "required_mechanics": ["lifesteal"],
+      "resolved_mechanics": []
+    },
+    {
+      "rule_id": "core-void-shard-lifesteal-point-damage-v1",
+      "card_ids": ["CORE_SW_442"],
+      "card_type": "SPELL",
+      "accepted_texts": [
+        {
+          "normalized": "Lifesteal Deal 4 damage.",
+          "sha256": "a18c0c3773ca1228d7bbcc8f0f27f819c383c388b6f45b3db68d23408f7919b1"
+        }
+      ],
+      "effects": [
+        {"kind": "damage", "amount": 4, "target": "any_character"}
+      ],
+      "required_mechanics": ["lifesteal"],
+      "resolved_mechanics": []
+    },
+    {
+      "rule_id": "rlk-death-strike-lifesteal-minion-damage-v1",
+      "card_ids": ["RLK_024"],
+      "card_type": "SPELL",
+      "accepted_texts": [
+        {
+          "normalized": "Lifesteal Deal 6 damage to a minion.",
+          "sha256": "73189fc89cc7acfd1457d659f5fd6a77411dc263f2054a13362d18ed8fe0af12"
+        }
+      ],
+      "effects": [
+        {"kind": "damage", "amount": 6, "target": "any_minion"}
+      ],
+      "required_mechanics": ["lifesteal"],
+      "resolved_mechanics": []
+    },
+    {
+      "rule_id": "core-flash-heal-point-heal-v1",
+      "card_ids": ["CORE_AT_055"],
+      "card_type": "SPELL",
+      "accepted_texts": [
+        {
+          "normalized": "Restore 5 Health.",
+          "sha256": "9fb05363180b669a84de0430422e7a394d07e783e73fcdbaea224b7a4f14b9ec"
+        }
+      ],
+      "effects": [
+        {"kind": "heal", "amount": 5, "target": "any_character"}
+      ],
+      "resolved_mechanics": []
+    },
+    {
+      "rule_id": "core-elven-archer-battlecry-damage-v1",
+      "card_ids": ["CORE_CS2_189"],
+      "card_type": "MINION",
+      "accepted_texts": [
+        {
+          "normalized": "Battlecry: Deal 1 damage.",
+          "sha256": "526d21d6a8b5a8e0ac2f17f1a00d0cf4cc824a2d891b1b10473978e19be115c4"
+        }
+      ],
+      "effects": [
+        {"kind": "damage", "amount": 1, "target": "any_character"}
+      ],
+      "resolved_mechanics": ["battlecry"]
+    },
+    {
+      "rule_id": "core-voodoo-doctor-battlecry-heal-v1",
+      "card_ids": ["CORE_EX1_011"],
+      "card_type": "MINION",
+      "accepted_texts": [
+        {
+          "normalized": "Battlecry: Restore 2 Health.",
+          "sha256": "ed192742a2eed3e2bb1094127856f6375e1f7a76008dd8c0c817f6424cf6838b"
+        }
+      ],
+      "effects": [
+        {"kind": "heal", "amount": 2, "target": "any_character"}
+      ],
+      "resolved_mechanics": ["battlecry"]
+    },
+    {
+      "rule_id": "core-fire-elemental-battlecry-damage-v1",
+      "card_ids": ["CORE_CS2_042"],
+      "card_type": "MINION",
+      "accepted_texts": [
+        {
+          "normalized": "Battlecry: Deal 4 damage.",
+          "sha256": "c4b9d8dc41b8c8eb77b2978ffe28fa18e470776cf3c4236833cc910f3312bd6e"
+        }
+      ],
+      "effects": [
+        {"kind": "damage", "amount": 4, "target": "any_character"}
+      ],
+      "resolved_mechanics": ["battlecry"]
+    },
+    {
+      "rule_id": "core-fire-plume-phoenix-battlecry-damage-v1",
+      "card_ids": ["CORE_UNG_084"],
+      "card_type": "MINION",
+      "accepted_texts": [
+        {
+          "normalized": "Battlecry: Deal 3 damage.",
+          "sha256": "52f9929a3fa7f7503115129448c83519105720b8786627e5b00d8a5f7e11ab18"
+        }
+      ],
+      "effects": [
+        {"kind": "damage", "amount": 3, "target": "any_character"}
+      ],
+      "resolved_mechanics": ["battlecry"]
+    },
+    {
+      "rule_id": "core-flame-imp-self-damage-v1",
+      "card_ids": ["CORE_EX1_319"],
+      "card_type": "MINION",
+      "accepted_texts": [
+        {
+          "normalized": "Battlecry: Deal 3 damage to your hero.",
+          "sha256": "c2ebfaf68d814c28beec2ca79722f1920c229c90a39146cac7e8656c12e5a51a"
+        }
+      ],
+      "effects": [
+        {"kind": "damage", "amount": 3, "target": "friendly_hero"}
+      ],
+      "resolved_mechanics": ["battlecry"]
+    },
+    {
+      "rule_id": "bar-hecklefang-hyena-self-damage-v1",
+      "card_ids": ["BAR_745"],
+      "card_type": "MINION",
+      "accepted_texts": [
+        {
+          "normalized": "Battlecry: Deal 3 damage to your hero.",
+          "sha256": "c2ebfaf68d814c28beec2ca79722f1920c229c90a39146cac7e8656c12e5a51a"
+        }
+      ],
+      "effects": [
+        {"kind": "damage", "amount": 3, "target": "friendly_hero"}
+      ],
+      "resolved_mechanics": ["battlecry"]
+    },
+    {
+      "rule_id": "tsc-filletfighter-battlecry-damage-v1",
+      "card_ids": ["TSC_963"],
+      "card_type": "MINION",
+      "accepted_texts": [
+        {
+          "normalized": "Battlecry: Deal 1 damage.",
+          "sha256": "526d21d6a8b5a8e0ac2f17f1a00d0cf4cc824a2d891b1b10473978e19be115c4"
+        }
+      ],
+      "effects": [
+        {"kind": "damage", "amount": 1, "target": "any_character"}
+      ],
+      "resolved_mechanics": ["battlecry"]
+    },
+    {
+      "rule_id": "hunter-steady-shot-point-damage-v1",
+      "card_ids": [
+        "DS1h_292_H1",
+        "DS1h_292_H2",
+        "DS1h_292_H3",
+        "HERO_05ahhp",
+        "HERO_05ambp",
+        "HERO_05aohp",
+        "HERO_05ashp",
+        "HERO_05athp",
+        "HERO_05avhp",
+        "HERO_05azhp",
+        "HERO_05bahp",
+        "HERO_05bfhp",
+        "HERO_05bhhp",
+        "HERO_05bihp",
+        "HERO_05bmhp",
+        "HERO_05bmhp_gold",
+        "HERO_05bnhp",
+        "HERO_05bp",
+        "HERO_05bthp",
+        "HERO_05dbp",
+        "HERO_05ybp",
+        "HERO_05zbp",
+        "VAN_HERO_05bp"
+      ],
+      "card_type": "HERO_POWER",
+      "accepted_texts": [
+        {
+          "normalized": "Hero Power Deal 2 damage to the enemy hero.Hero Power Deal 2 damage.",
+          "sha256": "9f6c17c42cbaebe1e3f8906412c38a2732b41bd75f1795fb7e4b3ca0e78bfbc6"
+        },
+        {
+          "normalized": "Hero Power Deal 2 damage to the enemy hero.@ Hero Power Deal 2 damage.",
+          "sha256": "9c2c46a380a3e57930abac7318e67a02c3ceb29c11cc1f033c5e421c924fe029"
+        }
+      ],
+      "effects": [
+        {"kind": "damage", "amount": 2, "target": "enemy_hero"}
+      ],
+      "resolved_mechanics": [],
+      "context": {
+        "require_complete_owner_public_tags": true,
+        "required_zero_context_tags": [
+          "STEADY_SHOT_CAN_TARGET",
+          "CURRENT_HEROPOWER_DAMAGE_BONUS",
+          "HERO_POWER_DOUBLE",
+          "HEROPOWER_DAMAGE"
+        ]
+      }
+    },
+    {
+      "rule_id": "mage-fireblast-point-damage-v1",
+      "card_ids": [
+        "CS2_034",
+        "CS2_034_H1",
+        "CS2_034_H2",
+        "CS2_034_H3",
+        "CS2_034_H4",
+        "HERO_08aabp",
+        "HERO_08aebp",
+        "HERO_08albp",
+        "HERO_08ambp",
+        "HERO_08ashp",
+        "HERO_08azhp",
+        "HERO_08bchp",
+        "HERO_08bghp",
+        "HERO_08bkhp",
+        "HERO_08bnhp",
+        "HERO_08bohp",
+        "HERO_08bp",
+        "HERO_08bqhp",
+        "HERO_08bvhp",
+        "HERO_08bwhp",
+        "HERO_08cbhp",
+        "HERO_08cchp",
+        "HERO_08cehp",
+        "HERO_08chhp",
+        "HERO_08ckhp",
+        "HERO_08dbp",
+        "HERO_08ebp",
+        "HERO_08fbp",
+        "HERO_08lbp",
+        "HERO_08tbp",
+        "HERO_08xbp",
+        "VAN_HERO_08bp"
+      ],
+      "card_type": "HERO_POWER",
+      "accepted_texts": [
+        {
+          "normalized": "Deal 1 damage.",
+          "sha256": "45dcf37b1ecd3d06590ab56d8dc70ec8f179e0ce6cf640a1dead3b565bdc6f28"
+        },
+        {
+          "normalized": "Hero Power Deal 1 damage.",
+          "sha256": "5888f949b814b86690d1f8313f8ebcf2b4d970d5a172e174cc43f09469ca2232"
+        }
+      ],
+      "effects": [
+        {"kind": "damage", "amount": 1, "target": "any_character"}
+      ],
+      "resolved_mechanics": [],
+      "context": {
+        "require_complete_owner_public_tags": true,
+        "required_zero_context_tags": [
+          "CURRENT_HEROPOWER_DAMAGE_BONUS",
+          "HERO_POWER_DOUBLE",
+          "HEROPOWER_DAMAGE"
+        ]
+      }
+    },
+    {
+      "rule_id": "core-backstab-undamaged-minion-v1",
+      "card_ids": ["CORE_CS2_072"],
+      "card_type": "SPELL",
+      "accepted_texts": [
+        {
+          "normalized": "Deal 2 damage to an undamaged minion.",
+          "sha256": "8990816701bafe46bed9015db25a0becb3845a60d9cb26ab78b0bd4110df9903"
+        }
+      ],
+      "effects": [
+        {"kind": "damage", "amount": 2, "target": "any_undamaged_minion"}
+      ],
+      "resolved_mechanics": []
+    },
+    {
+      "rule_id": "wound-prey-damage-rush-summon-v1",
+      "card_ids": ["BAR_801", "CORE_BAR_801"],
+      "card_type": "SPELL",
+      "accepted_texts": [
+        {
+          "normalized": "Deal 1 damage. Summon a 1/1 Hyena with Rush .",
+          "sha256": "9c57f04740cfbf007d3c9edbb94fbb8e5c5342bb49d210e71c736728fe4091c4"
+        },
+        {
+          "normalized": "Deal 1 damage. Summon a 1/1 Hyena with Rush.",
+          "sha256": "1e4a27310193e82b09ed7cbda41bcc3da7c18f53317e8e2a453ff7749b5ebc10"
+        }
+      ],
+      "effects": [
+        {"kind": "damage", "amount": 1, "target": "any_character"},
+        {
+          "kind": "summon",
+          "target": "none",
+          "count": 1,
+          "card_id": "BAR_035t",
+          "name": "Swift Hyena",
+          "attack": 1,
+          "health": 1,
+          "rush": true
+        }
+      ],
+      "resolved_mechanics": []
+    },
+    {
+      "rule_id": "gorishi-stinger-damage-rush-summon-v1",
+      "card_ids": ["TLC_630t"],
+      "card_type": "SPELL",
+      "accepted_texts": [
+        {
+          "normalized": "Deal 2 damage. Summon a 2/1 Grub with Rush .",
+          "sha256": "f55e4c1cbfe45e0414e5cfb671b3019abf9fdcfc993823d05ac288e379d7a9c6"
+        }
+      ],
+      "effects": [
+        {"kind": "damage", "amount": 2, "target": "any_character"},
+        {
+          "kind": "summon",
+          "target": "none",
+          "count": 1,
+          "card_id": "TLC_903t",
+          "name": "Silithid Grub",
+          "attack": 2,
+          "health": 1,
+          "rush": true
+        }
+      ],
+      "resolved_mechanics": []
+    },
+    {
+      "rule_id": "coin-temporary-mana-v1",
+      "card_ids": [
+        "AT_COIN",
+        "AV_COIN1",
+        "AV_COIN2",
+        "BAR_COIN1",
+        "BAR_COIN2",
+        "BAR_COIN3",
+        "BT_COIN",
+        "CATA_COIN1",
+        "CATA_COIN2",
+        "CATA_COIN3",
+        "CATA_COIN4",
+        "CATA_COIN5",
+        "CATA_COIN6",
+        "DAL_COIN",
+        "DFT_ALEX_COIN1",
+        "DINO_COIN1",
+        "DINO_COIN2",
+        "DMF_COIN1",
+        "DMF_COIN2",
+        "DRG_COIN",
+        "EDR_COIN1",
+        "EDR_COIN2",
+        "ETC_COIN1",
+        "ETC_COIN2",
+        "FP1_COIN",
+        "GAME_005",
+        "GDB_COIN1",
+        "GDB_COIN2",
+        "GVG_COIN",
+        "JAIL_COIN1",
+        "JAIL_COIN2",
+        "LOE_COIN",
+        "MUDAN_COIN1",
+        "REV_COIN1",
+        "REV_COIN2",
+        "RLK_COIN1",
+        "RLK_COIN2",
+        "SW_COIN1",
+        "SW_COIN2",
+        "TIME_COIN1",
+        "TIME_COIN2",
+        "TIME_COIN3",
+        "TIME_COIN4",
+        "TIME_EVENT_COIN",
+        "TLC_COIN1",
+        "TLC_COIN2",
+        "TOY_COIN1",
+        "TOY_COIN2",
+        "TOY_COIN3",
+        "TSC_COIN1",
+        "TSC_COIN2",
+        "TTN_COIN1",
+        "TTN_COIN2",
+        "ULD_COIN",
+        "VAC_COIN1",
+        "VAC_COIN2",
+        "WW_COIN1",
+        "WW_COIN2"
+      ],
+      "card_type": "SPELL",
+      "accepted_texts": [
+        {
+          "normalized": "Gain 1 Mana Crystal this turn only.",
+          "sha256": "7e0b9838c71ab2fca09f4defa0790398e06cf2d4f4f0c10ea1634a74b712d126"
+        }
+      ],
+      "effects": [
+        {"kind": "gain_mana", "amount": 1, "target": "none"}
+      ],
+      "resolved_mechanics": []
+    },
+    {
+      "rule_id": "ww-rock-point-damage-v1",
+      "card_ids": ["WW_001t"],
+      "card_type": "SPELL",
+      "accepted_texts": [
+        {
+          "normalized": "Deal 3 damage.",
+          "sha256": "ccad94e15d565e9df285d196c062591ee53c172eef089927333614eeaa118855"
+        }
+      ],
+      "effects": [
+        {"kind": "damage", "amount": 3, "target": "any_character"}
+      ],
+      "resolved_mechanics": []
+    },
+    {
+      "rule_id": "classic-moonfire-point-damage-v1",
+      "card_ids": ["CS2_008"],
+      "card_type": "SPELL",
+      "accepted_texts": [
+        {
+          "normalized": "Deal 1 damage.",
+          "sha256": "45dcf37b1ecd3d06590ab56d8dc70ec8f179e0ce6cf640a1dead3b565bdc6f28"
+        }
+      ],
+      "effects": [
+        {"kind": "damage", "amount": 1, "target": "any_character"}
+      ],
+      "resolved_mechanics": []
+    },
+    {
+      "rule_id": "warrior-armor-up-v1",
+      "card_ids": [
+        "CS2_102_H1",
+        "CS2_102_H2",
+        "CS2_102_H3",
+        "CS2_102_H4",
+        "HERO_01aabp",
+        "HERO_01acbp",
+        "HERO_01aphp",
+        "HERO_01aqhp",
+        "HERO_01auhp",
+        "HERO_01awhp",
+        "HERO_01axhp",
+        "HERO_01ayhp",
+        "HERO_01azhp",
+        "HERO_01bahp",
+        "HERO_01bbhp",
+        "HERO_01bdhp",
+        "HERO_01bfhp",
+        "HERO_01bkhp",
+        "HERO_01bkhp_gold",
+        "HERO_01bnhp",
+        "HERO_01bp",
+        "HERO_01bthp",
+        "HERO_01bwhp",
+        "HERO_01dbp",
+        "HERO_01fbp",
+        "HERO_01obp",
+        "HERO_01qbp",
+        "HERO_01vbp",
+        "HERO_01wbp",
+        "VAN_CS2_102_H3",
+        "VAN_HERO_01bp"
+      ],
+      "card_type": "HERO_POWER",
+      "accepted_texts": [
+        {
+          "normalized": "Hero Power Gain $d2 Armor.",
+          "sha256": "964c56a015d529442030ab0d5226d54de6f7f3a2d7f702a4386e5611700904f9"
+        },
+        {
+          "normalized": "Hero Power Gain 2 Armor.",
+          "sha256": "786933ebf9db423e9ca17b1bfe76dd0192de5d845bfe958392c43b705d6bed7b"
+        }
+      ],
+      "effects": [
+        {"kind": "armor", "amount": 2, "target": "none"}
+      ],
+      "resolved_mechanics": [],
+      "context": {
+        "require_complete_owner_public_tags": true,
+        "required_zero_context_tags": ["HERO_POWER_DOUBLE"]
+      },
+      "observed_transition_evidence": {
+        "HERO_01dbp": 29,
+        "CS2_102_H4": 1,
+        "expected_armor_delta": 2
+      }
+    },
+    {
+      "rule_id": "demon-hunter-demon-claws-v1",
+      "card_ids": [
+        "HERO_10akhp",
+        "HERO_10amhp",
+        "HERO_10ashp",
+        "HERO_10auhp",
+        "HERO_10awhp",
+        "HERO_10azhp",
+        "HERO_10bbhp",
+        "HERO_10bbp",
+        "HERO_10bchp",
+        "HERO_10bdhp",
+        "HERO_10bghp",
+        "HERO_10bkhp",
+        "HERO_10bp",
+        "HERO_10brhp",
+        "HERO_10cbp",
+        "HERO_10lbp",
+        "HERO_10xbp",
+        "HERO_10zbp"
+      ],
+      "card_type": "HERO_POWER",
+      "accepted_texts": [
+        {
+          "normalized": "Hero Power +$a1 Attack this turn.",
+          "sha256": "9e1790f4a8574437ba860b0efcd12c39823a3fb85e7411f9034502f56acfced1"
+        }
+      ],
+      "effects": [
+        {"kind": "gain_hero_attack", "amount": 1, "target": "none"}
+      ],
+      "resolved_mechanics": [],
+      "context": {
+        "require_complete_owner_public_tags": true,
+        "required_zero_context_tags": ["HERO_POWER_DOUBLE"]
+      },
+      "observed_transition_evidence": {
+        "HERO_10cbp": 36,
+        "HERO_10zbp": 1,
+        "expected_hero_attack_delta": 1
+      }
+    },
+    {
+      "rule_id": "time-static-shock-v1",
+      "card_ids": ["TIME_218"],
+      "card_type": "SPELL",
+      "accepted_texts": [
+        {
+          "normalized": "Deal 1 damage to a minion. Give your hero +1 Attack this turn.",
+          "sha256": "8dcd674f522a0c6d19e93ca44a203e4770df56e4bc1a213c739d8cef8b278edb"
+        }
+      ],
+      "effects": [
+        {"kind": "damage", "amount": 1, "target": "any_minion"},
+        {"kind": "gain_hero_attack", "amount": 1, "target": "none"}
+      ],
+      "resolved_mechanics": [],
+      "observed_transition_evidence": {
+        "isolated_observation_count": 32,
+        "expected_hero_attack_delta": 1,
+        "base_damage": 1,
+        "damage_modifiers_and_prevention_preserved": true
+      }
+    },
+    {
+      "rule_id": "jail-molten-gold-elemental-v1",
+      "card_ids": ["JAIL_801t"],
+      "card_type": "MINION",
+      "accepted_texts": [
+        {
+          "normalized": "Battlecry: Deal 4 damage.",
+          "sha256": "c4b9d8dc41b8c8eb77b2978ffe28fa18e470776cf3c4236833cc910f3312bd6e"
+        }
+      ],
+      "effects": [
+        {"kind": "damage", "amount": 4, "target": "any_character"}
+      ],
+      "resolved_mechanics": ["battlecry"],
+      "observed_transition_evidence": {
+        "strict_hand_play_observation_count": 12,
+        "expected_base_damage": 4
+      }
+    },
+    {
+      "rule_id": "jail-molten-gold-spell-v1",
+      "card_ids": ["JAIL_801"],
+      "card_type": "SPELL",
+      "accepted_texts": [
+        {
+          "normalized": "Deal 4 damage. (Cast @ |4(spell, spells) to turn into a minion!)",
+          "sha256": "9953b577ab2a2032b6decab5c781501edcd7556a262039ed42abdd0083bea2ca"
+        }
+      ],
+      "effects": [
+        {"kind": "damage", "amount": 4, "target": "any_character"}
+      ],
+      "resolved_mechanics": [],
+      "reviewed_evidence": {
+        "card_defs_builds": ["246003", "247416"],
+        "isolated_spell_play_observation_count": 1,
+        "missing_hdt_spell_candidate_count_before_rule": 11,
+        "same_card_id_transformed_minion_must_fail_card_type_gate": true
+      }
+    },
+    {
+      "rule_id": "tlc-windpeak-wyrm-battlecry-v1",
+      "card_ids": ["TLC_600"],
+      "card_type": "MINION",
+      "accepted_texts": [
+        {
+          "normalized": "Battlecry: Deal 5 damage and gain 5 Armor. Kindred: Costs (3) less.",
+          "sha256": "eccf8d2e4eba653f97735e682c1a0e68f55031d5a4756882c10efb873d5efa2b"
+        }
+      ],
+      "effects": [
+        {"kind": "damage", "amount": 5, "target": "any_character"},
+        {"kind": "armor", "amount": 5, "target": "none"}
+      ],
+      "resolved_mechanics": ["battlecry", "kindred"],
+      "reviewed_evidence": {
+        "card_defs_builds": ["246003", "247416"],
+        "isolated_play_observation_count": 19,
+        "observed_armor_delta": 5,
+        "missing_hdt_root_candidate_count_before_rule": 57,
+        "dynamic_kindred_cost_is_read_from_the_public_hdt_entity": true
+      }
+    },
+    {
+      "rule_id": "tlc-niri-one-cost-card-doubler-v1",
+      "card_ids": ["TLC_836"],
+      "card_type": "MINION",
+      "accepted_texts": [
+        {
+          "normalized": "Whenever you play a 1-Cost minion, double its stats. Whenever you cast a 1-Cost spell, cast it twice.",
+          "sha256": "bf6434e85f606d3feefa1210bb116d937618575b39cfd380b0057c22f1c4598c"
+        }
+      ],
+      "effects": [
+        {"kind": "double_one_cost_cards", "amount": 2, "target": "none"}
+      ],
+      "required_mechanics": ["trigger"],
+      "resolved_mechanics": [],
+      "reviewed_evidence": {
+        "card_defs_build": "247416",
+        "public_trigger_visual_tag_required": true,
+        "one_cost_minion_stats_multiplier": 2,
+        "one_cost_spell_resolution_count": 2,
+        "multiple_living_copies_stack_multiplicatively": true
+      }
+    },
+    {
+      "rule_id": "core-frostbolt-damage-freeze-v1",
+      "card_ids": ["CORE_CS2_024"],
+      "card_type": "SPELL",
+      "accepted_texts": [
+        {
+          "normalized": "Deal 3 damage to a_character and Freeze it.",
+          "sha256": "a76f056aace886e4feef20423c2be9eeefef67557917eaa92d45430d58c6cbbc"
+        }
+      ],
+      "effects": [
+        {"kind": "damage", "amount": 3, "target": "any_character"},
+        {"kind": "freeze", "amount": 0, "target": "any_character"}
+      ],
+      "resolved_mechanics": ["freeze"],
+      "reviewed_evidence": {
+        "missing_hdt_root_candidate_count_before_rule": 12,
+        "freeze_intrinsic_tag_present_in_card_defs": true
+      }
+    },
+    {
+      "rule_id": "cata-searing-fissure-aoe-hero-attack-v1",
+      "card_ids": ["CATA_582"],
+      "card_type": "SPELL",
+      "accepted_texts": [
+        {
+          "normalized": "Deal 1 damage to all minions. Give your hero +3 Attack this turn.",
+          "sha256": "e74b8e74a6c83120ded55a5f2cc24d2fcba23bdf759787ed98c33445cbdbe7db"
+        }
+      ],
+      "effects": [
+        {"kind": "damage_all_minions", "amount": 1, "target": "none"},
+        {"kind": "gain_hero_attack", "amount": 3, "target": "none"}
+      ],
+      "resolved_mechanics": [],
+      "reviewed_evidence": {
+        "missing_hdt_root_candidate_count_before_rule": 7,
+        "spell_power_applies_only_to_the_damage_effect": true
+      }
+    },
+    {
+      "rule_id": "core-sanguine-depths-location-v1",
+      "card_ids": ["CORE_REV_990"],
+      "card_type": "LOCATION",
+      "accepted_texts": [
+        {
+          "normalized": "Deal 1 damage to a minion and give it +2 Attack.",
+          "sha256": "2fbb1b4b3c902e6e160ed3c3603092f62ccb88f56ef0c5d2479713dd69276480"
+        }
+      ],
+      "effects": [
+        {"kind": "damage", "amount": 1, "target": "any_minion"},
+        {"kind": "buff_attack", "amount": 2, "target": "any_minion"}
+      ],
+      "resolved_mechanics": [],
+      "observed_transition_evidence": {
+        "missing_hdt_location_activation_candidate_count_before_rule": 29,
+        "missing_hdt_location_placement_candidate_count_before_rule": 6,
+        "activation_reduces_current_health_by": 1,
+        "target_health_delta": -1,
+        "target_attack_delta": 2,
+        "friendly_and_enemy_minion_targets_observed": true
+      }
+    },
+    {
+      "rule_id": "jail-underbelly-network-location-v1",
+      "card_ids": ["JAIL_877"],
+      "card_type": "LOCATION",
+      "accepted_texts": [
+        {
+          "normalized": "Summon a 2/1 Rat with \"Deathrattle: Draw a card.\"",
+          "sha256": "39fa6eb297e06198ad998dfb84f2e76a7354aa0ac1eaee87e7beac4277f3177e"
+        }
+      ],
+      "effects": [
+        {
+          "kind": "summon",
+          "amount": 0,
+          "target": "none",
+          "count": 1,
+          "card_id": "JAIL_877t",
+          "name": "Snoot Hoarder",
+          "attack": 2,
+          "health": 1,
+          "summoned_card_effects_unmodeled": true
+        }
+      ],
+      "resolved_mechanics": [],
+      "reviewed_evidence": {
+        "card_defs_build": "247416",
+        "location_activation_summons_visible_token": true,
+        "summoned_token_deathrattle_remains_fail_closed": true
+      }
+    },
+    {
+      "rule_id": "time-queldorei-fletcher-hero-power-cost-aura-v1",
+      "card_ids": ["TIME_606"],
+      "card_type": "MINION",
+      "accepted_texts": [
+        {
+          "normalized": "Your Hero Power costs (0) while your hand has 3 or less cards.",
+          "sha256": "75ba0629522c230e4ff954baf845359188244f7cab01e64dc14e2d7966a0bea3"
+        }
+      ],
+      "effects": [
+        {
+          "kind": "set_hero_power_cost",
+          "amount": 0,
+          "target": "none",
+          "hand_count_at_most": 3
+        }
+      ],
+      "required_mechanics": ["aura"],
+      "resolved_mechanics": [],
+      "observed_transition_evidence": {
+        "card_defs_build": "247416",
+        "public_aura_tag_required": true,
+        "hand_count_four_observed_hero_power_cost": 2,
+        "hand_count_three_observed_hero_power_cost": 0,
+        "unmodified_cost_source": "TAG_LAST_KNOWN_COST_IN_HAND"
+      }
+    },
+    {
+      "rule_id": "cata-earthen-roar-single-target-no-dragon-v1",
+      "card_ids": ["CATA_554"],
+      "card_type": "SPELL",
+      "accepted_texts": [
+        {
+          "normalized": "Set an enemy minion's Health to 1. If you're holding a Dragon, pick another.",
+          "sha256": "7cf7f87df82025c06f19092c96a766835f439afa0353c366f30fb8d0e728e156"
+        }
+      ],
+      "effects": [
+        {"kind": "set_health", "amount": 1, "target": "enemy_minion"}
+      ],
+      "resolved_mechanics": [],
+      "context": {
+        "required_absent_friendly_hand_races": ["DRAGON"]
+      },
+      "reviewed_evidence": {
+        "conditional_second_target_is_not_modeled": true,
+        "single_target_branch_requires_public_no_dragon_evidence": true
+      }
+    },
+    {
+      "rule_id": "core-consecration-enemy-aoe-v1",
+      "card_ids": ["CORE_CS2_093"],
+      "card_type": "SPELL",
+      "accepted_texts": [
+        {
+          "normalized": "Deal 2 damage to all enemies.",
+          "sha256": "51a7229ab42bde242db3cdb302ccc5738c5f9e495106d305487763fcfe37bd04"
+        }
+      ],
+      "effects": [
+        {"kind": "damage", "amount": 2, "target": "all_enemy_characters"}
+      ],
+      "resolved_mechanics": []
+    },
+    {
+      "rule_id": "core-flamestrike-enemy-minion-aoe-v1",
+      "card_ids": ["CORE_CS2_032"],
+      "card_type": "SPELL",
+      "accepted_texts": [
+        {
+          "normalized": "Deal 5 damage to all enemy minions.",
+          "sha256": "d0e2bb327fbceb7a82a5e5b1014e5a21fcb3d6df38d6996743bfca192fe4ec82"
+        }
+      ],
+      "effects": [
+        {"kind": "damage", "amount": 5, "target": "all_enemy_minions"}
+      ],
+      "resolved_mechanics": []
+    },
+    {
+      "rule_id": "core-hellfire-all-character-aoe-v1",
+      "card_ids": ["CORE_CS2_062"],
+      "card_type": "SPELL",
+      "accepted_texts": [
+        {
+          "normalized": "Deal 3 damage to ALL characters.",
+          "sha256": "3d7e17664e528818ceb8cbc285d408005ea5167e550763308c753ece4b0f40e4"
+        }
+      ],
+      "effects": [
+        {"kind": "damage", "amount": 3, "target": "all_characters"}
+      ],
+      "resolved_mechanics": []
+    },
+    {
+      "rule_id": "core-glacial-shard-battlecry-freeze-v1",
+      "card_ids": ["CORE_UNG_205"],
+      "card_type": "MINION",
+      "accepted_texts": [
+        {
+          "normalized": "Battlecry: Freeze an enemy.",
+          "sha256": "1fba3d139a53b2a5ba8ef15179561337336031d7d1a26996c9a6b47f7628cf64"
+        }
+      ],
+      "effects": [
+        {"kind": "freeze", "amount": 0, "target": "enemy_character"}
+      ],
+      "resolved_mechanics": ["battlecry", "freeze"]
+    },
+    {
+      "rule_id": "core-beaming-sidekick-battlecry-health-buff-v1",
+      "card_ids": ["CORE_ULD_191"],
+      "card_type": "MINION",
+      "accepted_texts": [
+        {
+          "normalized": "Battlecry: Give a friendly minion +2 Health.",
+          "sha256": "703ef78bb33062c9722e0dfb4e1957b34fdbdd6ea77a99e48a7ce18f7f627db1"
+        }
+      ],
+      "effects": [
+        {"kind": "buff_health", "amount": 2, "target": "friendly_minion"}
+      ],
+      "resolved_mechanics": ["battlecry"]
+    },
+    {
+      "rule_id": "core-equality-all-minion-health-v1",
+      "card_ids": ["CORE_EX1_619"],
+      "card_type": "SPELL",
+      "accepted_texts": [
+        {
+          "normalized": "Change the Health of ALL minions to 1.",
+          "sha256": "4504a9f992be12b0b30d8b897e82bf4d0df1beadd00be42bdc23c40487147347"
+        }
+      ],
+      "effects": [
+        {"kind": "set_health", "amount": 1, "target": "all_minions"}
+      ],
+      "resolved_mechanics": []
+    },
+    {
+      "rule_id": "core-blizzard-enemy-minion-aoe-freeze-v1",
+      "card_ids": ["CORE_CS2_028"],
+      "card_type": "SPELL",
+      "accepted_texts": [
+        {
+          "normalized": "Deal 2 damage to all enemy minions and Freeze them.",
+          "sha256": "4338665194c3da90fe7d352f9ae51fc8ae5c2379a16938a74e4e29b3ac9e0626"
+        }
+      ],
+      "effects": [
+        {"kind": "damage", "amount": 2, "target": "all_enemy_minions"},
+        {"kind": "freeze", "amount": 0, "target": "all_enemy_minions"}
+      ],
+      "resolved_mechanics": ["freeze"]
+    },
+    {
+      "rule_id": "core-holy-nova-enemy-damage-friendly-heal-v1",
+      "card_ids": ["CORE_CS1_112"],
+      "card_type": "SPELL",
+      "accepted_texts": [
+        {
+          "normalized": "Deal 2 damage to all enemy minions. Restore 2 Health to all friendly characters.",
+          "sha256": "20317e416e20893a1ca1321703f1e05560fef4782f1a2d2558b7604a54699021"
+        }
+      ],
+      "effects": [
+        {"kind": "damage", "amount": 2, "target": "all_enemy_minions"},
+        {"kind": "heal", "amount": 2, "target": "all_friendly_characters"}
+      ],
+      "resolved_mechanics": []
+    },
+    {
+      "rule_id": "cata-sleet-storm-selected-and-random-damage-v1",
+      "card_ids": ["CATA_485"],
+      "card_type": "SPELL",
+      "accepted_texts": [
+        {
+          "normalized": "Deal 2 damage. Deal 1 damage to a random enemy minion.",
+          "sha256": "1357a2c44a1e398cb145f0ac94d0a41ab05e652dcffd7361afbf5442841ac4e7"
+        }
+      ],
+      "effects": [
+        {"kind": "damage", "amount": 2, "target": "any_character"},
+        {"kind": "damage", "amount": 1, "target": "enemy_minion", "random": true}
+      ],
+      "resolved_mechanics": [],
+      "reviewed_evidence": {
+        "card_defs_build": "247416",
+        "player_selected_target_is_separate_from_random_enemy_minion_target": true,
+        "random_target_distribution": "uniform_over_living_non_dormant_enemy_minions"
+      }
+    },
+    {
+      "rule_id": "smuggled-shovel-generated-spell-deathrattle-v1",
+      "card_ids": ["JAIL_380"],
+      "card_type": "WEAPON",
+      "accepted_texts": [
+        {
+          "normalized": "Deathrattle: Draw a spell that didn't start in your deck.",
+          "sha256": "7c00c41e0b3c12c7d9690668c892e03d2138175004f54ef0ee8ea99920f07fd5"
+        }
+      ],
+      "effects": [
+        {"kind": "draw_non_starting_spell_on_weapon_break", "target": "none"}
+      ],
+      "resolved_mechanics": ["deathrattle"]
+    },
+    {
+      "rule_id": "arcane-tripwire-split-and-shuffle-v1",
+      "card_ids": ["JAIL_881"],
+      "card_type": "SPELL",
+      "accepted_texts": [
+        {
+          "normalized": "Deal 5 damage split among all enemies. Shuffle 2 spells into your deck that do it again when drawn.",
+          "sha256": "2065dda277928b38e109a7968a364ddf0e96796bf8a9a5d20ad272243b767c6e"
+        }
+      ],
+      "effects": [
+        {"kind": "damage_split", "amount": 5, "target": "all_enemy_characters", "random": true},
+        {
+          "kind": "shuffle_repeat_spell",
+          "target": "none",
+          "count": 2,
+          "card_id": "JAIL_881_REPEAT",
+          "name": "Arcane Tripwire Echo"
+        }
+      ],
+      "resolved_mechanics": ["immunetospellpower"]
+    },
+    {
+      "rule_id": "confront-the-tolvir-one-cost-replay-v1",
+      "card_ids": ["CATA_560"],
+      "card_type": "SPELL",
+      "accepted_texts": [
+        {
+          "normalized": "Replay each 1-Cost card you've played this game (targeting enemies if possible.)",
+          "sha256": "d23f42e24e23461c5d7fcb9a1344cd0ff0539219332acfa7e0ffcd3a8f468ac7"
+        }
+      ],
+      "effects": [
+        {"kind": "replay_one_cost_cards", "target": "none"}
+      ],
+      "resolved_mechanics": []
+    }
+  ]
+}

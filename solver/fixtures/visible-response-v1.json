@@ -1,0 +1,598 @@
+{
+  "schema_version": 1,
+  "suite_id": "visible-response-v1",
+  "description": "Raw HDT hidden-information fallback contract. Expected rankings and legal root IDs are fixture truth; no production Rust ranking code is used as an oracle.",
+  "thresholds": {
+    "min_fixture_count": 3,
+    "max_contract_failure_count": 0
+  },
+  "fixtures": [
+    {
+      "id": "hidden-hand-and-deck-prioritize-visible-counterlethal",
+      "request": {
+        "api_version": "1.0",
+        "request_id": "visible-response:hidden-counterlethal",
+        "state": {
+          "schema_version": 1,
+          "state_id": "visible-response-state:hidden-counterlethal",
+          "state_hash": "",
+          "game_id": "fixture-visible-response",
+          "snapshot_sequence": 1,
+          "turn_number": 8,
+          "active_player": "player",
+          "is_local_player_turn": true,
+          "environment_version": "visible-response-v1",
+          "format": "STANDARD",
+          "game_mode": "RANKED_STANDARD",
+          "is_running": true,
+          "is_mulligan_done": true,
+          "is_spectating": false,
+          "hearthstone_build": 247416,
+          "phase": {
+            "step": "MAIN_ACTION",
+            "state": "RUNNING",
+            "has_pending_choice": false,
+            "can_local_player_act": true
+          },
+          "player": {
+            "player_id": 1,
+            "entity_id": 1,
+            "is_local_player": true,
+            "hand_count": 0,
+            "max_mana": 8,
+            "deck_count": 10,
+            "deck_size": 10,
+            "fatigue": 0,
+            "resources": {
+              "available": 0,
+              "total": 8,
+              "spell_power": 0
+            },
+            "player_entity": {
+              "entity_id": 1,
+              "tags": {}
+            },
+            "hero": {
+              "entity_id": 10,
+              "card_id": "HERO_FRIENDLY",
+              "name": "Friendly hero",
+              "zone": "PLAY",
+              "controller_id": 1,
+              "card_type": "HERO",
+              "attack": 0,
+              "health": 5,
+              "damage": 0,
+              "is_known": true,
+              "is_revealed": true,
+              "is_exhausted": true,
+              "visibility": "public",
+              "tags": {
+                "NUM_ATTACKS_THIS_TURN": 0
+              }
+            },
+            "hero_power": null,
+            "weapon": null,
+            "hand": [],
+            "board": [
+              {
+                "entity_id": 101,
+                "card_id": "FIXTURE_DEFENDER",
+                "name": "Visible defender",
+                "zone": "PLAY",
+                "controller_id": 1,
+                "card_type": "MINION",
+                "attack": 4,
+                "health": 5,
+                "damage": 0,
+                "is_known": true,
+                "is_revealed": true,
+                "is_exhausted": false,
+                "visibility": "public",
+                "tags": {
+                  "NUM_TURNS_IN_PLAY": 1,
+                  "NUM_ATTACKS_THIS_TURN": 0
+                }
+              },
+              {
+                "entity_id": 102,
+                "card_id": "FIXTURE_SMALL_ATTACKER",
+                "name": "Visible small attacker",
+                "zone": "PLAY",
+                "controller_id": 1,
+                "card_type": "MINION",
+                "attack": 2,
+                "health": 2,
+                "damage": 0,
+                "is_known": true,
+                "is_revealed": true,
+                "is_exhausted": false,
+                "visibility": "public",
+                "tags": {
+                  "NUM_TURNS_IN_PLAY": 1,
+                  "NUM_ATTACKS_THIS_TURN": 0
+                }
+              }
+            ],
+            "deck": [],
+            "graveyard": [],
+            "secrets": [],
+            "set_aside": [],
+            "removed_from_game": [],
+            "other_entities": []
+          },
+          "opponent": {
+            "player_id": 2,
+            "entity_id": 2,
+            "is_local_player": false,
+            "hand_count": 2,
+            "max_mana": 8,
+            "deck_count": 12,
+            "deck_size": 12,
+            "fatigue": 0,
+            "resources": {
+              "available": 0,
+              "total": 8,
+              "spell_power": 0
+            },
+            "player_entity": {
+              "entity_id": 2,
+              "tags": {}
+            },
+            "hero": {
+              "entity_id": 30,
+              "card_id": "HERO_OPPONENT",
+              "name": "Opponent hero",
+              "zone": "PLAY",
+              "controller_id": 2,
+              "card_type": "HERO",
+              "attack": 0,
+              "health": 30,
+              "damage": 0,
+              "is_known": true,
+              "is_revealed": true,
+              "is_exhausted": true,
+              "visibility": "public",
+              "tags": {
+                "NUM_ATTACKS_THIS_TURN": 0
+              }
+            },
+            "hero_power": null,
+            "weapon": null,
+            "hand": [
+              {
+                "entity_id": 250,
+                "zone": "HAND",
+                "zone_id": 3,
+                "zone_position": 1,
+                "controller_id": 2,
+                "card_type": "UNKNOWN",
+                "is_known": false,
+                "is_revealed": false,
+                "visibility": "hidden",
+                "tags": {
+                  "ZONE": 3,
+                  "ZONE_POSITION": 1,
+                  "CONTROLLER": 2
+                }
+              }
+            ],
+            "board": [
+              {
+                "entity_id": 201,
+                "card_id": "FIXTURE_VISIBLE_COUNTERLETHAL",
+                "name": "Visible counterlethal threat",
+                "zone": "PLAY",
+                "controller_id": 2,
+                "card_type": "MINION",
+                "attack": 5,
+                "health": 4,
+                "damage": 0,
+                "is_known": true,
+                "is_revealed": true,
+                "is_exhausted": true,
+                "visibility": "public",
+                "tags": {
+                  "NUM_TURNS_IN_PLAY": 1,
+                  "NUM_ATTACKS_THIS_TURN": 0
+                }
+              }
+            ],
+            "deck": [],
+            "graveyard": [],
+            "secrets": [],
+            "set_aside": [],
+            "removed_from_game": [],
+            "other_entities": []
+          },
+          "game_entity": null,
+          "other_public_entities": [],
+          "unknown_data": [
+            {
+              "code": "opponent_hidden_hand",
+              "path": "opponent.hand",
+              "detail": "Two opponent hand identities are unknown.",
+              "count": 2
+            }
+          ],
+          "unsupported_features": [],
+          "capture_warnings": [],
+          "metadata": {
+            "fixture": "hidden-hand-and-deck-prioritize-visible-counterlethal"
+          }
+        },
+        "options": {
+          "time_budget_ms": 500,
+          "top_k": 3,
+          "search_seed": 20260730,
+          "allow_approximate_effects": true,
+          "environment_version": "visible-response-v1"
+        },
+        "metadata": {
+          "fixture_suite": "visible-response-v1"
+        }
+      },
+      "expected": {
+        "status": "partial",
+        "coverage_scope": "visible-response-v1",
+        "score_kind": "visible_response_heuristic_v1",
+        "minimum_recommendation_count": 2,
+        "maximum_recommendation_count": 3,
+        "legal_first_action_ids": [
+          "attack:101:201",
+          "attack:101:30",
+          "attack:102:201",
+          "attack:102:30",
+          "end_turn"
+        ],
+        "top_first_action_ids": [
+          "attack:101:201"
+        ],
+        "allowed_first_action_ids": [
+          "attack:101:201",
+          "attack:101:30",
+          "attack:102:201",
+          "attack:102:30",
+          "end_turn"
+        ],
+        "prohibited_source_entity_ids": [],
+        "requires_opponent_deck_nonempty": true,
+        "requires_hidden_opponent_hand": true,
+        "requires_distinct_first_actions": true,
+        "requires_threat_priority": true,
+        "requires_unknown_friendly_action_block": false,
+        "requires_vanilla_approximation": false
+      }
+    },
+    {
+      "id": "unknown-friendly-spell-never-generates-an-action",
+      "request": {
+        "api_version": "1.0",
+        "request_id": "visible-response:unknown-friendly-spell",
+        "state": {
+          "schema_version": 1,
+          "state_id": "visible-response-state:unknown-friendly-spell",
+          "turn_number": 8,
+          "active_player": "player",
+          "is_local_player_turn": true,
+          "environment_version": "visible-response-v1",
+          "format": "STANDARD",
+          "game_mode": "RANKED_STANDARD",
+          "player": {
+            "player_id": 1,
+            "hand_count": 1,
+            "max_mana": 8,
+            "deck_count": 9,
+            "deck_size": 9,
+            "resources": { "available": 0, "total": 8, "spell_power": 0 },
+            "player_entity": { "entity_id": 1, "tags": {} },
+            "hero": {
+              "entity_id": 110,
+              "card_id": "HERO_FRIENDLY",
+              "zone": "PLAY",
+              "controller_id": 1,
+              "card_type": "HERO",
+              "health": 20,
+              "is_known": true,
+              "is_revealed": true,
+              "is_exhausted": true,
+              "visibility": "public"
+            },
+            "hero_power": null,
+            "weapon": null,
+            "hand": [
+              {
+                "entity_id": 150,
+                "card_id": "",
+                "zone": "HAND",
+                "zone_id": 3,
+                "zone_position": 1,
+                "controller_id": 1,
+                "card_type": "SPELL",
+                "cost": 0,
+                "is_known": false,
+                "is_revealed": false,
+                "is_playable_card": true,
+                "visibility": "hidden",
+                "tags": { "ZONE": 3, "ZONE_POSITION": 1, "CONTROLLER": 1 }
+              }
+            ],
+            "board": [
+              {
+                "entity_id": 141,
+                "card_id": "FIXTURE_KNOWN_ATTACKER_A",
+                "zone": "PLAY",
+                "controller_id": 1,
+                "card_type": "MINION",
+                "attack": 3,
+                "health": 3,
+                "is_known": true,
+                "is_revealed": true,
+                "is_exhausted": false,
+                "visibility": "public",
+                "tags": { "NUM_TURNS_IN_PLAY": 1, "NUM_ATTACKS_THIS_TURN": 0 }
+              },
+              {
+                "entity_id": 142,
+                "card_id": "FIXTURE_KNOWN_ATTACKER_B",
+                "zone": "PLAY",
+                "controller_id": 1,
+                "card_type": "MINION",
+                "attack": 1,
+                "health": 2,
+                "is_known": true,
+                "is_revealed": true,
+                "is_exhausted": false,
+                "visibility": "public",
+                "tags": { "NUM_TURNS_IN_PLAY": 1, "NUM_ATTACKS_THIS_TURN": 0 }
+              }
+            ]
+          },
+          "opponent": {
+            "player_id": 2,
+            "hand_count": 2,
+            "max_mana": 8,
+            "deck_count": 11,
+            "deck_size": 11,
+            "resources": { "available": 0, "total": 8, "spell_power": 0 },
+            "player_entity": { "entity_id": 2, "tags": {} },
+            "hero": {
+              "entity_id": 130,
+              "card_id": "HERO_OPPONENT",
+              "zone": "PLAY",
+              "controller_id": 2,
+              "card_type": "HERO",
+              "health": 30,
+              "is_known": true,
+              "is_revealed": true,
+              "is_exhausted": true,
+              "visibility": "public"
+            },
+            "hero_power": null,
+            "weapon": null,
+            "hand": [
+              {
+                "entity_id": 160,
+                "zone": "HAND",
+                "zone_id": 3,
+                "zone_position": 1,
+                "controller_id": 2,
+                "card_type": "UNKNOWN",
+                "is_known": false,
+                "is_revealed": false,
+                "visibility": "hidden"
+              }
+            ],
+            "board": []
+          },
+          "unknown_data": [
+            { "code": "friendly_hidden_hand_identity", "path": "player.hand[0]", "entity_id": 150, "count": 1 },
+            { "code": "opponent_hidden_hand", "path": "opponent.hand", "count": 2 }
+          ],
+          "metadata": { "fixture": "unknown-friendly-spell-never-generates-an-action" }
+        },
+        "options": {
+          "time_budget_ms": 500,
+          "top_k": 3,
+          "search_seed": 20260731,
+          "allow_approximate_effects": true,
+          "environment_version": "visible-response-v1"
+        },
+        "metadata": { "fixture_suite": "visible-response-v1" }
+      },
+      "expected": {
+        "status": "partial",
+        "coverage_scope": "visible-response-v1",
+        "score_kind": "visible_response_heuristic_v1",
+        "minimum_recommendation_count": 2,
+        "maximum_recommendation_count": 3,
+        "legal_first_action_ids": [
+          "attack:141:130",
+          "attack:142:130",
+          "end_turn"
+        ],
+        "top_first_action_ids": [
+          "attack:141:130",
+          "attack:142:130",
+          "end_turn"
+        ],
+        "allowed_first_action_ids": [
+          "attack:141:130",
+          "attack:142:130",
+          "end_turn"
+        ],
+        "prohibited_source_entity_ids": [ "150" ],
+        "requires_opponent_deck_nonempty": true,
+        "requires_hidden_opponent_hand": true,
+        "requires_distinct_first_actions": true,
+        "requires_threat_priority": false,
+        "requires_unknown_friendly_action_block": true,
+        "requires_vanilla_approximation": false
+      }
+    },
+    {
+      "id": "vanilla-minions-return-distinct-approximate-roots",
+      "request": {
+        "api_version": "1.0",
+        "request_id": "visible-response:vanilla-roots",
+        "state": {
+          "schema_version": 1,
+          "state_id": "visible-response-state:vanilla-roots",
+          "turn_number": 6,
+          "active_player": "player",
+          "is_local_player_turn": true,
+          "environment_version": "visible-response-v1",
+          "format": "STANDARD",
+          "game_mode": "RANKED_STANDARD",
+          "player": {
+            "player_id": 1,
+            "hand_count": 0,
+            "max_mana": 6,
+            "deck_count": 14,
+            "deck_size": 14,
+            "resources": { "available": 0, "total": 6, "spell_power": 0 },
+            "player_entity": { "entity_id": 1, "tags": {} },
+            "hero": {
+              "entity_id": 310,
+              "card_id": "HERO_FRIENDLY",
+              "zone": "PLAY",
+              "controller_id": 1,
+              "card_type": "HERO",
+              "attack": 1,
+              "health": 24,
+              "damage": 0,
+              "is_known": true,
+              "is_revealed": true,
+              "is_exhausted": false,
+              "visibility": "public",
+              "tags": { "NUM_ATTACKS_THIS_TURN": 0 }
+            },
+            "hero_power": null,
+            "weapon": {
+              "entity_id": 311,
+              "card_id": "FIXTURE_VISIBLE_EQUIPPED_WEAPON",
+              "name": "Visible equipped weapon",
+              "zone": "PLAY",
+              "controller_id": 1,
+              "card_type": "WEAPON",
+              "attack": 1,
+              "durability": 2,
+              "damage": 0,
+              "english_text": "Unknown trigger text is intentionally not modeled.",
+              "is_known": true,
+              "is_revealed": true,
+              "visibility": "public",
+              "tags": {}
+            },
+            "hand": [],
+            "board": [
+              {
+                "entity_id": 301,
+                "card_id": "FIXTURE_VANILLA_FOUR_TWO",
+                "zone": "PLAY",
+                "controller_id": 1,
+                "card_type": "MINION",
+                "attack": 4,
+                "health": 2,
+                "is_known": true,
+                "is_revealed": true,
+                "is_exhausted": false,
+                "visibility": "public",
+                "tags": { "NUM_TURNS_IN_PLAY": 1, "NUM_ATTACKS_THIS_TURN": 0 }
+              },
+              {
+                "entity_id": 302,
+                "card_id": "FIXTURE_VANILLA_TWO_THREE",
+                "zone": "PLAY",
+                "controller_id": 1,
+                "card_type": "MINION",
+                "attack": 2,
+                "health": 3,
+                "is_known": true,
+                "is_revealed": true,
+                "is_exhausted": false,
+                "visibility": "public",
+                "tags": { "NUM_TURNS_IN_PLAY": 1, "NUM_ATTACKS_THIS_TURN": 0 }
+              }
+            ]
+          },
+          "opponent": {
+            "player_id": 2,
+            "hand_count": 1,
+            "max_mana": 6,
+            "deck_count": 15,
+            "deck_size": 15,
+            "resources": { "available": 0, "total": 6, "spell_power": 0 },
+            "player_entity": { "entity_id": 2, "tags": {} },
+            "hero": {
+              "entity_id": 330,
+              "card_id": "HERO_OPPONENT",
+              "zone": "PLAY",
+              "controller_id": 2,
+              "card_type": "HERO",
+              "health": 30,
+              "is_known": true,
+              "is_revealed": true,
+              "is_exhausted": true,
+              "visibility": "public"
+            },
+            "hero_power": null,
+            "weapon": null,
+            "hand": [
+              {
+                "entity_id": 350,
+                "zone": "HAND",
+                "zone_id": 3,
+                "zone_position": 1,
+                "controller_id": 2,
+                "card_type": "UNKNOWN",
+                "is_known": false,
+                "is_revealed": false,
+                "visibility": "hidden"
+              }
+            ],
+            "board": []
+          },
+          "unknown_data": [
+            { "code": "opponent_hidden_hand", "path": "opponent.hand", "count": 1 }
+          ],
+          "metadata": { "fixture": "vanilla-minions-return-distinct-approximate-roots" }
+        },
+        "options": {
+          "time_budget_ms": 500,
+          "top_k": 3,
+          "search_seed": 20260732,
+          "allow_approximate_effects": true,
+          "environment_version": "visible-response-v1"
+        },
+        "metadata": { "fixture_suite": "visible-response-v1" }
+      },
+      "expected": {
+        "status": "partial",
+        "coverage_scope": "visible-response-v1",
+        "score_kind": "visible_response_heuristic_v1",
+        "minimum_recommendation_count": 2,
+        "maximum_recommendation_count": 3,
+        "legal_first_action_ids": [
+          "attack:301:330",
+          "attack:302:330",
+          "attack:310:330",
+          "end_turn"
+        ],
+        "top_first_action_ids": [ "attack:301:330" ],
+        "allowed_first_action_ids": [
+          "attack:301:330",
+          "attack:302:330",
+          "attack:310:330",
+          "end_turn"
+        ],
+        "prohibited_source_entity_ids": [],
+        "requires_opponent_deck_nonempty": true,
+        "requires_hidden_opponent_hand": true,
+        "requires_distinct_first_actions": true,
+        "requires_threat_priority": false,
+        "requires_unknown_friendly_action_block": false,
+        "requires_vanilla_approximation": true
+      }
+    }
+  ]
+}

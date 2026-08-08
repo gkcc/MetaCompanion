@@ -1,0 +1,2320 @@
+{
+  "schema_version": 1,
+  "suite_id": "oracle-hdt-cardrules-v1",
+  "seed": 20260729,
+  "description": "Independent raw-HDT gate for the explicitly curated deterministic point-effect rules slice. Oracle effects are fixture-owned and are not loaded from production card_rules, simulator, or search code.",
+  "thresholds": {
+    "min_top1_rate": 1.0,
+    "min_top3_rate": 1.0,
+    "min_friendly_action_legality_rate": 1.0,
+    "min_response_action_legality_rate": 1.0,
+    "max_mean_minimax_regret": 0.0,
+    "max_max_minimax_regret": 0,
+    "max_false_safe_count": 0,
+    "max_false_exact_count": 0,
+    "max_rule_provenance_failure_count": 0,
+    "max_abstain_violation_count": 0,
+    "max_fixture_contract_failure_count": 0,
+    "min_exact_fixture_count": 32,
+    "min_abstain_fixture_count": 24,
+    "max_latency_p95_ms": 10000
+  },
+  "fixtures": [
+    {
+      "id": "raw-hdt-fireball-only-lethal",
+      "scope": "exact",
+      "position": {
+        "friendly": {
+          "mana": 4,
+          "max_mana": 4,
+          "hand": [
+            {
+              "entity_id": "20",
+              "card_id": "CORE_CS2_029",
+              "name": "Fireball",
+              "card_type": "SPELL",
+              "cost": 4,
+              "text": "Deal $6 damage.",
+              "oracle_effects": [
+                {"kind": "damage", "amount": 6, "target": "any_character"}
+              ]
+            }
+          ]
+        },
+        "opponent": {
+          "hero": {"health": 6, "current_health": 6}
+        }
+      },
+      "expected": {
+        "matched_rule_ids": ["core-fireball-point-damage-v1"],
+        "optimal_first_action_ids": ["play_card:20:30"]
+      }
+    },
+    {
+      "id": "raw-hdt-fireblast-targeted-lethal",
+      "scope": "exact",
+      "seed_offset": 1,
+      "position": {
+        "friendly": {
+          "mana": 2,
+          "max_mana": 2,
+          "hero_power_available": true,
+          "player_tags": {
+            "CURRENT_HEROPOWER_DAMAGE_BONUS": 0,
+            "HERO_POWER_DOUBLE": 0,
+            "HEROPOWER_DAMAGE": 0
+          },
+          "hero_power": {
+            "entity_id": "11",
+            "card_id": "HERO_08bp",
+            "name": "Fireblast",
+            "card_type": "HERO_POWER",
+            "cost": 2,
+            "text": "<b>Hero Power</b>\nDeal $1 damage.",
+            "oracle_effects": [
+              {"kind": "damage", "amount": 1, "target": "any_character"}
+            ]
+          }
+        },
+        "opponent": {
+          "hero": {"health": 2, "current_health": 2}
+        }
+      },
+      "expected": {
+        "matched_rule_ids": ["mage-fireblast-point-damage-v1"],
+        "optimal_first_action_ids": ["hero_power:11:30"]
+      }
+    },
+    {
+      "id": "raw-hdt-steady-shot-fixed-enemy-hero-lethal",
+      "scope": "exact",
+      "seed_offset": 13,
+      "position": {
+        "friendly": {
+          "mana": 2,
+          "max_mana": 2,
+          "spell_power": 5,
+          "hero_power_available": true,
+          "hero_power": {
+            "entity_id": "11",
+            "card_id": "HERO_05dbp",
+            "name": "Steady Shot",
+            "card_type": "HERO_POWER",
+            "cost": 2,
+            "text": "<b>Hero Power</b>\nDeal $2 damage to the enemy hero.@ <b>Hero Power</b>\nDeal $2 damage.",
+            "oracle_effects": [
+              {"kind": "damage", "amount": 2, "target": "enemy_hero"}
+            ]
+          }
+        },
+        "opponent": {
+          "hero": {"health": 2, "current_health": 2}
+        }
+      },
+      "expected": {
+        "matched_rule_ids": ["hunter-steady-shot-point-damage-v1"],
+        "optimal_first_action_ids": ["hero_power:11:30"]
+      }
+    },
+    {
+      "id": "raw-hdt-elven-archer-removes-counterlethal",
+      "scope": "exact",
+      "seed_offset": 2,
+      "position": {
+        "friendly": {
+          "hero": {"health": 30, "current_health": 3},
+          "mana": 1,
+          "max_mana": 1,
+          "hand": [
+            {
+              "entity_id": "20",
+              "card_id": "CORE_CS2_189",
+              "name": "Elven Archer",
+              "card_type": "MINION",
+              "cost": 1,
+              "attack": 1,
+              "health": 1,
+              "text": "<b>Battlecry:</b> Deal $1 damage.",
+              "mechanics": ["BATTLECRY"],
+              "oracle_effects": [
+                {"kind": "damage", "amount": 1, "target": "any_character"}
+              ]
+            }
+          ]
+        },
+        "opponent": {
+          "board": [
+            {"entity_id": "40", "attack": 3, "health": 1, "current_health": 1}
+          ]
+        }
+      },
+      "expected": {
+        "matched_rule_ids": ["core-elven-archer-battlecry-damage-v1"],
+        "optimal_first_action_ids": ["play_card:20:40:position=1"]
+      }
+    },
+    {
+      "id": "raw-hdt-fire-elemental-removes-counterlethal",
+      "scope": "exact",
+      "seed_offset": 3,
+      "position": {
+        "friendly": {
+          "hero": {"health": 30, "current_health": 4},
+          "mana": 6,
+          "max_mana": 6,
+          "hand": [
+            {
+              "entity_id": "20",
+              "card_id": "CORE_CS2_042",
+              "name": "Fire Elemental",
+              "card_type": "MINION",
+              "cost": 6,
+              "attack": 6,
+              "health": 5,
+              "text": "<b>Battlecry:</b> Deal $4 damage.",
+              "mechanics": ["BATTLECRY"],
+              "oracle_effects": [
+                {"kind": "damage", "amount": 4, "target": "any_character"}
+              ]
+            }
+          ]
+        },
+        "opponent": {
+          "board": [
+            {"entity_id": "40", "attack": 4, "health": 4, "current_health": 4}
+          ]
+        }
+      },
+      "expected": {
+        "matched_rule_ids": ["core-fire-elemental-battlecry-damage-v1"],
+        "optimal_first_action_ids": ["play_card:20:40:position=1"]
+      }
+    },
+    {
+      "id": "raw-hdt-flash-heal-survives-counterattack",
+      "scope": "exact",
+      "seed_offset": 4,
+      "position": {
+        "friendly": {
+          "hero": {"health": 30, "current_health": 1},
+          "mana": 1,
+          "max_mana": 1,
+          "hand": [
+            {
+              "entity_id": "20",
+              "card_id": "CORE_AT_055",
+              "name": "Flash Heal",
+              "card_type": "SPELL",
+              "cost": 1,
+              "text": "Restore $5 Health.",
+              "oracle_effects": [
+                {"kind": "heal", "amount": 5, "target": "any_character"}
+              ]
+            }
+          ]
+        },
+        "opponent": {
+          "board": [
+            {"entity_id": "40", "attack": 5, "health": 5, "current_health": 5}
+          ]
+        }
+      },
+      "expected": {
+        "matched_rule_ids": ["core-flash-heal-point-heal-v1"],
+        "optimal_first_action_ids": ["play_card:20:10"]
+      }
+    },
+    {
+      "id": "raw-hdt-voodoo-doctor-survives-counterattack",
+      "scope": "exact",
+      "seed_offset": 5,
+      "position": {
+        "friendly": {
+          "hero": {"health": 30, "current_health": 2},
+          "mana": 1,
+          "max_mana": 1,
+          "hand": [
+            {
+              "entity_id": "20",
+              "card_id": "CORE_EX1_011",
+              "name": "Voodoo Doctor",
+              "card_type": "MINION",
+              "cost": 1,
+              "attack": 2,
+              "health": 1,
+              "text": "<b>Battlecry:</b> Restore $2 Health.",
+              "mechanics": ["BATTLECRY"],
+              "oracle_effects": [
+                {"kind": "heal", "amount": 2, "target": "any_character"}
+              ]
+            }
+          ]
+        },
+        "opponent": {
+          "board": [
+            {"entity_id": "40", "attack": 3, "health": 3, "current_health": 3}
+          ]
+        }
+      },
+      "expected": {
+        "matched_rule_ids": ["core-voodoo-doctor-battlecry-heal-v1"],
+        "optimal_first_action_ids": ["play_card:20:10:position=1"]
+      }
+    },
+    {
+      "id": "raw-hdt-holy-smite-removes-counterlethal",
+      "scope": "exact",
+      "seed_offset": 6,
+      "position": {
+        "friendly": {
+          "hero": {"health": 30, "current_health": 3},
+          "mana": 1,
+          "max_mana": 1,
+          "hand": [
+            {
+              "entity_id": "20",
+              "card_id": "CORE_CS1_130",
+              "name": "Holy Smite",
+              "card_type": "SPELL",
+              "cost": 1,
+              "text": "Deal $3 damage to a minion.",
+              "oracle_effects": [
+                {"kind": "damage", "amount": 3, "target": "any_minion"}
+              ]
+            }
+          ]
+        },
+        "opponent": {
+          "board": [
+            {"entity_id": "40", "attack": 3, "health": 3, "current_health": 3}
+          ]
+        }
+      },
+      "expected": {
+        "matched_rule_ids": ["core-holy-smite-minion-damage-v1"],
+        "optimal_first_action_ids": ["play_card:20:40"]
+      }
+    },
+    {
+      "id": "raw-hdt-arcane-shot-only-lethal",
+      "scope": "exact",
+      "seed_offset": 15,
+      "position": {
+        "friendly": {
+          "hero": {"health": 30, "current_health": 1},
+          "mana": 1,
+          "max_mana": 1,
+          "hand": [
+            {
+              "entity_id": "20",
+              "card_id": "CORE_DS1_185",
+              "name": "Arcane Shot",
+              "card_type": "SPELL",
+              "cost": 1,
+              "text": "Deal $2 damage.",
+              "oracle_effects": [
+                {"kind": "damage", "amount": 2, "target": "any_character"}
+              ]
+            }
+          ]
+        },
+        "opponent": {
+          "hero": {"health": 2, "current_health": 2}
+        }
+      },
+      "expected": {
+        "matched_rule_ids": ["core-arcane-shot-point-damage-v1"],
+        "optimal_first_action_ids": ["play_card:20:30"]
+      }
+    },
+    {
+      "id": "raw-hdt-fire-plume-phoenix-only-lethal",
+      "scope": "exact",
+      "seed_offset": 16,
+      "position": {
+        "friendly": {
+          "mana": 4,
+          "max_mana": 4,
+          "hand": [
+            {
+              "entity_id": "20",
+              "card_id": "CORE_UNG_084",
+              "name": "Fire Plume Phoenix",
+              "card_type": "MINION",
+              "cost": 4,
+              "attack": 3,
+              "health": 3,
+              "text": "<b>Battlecry:</b> Deal $3 damage.",
+              "mechanics": ["BATTLECRY"],
+              "oracle_effects": [
+                {"kind": "damage", "amount": 3, "target": "any_character"}
+              ]
+            }
+          ]
+        },
+        "opponent": {
+          "hero": {"health": 3, "current_health": 3}
+        }
+      },
+      "expected": {
+        "matched_rule_ids": ["core-fire-plume-phoenix-battlecry-damage-v1"],
+        "optimal_first_action_ids": ["play_card:20:30:position=1"]
+      }
+    },
+    {
+      "id": "raw-hdt-drain-soul-lifesteal-overkill-survival",
+      "scope": "exact",
+      "seed_offset": 17,
+      "position": {
+        "friendly": {
+          "hero": {"health": 30, "current_health": 1},
+          "mana": 2,
+          "max_mana": 2,
+          "hand": [
+            {
+              "entity_id": "20",
+              "card_id": "CORE_ICC_055",
+              "name": "Drain Soul",
+              "card_type": "SPELL",
+              "cost": 2,
+              "text": "<b>Lifesteal</b>\nDeal $3 damage\nto a minion.",
+              "mechanics": ["LIFESTEAL"],
+              "lifesteal": true,
+              "oracle_effects": [
+                {"kind": "damage", "amount": 3, "target": "any_minion"}
+              ]
+            }
+          ]
+        },
+        "opponent": {
+          "board": [
+            {"entity_id": "40", "attack": 4, "health": 1, "current_health": 1},
+            {"entity_id": "41", "attack": 2, "health": 10, "current_health": 10}
+          ]
+        }
+      },
+      "expected": {
+        "matched_rule_ids": ["core-drain-soul-lifesteal-minion-damage-v1"],
+        "optimal_first_action_ids": ["play_card:20:40"]
+      }
+    },
+    {
+      "id": "raw-hdt-void-shard-lifesteal-through-armor-lethal",
+      "scope": "exact",
+      "seed_offset": 18,
+      "position": {
+        "friendly": {
+          "hero": {"health": 30, "current_health": 10},
+          "mana": 4,
+          "max_mana": 4,
+          "hand": [
+            {
+              "entity_id": "20",
+              "card_id": "CORE_SW_442",
+              "name": "Void Shard",
+              "card_type": "SPELL",
+              "cost": 4,
+              "text": "<b>Lifesteal</b>\nDeal $4 damage.",
+              "mechanics": ["LIFESTEAL"],
+              "lifesteal": false,
+              "tags": {"LIFESTEAL": 1},
+              "oracle_effects": [
+                {"kind": "damage", "amount": 4, "target": "any_character"}
+              ]
+            }
+          ]
+        },
+        "opponent": {
+          "hero": {"health": 1, "current_health": 1},
+          "armor": 3
+        }
+      },
+      "expected": {
+        "matched_rule_ids": ["core-void-shard-lifesteal-point-damage-v1"],
+        "optimal_first_action_ids": ["play_card:20:30"]
+      }
+    },
+    {
+      "id": "raw-hdt-death-strike-lifesteal-overkill-survival",
+      "scope": "exact",
+      "seed_offset": 19,
+      "position": {
+        "friendly": {
+          "hero": {"health": 30, "current_health": 1},
+          "mana": 4,
+          "max_mana": 4,
+          "hand": [
+            {
+              "entity_id": "20",
+              "card_id": "RLK_024",
+              "name": "Death Strike",
+              "card_type": "SPELL",
+              "cost": 4,
+              "text": "<b>Lifesteal</b>\nDeal $6 damage\nto a minion.",
+              "mechanics": ["LIFESTEAL"],
+              "lifesteal": false,
+              "tags": {"685": "1"},
+              "oracle_effects": [
+                {"kind": "damage", "amount": 6, "target": "any_minion"}
+              ]
+            }
+          ]
+        },
+        "opponent": {
+          "board": [
+            {"entity_id": "40", "attack": 6, "health": 1, "current_health": 1},
+            {"entity_id": "41", "attack": 4, "health": 10, "current_health": 10}
+          ]
+        }
+      },
+      "expected": {
+        "matched_rule_ids": ["rlk-death-strike-lifesteal-minion-damage-v1"],
+        "optimal_first_action_ids": ["play_card:20:40"]
+      }
+    },
+    {
+      "id": "drain-soul-lifesteal-evidence-missing-must-abstain",
+      "scope": "abstain",
+      "seed_offset": 27,
+      "position": {
+        "friendly": {
+          "mana": 2,
+          "max_mana": 2,
+          "hand": [
+            {
+              "entity_id": "20",
+              "card_id": "CORE_ICC_055",
+              "name": "Drain Soul",
+              "card_type": "SPELL",
+              "cost": 2,
+              "text": "<b>Lifesteal</b>\nDeal $3 damage\nto a minion.",
+              "mechanics": ["LIFESTEAL"]
+            }
+          ]
+        },
+        "opponent": {}
+      },
+      "expected": {
+        "matched_rule_ids": [],
+        "mismatch_reason": "required_mechanic_unproven"
+      }
+    },
+    {
+      "id": "void-shard-lifesteal-evidence-missing-must-abstain",
+      "scope": "abstain",
+      "seed_offset": 28,
+      "position": {
+        "friendly": {
+          "mana": 4,
+          "max_mana": 4,
+          "hand": [
+            {
+              "entity_id": "20",
+              "card_id": "CORE_SW_442",
+              "name": "Void Shard",
+              "card_type": "SPELL",
+              "cost": 4,
+              "text": "<b>Lifesteal</b>\nDeal $4 damage.",
+              "mechanics": ["LIFESTEAL"],
+              "tags": {"LIFESTEAL": 0}
+            }
+          ]
+        },
+        "opponent": {}
+      },
+      "expected": {
+        "matched_rule_ids": [],
+        "mismatch_reason": "required_mechanic_unproven"
+      }
+    },
+    {
+      "id": "death-strike-lifesteal-evidence-missing-must-abstain",
+      "scope": "abstain",
+      "seed_offset": 29,
+      "position": {
+        "friendly": {
+          "mana": 4,
+          "max_mana": 4,
+          "hand": [
+            {
+              "entity_id": "20",
+              "card_id": "RLK_024",
+              "name": "Death Strike",
+              "card_type": "SPELL",
+              "cost": 4,
+              "text": "<b>Lifesteal</b>\nDeal $6 damage\nto a minion.",
+              "mechanics": ["LIFESTEAL"],
+              "tags": {"685": "0"}
+            }
+          ]
+        },
+        "opponent": {}
+      },
+      "expected": {
+        "matched_rule_ids": [],
+        "mismatch_reason": "required_mechanic_unproven"
+      }
+    },
+    {
+      "id": "raw-hdt-flame-imp-self-damage-is-not-free",
+      "scope": "exact",
+      "seed_offset": 20,
+      "position": {
+        "friendly": {
+          "hero": {"health": 30, "current_health": 4},
+          "mana": 1,
+          "max_mana": 1,
+          "hand": [
+            {
+              "entity_id": "20",
+              "card_id": "CORE_EX1_319",
+              "name": "Flame Imp",
+              "card_type": "MINION",
+              "cost": 1,
+              "attack": 3,
+              "health": 2,
+              "text": "<b>Battlecry:</b> Deal 3 damage to your hero.",
+              "mechanics": ["BATTLECRY"],
+              "oracle_effects": [
+                {"kind": "damage", "amount": 3, "target": "friendly_hero"}
+              ]
+            }
+          ]
+        },
+        "opponent": {}
+      },
+      "expected": {
+        "matched_rule_ids": ["core-flame-imp-self-damage-v1"],
+        "optimal_first_action_ids": ["end_turn"]
+      }
+    },
+    {
+      "id": "raw-hdt-flame-imp-high-health-develops",
+      "scope": "exact",
+      "seed_offset": 120,
+      "position": {
+        "friendly": {
+          "hero": {"health": 30, "current_health": 30},
+          "mana": 1,
+          "max_mana": 1,
+          "hand": [
+            {
+              "entity_id": "20",
+              "card_id": "CORE_EX1_319",
+              "name": "Flame Imp",
+              "card_type": "MINION",
+              "cost": 1,
+              "attack": 3,
+              "health": 2,
+              "text": "<b>Battlecry:</b> Deal 3 damage to your hero.",
+              "mechanics": ["BATTLECRY"],
+              "oracle_effects": [
+                {"kind": "damage", "amount": 3, "target": "friendly_hero"}
+              ]
+            }
+          ]
+        },
+        "opponent": {}
+      },
+      "expected": {
+        "matched_rule_ids": ["core-flame-imp-self-damage-v1"],
+        "optimal_first_action_ids": ["play_card:20:10:position=1"]
+      }
+    },
+    {
+      "id": "raw-hdt-hecklefang-hyena-self-damage-is-not-free",
+      "scope": "exact",
+      "seed_offset": 21,
+      "position": {
+        "friendly": {
+          "hero": {"health": 30, "current_health": 4},
+          "mana": 2,
+          "max_mana": 2,
+          "hand": [
+            {
+              "entity_id": "20",
+              "card_id": "BAR_745",
+              "name": "Hecklefang Hyena",
+              "card_type": "MINION",
+              "cost": 2,
+              "attack": 2,
+              "health": 4,
+              "text": "<b>Battlecry:</b> Deal 3 damage to your hero.",
+              "mechanics": ["BATTLECRY"],
+              "oracle_effects": [
+                {"kind": "damage", "amount": 3, "target": "friendly_hero"}
+              ]
+            }
+          ]
+        },
+        "opponent": {}
+      },
+      "expected": {
+        "matched_rule_ids": ["bar-hecklefang-hyena-self-damage-v1"],
+        "optimal_first_action_ids": ["end_turn"]
+      }
+    },
+    {
+      "id": "raw-hdt-filletfighter-only-lethal",
+      "scope": "exact",
+      "seed_offset": 22,
+      "position": {
+        "friendly": {
+          "mana": 1,
+          "max_mana": 1,
+          "hand": [
+            {
+              "entity_id": "20",
+              "card_id": "TSC_963",
+              "name": "Filletfighter",
+              "card_type": "MINION",
+              "cost": 1,
+              "attack": 3,
+              "health": 1,
+              "text": "<b>Battlecry:</b> Deal 1 damage.",
+              "mechanics": ["BATTLECRY"],
+              "oracle_effects": [
+                {"kind": "damage", "amount": 1, "target": "any_character"}
+              ]
+            }
+          ]
+        },
+        "opponent": {
+          "hero": {"health": 2, "current_health": 2}
+        }
+      },
+      "expected": {
+        "matched_rule_ids": ["tsc-filletfighter-battlecry-damage-v1"],
+        "optimal_first_action_ids": ["play_card:20:30:position=1"]
+      }
+    },
+    {
+      "id": "raw-hdt-backstab-only-targets-undamaged-minion",
+      "scope": "exact",
+      "seed_offset": 27,
+      "position": {
+        "friendly": {
+          "hero": {"health": 30, "current_health": 2},
+          "mana": 0,
+          "max_mana": 0,
+          "hand": [
+            {
+              "entity_id": "20",
+              "card_id": "CORE_CS2_072",
+              "name": "Backstab",
+              "card_type": "SPELL",
+              "cost": 0,
+              "text": "Deal 2 damage to an undamaged minion.",
+              "oracle_effects": [
+                {"kind": "damage", "amount": 2, "target": "any_undamaged_minion"}
+              ]
+            }
+          ]
+        },
+        "opponent": {
+          "board": [
+            {
+              "entity_id": "40",
+              "card_id": "EVAL_UNDAMAGED_THREAT",
+              "name": "Undamaged Threat",
+              "card_type": "MINION",
+              "attack": 2,
+              "health": 2,
+              "current_health": 2
+            }
+          ]
+        }
+      },
+      "expected": {
+        "matched_rule_ids": ["core-backstab-undamaged-minion-v1"],
+        "optimal_first_action_ids": ["play_card:20:40"]
+      }
+    },
+    {
+      "id": "raw-hdt-coin-enables-followup-minion",
+      "scope": "exact",
+      "seed_offset": 28,
+      "position": {
+        "friendly": {
+          "mana": 0,
+          "max_mana": 1,
+          "hand": [
+            {
+              "entity_id": "20",
+              "card_id": "CATA_COIN5",
+              "name": "The Coin",
+              "card_type": "SPELL",
+              "cost": 0,
+              "text": "Gain 1 Mana Crystal this turn only.",
+              "oracle_effects": [
+                {"kind": "gain_mana", "amount": 1, "target": "none"}
+              ]
+            },
+            {
+              "entity_id": "21",
+              "card_id": "EVAL_COIN_FOLLOWUP",
+              "name": "Coin Follow-up",
+              "card_type": "MINION",
+              "cost": 1,
+              "attack": 4,
+              "health": 4,
+              "current_health": 4,
+              "text": ""
+            }
+          ]
+        },
+        "opponent": {}
+      },
+      "expected": {
+        "matched_rule_ids": ["coin-temporary-mana-v1"],
+        "optimal_first_action_ids": ["play_card:20:"]
+      }
+    },
+    {
+      "id": "raw-hdt-rock-only-lethal",
+      "scope": "exact",
+      "seed_offset": 29,
+      "position": {
+        "friendly": {
+          "mana": 1,
+          "max_mana": 1,
+          "hand": [
+            {
+              "entity_id": "20",
+              "card_id": "WW_001t",
+              "name": "Rock",
+              "card_type": "SPELL",
+              "cost": 1,
+              "text": "Deal 3 damage.",
+              "oracle_effects": [
+                {"kind": "damage", "amount": 3, "target": "any_character"}
+              ]
+            }
+          ]
+        },
+        "opponent": {
+          "hero": {"health": 3, "current_health": 3}
+        }
+      },
+      "expected": {
+        "matched_rule_ids": ["ww-rock-point-damage-v1"],
+        "optimal_first_action_ids": ["play_card:20:30"]
+      }
+    },
+    {
+      "id": "raw-hdt-moonfire-removes-counterlethal",
+      "scope": "exact",
+      "seed_offset": 30,
+      "position": {
+        "friendly": {
+          "hero": {"health": 30, "current_health": 1},
+          "mana": 0,
+          "max_mana": 0,
+          "hand": [
+            {
+              "entity_id": "20",
+              "card_id": "CS2_008",
+              "name": "Moonfire",
+              "card_type": "SPELL",
+              "cost": 0,
+              "text": "Deal 1 damage.",
+              "oracle_effects": [
+                {"kind": "damage", "amount": 1, "target": "any_character"}
+              ]
+            }
+          ]
+        },
+        "opponent": {
+          "board": [
+            {"entity_id": "40", "attack": 1, "health": 1, "current_health": 1}
+          ]
+        }
+      },
+      "expected": {
+        "matched_rule_ids": ["classic-moonfire-point-damage-v1"],
+        "optimal_first_action_ids": ["play_card:20:40"]
+      }
+    },
+    {
+      "id": "raw-hdt-wound-prey-damage-rush-summon-lethal",
+      "scope": "exact",
+      "seed_offset": 31,
+      "position": {
+        "friendly": {
+          "hero": {"health": 30, "current_health": 1},
+          "mana": 1,
+          "max_mana": 1,
+          "hand": [
+            {
+              "entity_id": "20",
+              "card_id": "CORE_BAR_801",
+              "name": "Wound Prey",
+              "card_type": "SPELL",
+              "cost": 1,
+              "text": "Deal $1 damage. Summon a 1/1 Hyena with <b>Rush</b>.",
+              "oracle_effects": [
+                {"kind": "damage", "amount": 1, "target": "any_character"},
+                {
+                  "kind": "summon",
+                  "target": "none",
+                  "count": 1,
+                  "card_id": "BAR_035t",
+                  "name": "Swift Hyena",
+                  "attack": 1,
+                  "health": 1,
+                  "rush": true
+                }
+              ]
+            }
+          ]
+        },
+        "opponent": {
+          "board": [
+            {"entity_id": "40", "attack": 1, "health": 2, "current_health": 2}
+          ]
+        }
+      },
+      "expected": {
+        "matched_rule_ids": ["wound-prey-damage-rush-summon-v1"],
+        "optimal_first_action_ids": ["play_card:20:40"]
+      }
+    },
+    {
+      "id": "raw-hdt-gorishi-stinger-damage-rush-summon-lethal",
+      "scope": "exact",
+      "seed_offset": 32,
+      "position": {
+        "friendly": {
+          "mana": 1,
+          "max_mana": 1,
+          "hand": [
+            {
+              "entity_id": "20",
+              "card_id": "TLC_630t",
+              "name": "Gorishi Stinger",
+              "card_type": "SPELL",
+              "cost": 1,
+              "text": "Deal $2 damage. Summon a 2/1 Grub with <b>Rush</b>.",
+              "oracle_effects": [
+                {"kind": "damage", "amount": 2, "target": "any_character"},
+                {
+                  "kind": "summon",
+                  "target": "none",
+                  "count": 1,
+                  "card_id": "TLC_903t",
+                  "name": "Silithid Grub",
+                  "attack": 2,
+                  "health": 1,
+                  "rush": true
+                }
+              ]
+            }
+          ]
+        },
+        "opponent": {
+          "hero": {"health": 2, "current_health": 2}
+        }
+      },
+      "expected": {
+        "matched_rule_ids": ["gorishi-stinger-damage-rush-summon-v1"],
+        "optimal_first_action_ids": ["play_card:20:30"]
+      }
+    },
+    {
+      "id": "raw-hdt-armor-up-prevents-counterlethal",
+      "scope": "exact",
+      "seed_offset": 33,
+      "position": {
+        "friendly": {
+          "hero": {"health": 30, "current_health": 1},
+          "mana": 2,
+          "max_mana": 2,
+          "hero_power_available": true,
+          "player_tags": {"HERO_POWER_DOUBLE": 0},
+          "hero_power": {
+            "entity_id": "11",
+            "card_id": "HERO_01dbp",
+            "name": "Armor Up!",
+            "card_type": "HERO_POWER",
+            "cost": 2,
+            "text": "<b>Hero Power</b>\nGain $d2 Armor.",
+            "oracle_effects": [
+              {"kind": "armor", "amount": 2, "target": "none"}
+            ]
+          }
+        },
+        "opponent": {
+          "board": [
+            {"entity_id": "40", "attack": 2, "health": 2, "current_health": 2}
+          ]
+        }
+      },
+      "expected": {
+        "matched_rule_ids": ["warrior-armor-up-v1"],
+        "optimal_first_action_ids": ["hero_power:11:"]
+      }
+    },
+    {
+      "id": "raw-hdt-demon-claws-enables-hero-lethal",
+      "scope": "exact",
+      "seed_offset": 34,
+      "position": {
+        "friendly": {
+          "hero": {
+            "health": 30,
+            "current_health": 30,
+            "tags": {"NUM_ATTACKS_THIS_TURN": 0, "EXHAUSTED": 0}
+          },
+          "mana": 1,
+          "max_mana": 1,
+          "hero_power_available": true,
+          "player_tags": {"HERO_POWER_DOUBLE": 0},
+          "hero_power": {
+            "entity_id": "11",
+            "card_id": "HERO_10cbp",
+            "name": "Demon Claws",
+            "card_type": "HERO_POWER",
+            "cost": 1,
+            "text": "[x]<b>Hero Power</b>\n+$a1 Attack this turn.",
+            "oracle_effects": [
+              {"kind": "gain_hero_attack", "amount": 1, "target": "none"}
+            ]
+          }
+        },
+        "opponent": {
+          "hero": {"health": 2, "current_health": 2}
+        }
+      },
+      "expected": {
+        "matched_rule_ids": ["demon-hunter-demon-claws-v1"],
+        "optimal_first_action_ids": ["hero_power:11:"]
+      }
+    },
+    {
+      "id": "raw-hdt-static-shock-clears-taunt-and-enables-hero-lethal",
+      "scope": "exact",
+      "seed_offset": 35,
+      "position": {
+        "friendly": {
+          "hero": {
+            "health": 30,
+            "current_health": 30,
+            "tags": {"NUM_ATTACKS_THIS_TURN": 0, "EXHAUSTED": 0}
+          },
+          "mana": 1,
+          "max_mana": 1,
+          "hand": [
+            {
+              "entity_id": "20",
+              "card_id": "TIME_218",
+              "name": "Static Shock",
+              "card_type": "SPELL",
+              "cost": 1,
+              "text": "Deal $1 damage to a minion. Give your hero +1 Attack this turn.",
+              "oracle_effects": [
+                {"kind": "damage", "amount": 1, "target": "any_minion"},
+                {"kind": "gain_hero_attack", "amount": 1, "target": "none"}
+              ]
+            }
+          ]
+        },
+        "opponent": {
+          "hero": {"health": 2, "current_health": 2},
+          "board": [
+            {
+              "entity_id": "40",
+              "attack": 0,
+              "health": 1,
+              "current_health": 1,
+              "taunt": true
+            }
+          ]
+        }
+      },
+      "expected": {
+        "matched_rule_ids": ["time-static-shock-v1"],
+        "optimal_first_action_ids": ["play_card:20:40"]
+      }
+    },
+    {
+      "id": "raw-hdt-molten-gold-elemental-only-lethal",
+      "scope": "exact",
+      "seed_offset": 36,
+      "position": {
+        "friendly": {
+          "mana": 3,
+          "max_mana": 3,
+          "hand": [
+            {
+              "entity_id": "20",
+              "card_id": "JAIL_801t",
+              "name": "Molten Gold Elemental",
+              "card_type": "MINION",
+              "cost": 3,
+              "attack": 3,
+              "health": 3,
+              "text": "<b>Battlecry:</b> Deal 4 damage.",
+              "mechanics": ["BATTLECRY"],
+              "oracle_effects": [
+                {"kind": "damage", "amount": 4, "target": "any_character"}
+              ]
+            }
+          ]
+        },
+        "opponent": {
+          "hero": {"health": 4, "current_health": 4}
+        }
+      },
+      "expected": {
+        "matched_rule_ids": ["jail-molten-gold-elemental-v1"],
+        "optimal_first_action_ids": ["play_card:20:30:position=1"]
+      }
+    },
+    {
+      "id": "raw-hdt-frostbolt-freezes-counterlethal",
+      "scope": "exact",
+      "seed_offset": 37,
+      "position": {
+        "friendly": {
+          "hero": {"health": 3, "current_health": 3},
+          "mana": 2,
+          "max_mana": 2,
+          "hand": [
+            {
+              "entity_id": "20",
+              "card_id": "CORE_CS2_024",
+              "name": "Frostbolt",
+              "card_type": "SPELL",
+              "cost": 2,
+              "text": "Deal $3 damage to a_character and <b>Freeze</b> it.",
+              "mechanics": ["FREEZE"],
+              "oracle_effects": [
+                {"kind": "damage", "amount": 3, "target": "any_character"},
+                {"kind": "freeze", "amount": 0, "target": "any_character"}
+              ]
+            }
+          ]
+        },
+        "opponent": {
+          "board": [
+            {
+              "entity_id": "40",
+              "card_id": "EVAL_COUNTERLETHAL",
+              "name": "Counterlethal attacker",
+              "attack": 3,
+              "health": 4,
+              "current_health": 4
+            }
+          ]
+        }
+      },
+      "expected": {
+        "matched_rule_ids": ["core-frostbolt-damage-freeze-v1"],
+        "optimal_first_action_ids": ["play_card:20:40"]
+      }
+    },
+    {
+      "id": "raw-hdt-searing-fissure-clears-taunt-and-enables-hero-lethal",
+      "scope": "exact",
+      "seed_offset": 38,
+      "position": {
+        "friendly": {
+          "hero": {
+            "health": 30,
+            "current_health": 30,
+            "tags": {"NUM_ATTACKS_THIS_TURN": 0}
+          },
+          "mana": 2,
+          "max_mana": 2,
+          "hand": [
+            {
+              "entity_id": "20",
+              "card_id": "CATA_582",
+              "name": "Searing Fissure",
+              "card_type": "SPELL",
+              "cost": 2,
+              "text": "Deal $1 damage to all minions. Give your hero +3 Attack this turn.",
+              "oracle_effects": [
+                {"kind": "damage_all_minions", "amount": 1, "target": "none"},
+                {"kind": "gain_hero_attack", "amount": 3, "target": "none"}
+              ]
+            }
+          ]
+        },
+        "opponent": {
+          "hero": {"health": 3, "current_health": 3},
+          "board": [
+            {
+              "entity_id": "40",
+              "card_id": "EVAL_TAUNT",
+              "name": "One-health Taunt",
+              "attack": 0,
+              "health": 1,
+              "current_health": 1,
+              "taunt": true
+            }
+          ]
+        }
+      },
+      "expected": {
+        "matched_rule_ids": ["cata-searing-fissure-aoe-hero-attack-v1"],
+        "optimal_first_action_ids": ["play_card:20:"]
+      }
+    },
+    {
+      "id": "raw-hdt-sanguine-depths-placement-does-not-activate",
+      "scope": "exact",
+      "seed_offset": 39,
+      "position": {
+        "friendly": {
+          "mana": 1,
+          "max_mana": 1,
+          "hand": [
+            {
+              "entity_id": "20",
+              "card_id": "CORE_REV_990",
+              "name": "Sanguine Depths",
+              "card_type": "LOCATION",
+              "cost": 1,
+              "health": 3,
+              "current_health": 3,
+              "text": "[x]Deal 1 damage to a minion and give it +2 Attack.",
+              "oracle_effects": [
+                {"kind": "damage", "amount": 1, "target": "any_minion"},
+                {"kind": "buff_attack", "amount": 2, "target": "any_minion"}
+              ]
+            }
+          ]
+        },
+        "opponent": {}
+      },
+      "expected": {
+        "matched_rule_ids": ["core-sanguine-depths-location-v1"],
+        "optimal_first_action_ids": ["play_card:20::position=1"]
+      }
+    },
+    {
+      "id": "raw-hdt-windpeak-wyrm-damage-and-armor-lethal",
+      "scope": "exact",
+      "seed_offset": 43,
+      "position": {
+        "friendly": {
+          "armor": 1,
+          "mana": 5,
+          "max_mana": 5,
+          "hand": [
+            {
+              "entity_id": "20",
+              "card_id": "TLC_600",
+              "name": "Windpeak Wyrm",
+              "card_type": "MINION",
+              "cost": 5,
+              "attack": 6,
+              "health": 6,
+              "text": "[x]<b>Battlecry:</b> Deal 5 damage\nand gain 5 Armor.\n<b>Kindred:</b> Costs (3) less.",
+              "mechanics": ["BATTLECRY", "KINDRED"],
+              "oracle_effects": [
+                {"kind": "damage", "amount": 5, "target": "any_character"},
+                {"kind": "armor", "amount": 5, "target": "none"}
+              ]
+            }
+          ]
+        },
+        "opponent": {
+          "hero": {"health": 5, "current_health": 5}
+        }
+      },
+      "expected": {
+        "matched_rule_ids": ["tlc-windpeak-wyrm-battlecry-v1"],
+        "optimal_first_action_ids": ["play_card:20:30:position=1"]
+      }
+    },
+    {
+      "id": "raw-hdt-molten-gold-spell-only-lethal",
+      "scope": "exact",
+      "seed_offset": 44,
+      "position": {
+        "friendly": {
+          "mana": 3,
+          "max_mana": 3,
+          "hand": [
+            {
+              "entity_id": "20",
+              "card_id": "JAIL_801",
+              "name": "Molten Gold",
+              "card_type": "SPELL",
+              "cost": 3,
+              "text": "Deal $4 damage.\n<i>(Cast @ |4(spell, spells) to turn into a minion!)</i>",
+              "oracle_effects": [
+                {"kind": "damage", "amount": 4, "target": "any_character"}
+              ]
+            }
+          ]
+        },
+        "opponent": {
+          "hero": {"health": 4, "current_health": 4}
+        }
+      },
+      "expected": {
+        "matched_rule_ids": ["jail-molten-gold-spell-v1"],
+        "optimal_first_action_ids": ["play_card:20:30"]
+      }
+    },
+    {
+      "id": "raw-hdt-queldorei-fletcher-free-steady-shot-lethal",
+      "scope": "exact",
+      "seed_offset": 47,
+      "position": {
+        "friendly": {
+          "mana": 0,
+          "max_mana": 1,
+          "hero_power_available": true,
+          "player_tags": {
+            "STEADY_SHOT_CAN_TARGET": 0,
+            "CURRENT_HEROPOWER_DAMAGE_BONUS": 0,
+            "HERO_POWER_DOUBLE": 0,
+            "HEROPOWER_DAMAGE": 0
+          },
+          "hero_power": {
+            "entity_id": "11",
+            "card_id": "HERO_05dbp",
+            "name": "Steady Shot",
+            "card_type": "HERO_POWER",
+            "cost": 0,
+            "text": "<b>Hero Power</b>\nDeal $2 damage to the enemy hero.@ <b>Hero Power</b>\nDeal $2 damage.",
+            "tags": {"COST": 0, "TAG_LAST_KNOWN_COST_IN_HAND": 2},
+            "oracle_effects": [
+              {"kind": "damage", "amount": 2, "target": "enemy_hero"}
+            ]
+          },
+          "hand": [
+            {
+              "entity_id": "20",
+              "card_id": "EVAL_FILLER_1",
+              "name": "Filler 1",
+              "card_type": "MINION",
+              "cost": 9,
+              "health": 1,
+              "current_health": 1,
+              "text": ""
+            },
+            {
+              "entity_id": "21",
+              "card_id": "EVAL_FILLER_2",
+              "name": "Filler 2",
+              "card_type": "MINION",
+              "cost": 9,
+              "health": 1,
+              "current_health": 1,
+              "text": ""
+            },
+            {
+              "entity_id": "22",
+              "card_id": "EVAL_FILLER_3",
+              "name": "Filler 3",
+              "card_type": "MINION",
+              "cost": 9,
+              "health": 1,
+              "current_health": 1,
+              "text": ""
+            }
+          ],
+          "board": [
+            {
+              "entity_id": "40",
+              "card_id": "TIME_606",
+              "name": "Queldorei Fletcher",
+              "card_type": "MINION",
+              "attack": 2,
+              "health": 3,
+              "current_health": 3,
+              "text": "Your Hero Power costs (0) while your hand has 3 or less cards.",
+              "tags": {"AURA": 1, "NUM_TURNS_IN_PLAY": 1},
+              "oracle_effects": [
+                {
+                  "kind": "set_hero_power_cost",
+                  "amount": 0,
+                  "target": "none",
+                  "hand_count_at_most": 3
+                }
+              ],
+              "expected_rule_effects": [
+                {
+                  "kind": "set_hero_power_cost",
+                  "amount": 0,
+                  "target": "none",
+                  "hand_count_at_most": 3
+                }
+              ]
+            }
+          ]
+        },
+        "opponent": {
+          "hero": {"health": 2, "current_health": 2}
+        }
+      },
+      "expected": {
+        "matched_rule_ids": [
+          "hunter-steady-shot-point-damage-v1",
+          "time-queldorei-fletcher-hero-power-cost-aura-v1"
+        ],
+        "optimal_first_action_ids": ["hero_power:11:30"]
+      }
+    },
+    {
+      "id": "raw-hdt-niri-doubles-one-cost-rock-lethal",
+      "scope": "exact",
+      "seed_offset": 48,
+      "position": {
+        "friendly": {
+          "mana": 4,
+          "max_mana": 4,
+          "hand": [
+            {
+              "entity_id": "20",
+              "card_id": "TLC_836",
+              "name": "Niri of the Crater",
+              "card_type": "MINION",
+              "cost": 3,
+              "attack": 2,
+              "health": 5,
+              "current_health": 5,
+              "text": "[x]Whenever you play a 1-Cost\nminion, double its stats.\nWhenever you cast a 1-Cost\nspell, cast it twice.",
+              "tags": {"32": 1},
+              "oracle_effects": [
+                {
+                  "kind": "double_one_cost_cards",
+                  "amount": 2,
+                  "target": "none"
+                }
+              ]
+            },
+            {
+              "entity_id": "21",
+              "card_id": "WW_001t",
+              "name": "Rock",
+              "card_type": "SPELL",
+              "cost": 1,
+              "text": "Deal 3 damage.",
+              "oracle_effects": [
+                {
+                  "kind": "damage",
+                  "amount": 3,
+                  "target": "any_character"
+                }
+              ]
+            }
+          ]
+        },
+        "opponent": {
+          "hero": {"health": 6, "current_health": 6}
+        }
+      },
+      "expected": {
+        "matched_rule_ids": [
+          "tlc-niri-one-cost-card-doubler-v1",
+          "ww-rock-point-damage-v1"
+        ],
+        "optimal_first_action_ids": ["play_card:20::position=1"]
+      }
+    },
+    {
+      "id": "niri-trigger-evidence-missing-must-abstain",
+      "scope": "abstain",
+      "seed_offset": 49,
+      "position": {
+        "friendly": {
+          "mana": 3,
+          "max_mana": 3,
+          "hand": [
+            {
+              "entity_id": "20",
+              "card_id": "TLC_836",
+              "name": "Niri without trigger evidence",
+              "card_type": "MINION",
+              "cost": 3,
+              "attack": 2,
+              "health": 5,
+              "current_health": 5,
+              "text": "Whenever you play a 1-Cost minion, double its stats. Whenever you cast a 1-Cost spell, cast it twice."
+            }
+          ]
+        },
+        "opponent": {}
+      },
+      "expected": {
+        "matched_rule_ids": [],
+        "mismatch_reason": "required_mechanic_unproven"
+      }
+    },
+    {
+      "id": "niri-text-drift-must-abstain",
+      "scope": "abstain",
+      "seed_offset": 50,
+      "position": {
+        "friendly": {
+          "mana": 3,
+          "max_mana": 3,
+          "hand": [
+            {
+              "entity_id": "20",
+              "card_id": "TLC_836",
+              "name": "Changed Niri",
+              "card_type": "MINION",
+              "cost": 3,
+              "attack": 2,
+              "health": 5,
+              "current_health": 5,
+              "text": "Whenever you play a 1-Cost minion, double its stats. Whenever you cast a 1-Cost spell, cast it once.",
+              "tags": {"TRIGGER_VISUAL": 1}
+            }
+          ]
+        },
+        "opponent": {}
+      },
+      "expected": {
+        "matched_rule_ids": [],
+        "mismatch_reason": "english_text_sha256_mismatch"
+      }
+    },
+    {
+      "id": "windpeak-wyrm-text-drift-must-abstain",
+      "scope": "abstain",
+      "seed_offset": 45,
+      "position": {
+        "friendly": {
+          "mana": 5,
+          "max_mana": 5,
+          "hand": [
+            {
+              "entity_id": "20",
+              "card_id": "TLC_600",
+              "name": "Changed Windpeak Wyrm",
+              "card_type": "MINION",
+              "cost": 5,
+              "attack": 6,
+              "health": 6,
+              "text": "Battlecry: Deal 4 damage and gain 5 Armor. Kindred: Costs (3) less.",
+              "mechanics": ["BATTLECRY", "KINDRED"]
+            }
+          ]
+        },
+        "opponent": {}
+      },
+      "expected": {
+        "matched_rule_ids": [],
+        "mismatch_reason": "english_text_sha256_mismatch"
+      }
+    },
+    {
+      "id": "molten-gold-transformed-same-id-must-abstain",
+      "scope": "abstain",
+      "seed_offset": 46,
+      "position": {
+        "friendly": {
+          "mana": 1,
+          "max_mana": 1,
+          "hand": [
+            {
+              "entity_id": "20",
+              "card_id": "JAIL_801",
+              "name": "Molten Gold Elemental",
+              "card_type": "MINION",
+              "cost": 1,
+              "attack": 3,
+              "health": 3,
+              "text": "Deal $4 damage.\n<i>(Cast @ |4(spell, spells) to turn into a minion!)</i>"
+            }
+          ]
+        },
+        "opponent": {}
+      },
+      "expected": {
+        "matched_rule_ids": [],
+        "mismatch_reason": "card_type_mismatch"
+      }
+    },
+    {
+      "id": "frostbolt-text-drift-must-abstain",
+      "scope": "abstain",
+      "seed_offset": 40,
+      "position": {
+        "friendly": {
+          "mana": 2,
+          "max_mana": 2,
+          "hand": [
+            {
+              "entity_id": "20",
+              "card_id": "CORE_CS2_024",
+              "name": "Changed Frostbolt",
+              "card_type": "SPELL",
+              "cost": 2,
+              "text": "Deal 2 damage to a_character and <b>Freeze</b> it.",
+              "mechanics": ["FREEZE"]
+            }
+          ]
+        },
+        "opponent": {}
+      },
+      "expected": {
+        "matched_rule_ids": [],
+        "mismatch_reason": "english_text_sha256_mismatch"
+      }
+    },
+    {
+      "id": "searing-fissure-wrong-card-type-must-abstain",
+      "scope": "abstain",
+      "seed_offset": 41,
+      "position": {
+        "friendly": {
+          "mana": 2,
+          "max_mana": 2,
+          "hand": [
+            {
+              "entity_id": "20",
+              "card_id": "CATA_582",
+              "name": "Wrongly typed Searing Fissure",
+              "card_type": "MINION",
+              "cost": 2,
+              "attack": 0,
+              "health": 1,
+              "current_health": 1,
+              "text": "Deal $1 damage to all minions. Give your hero +3 Attack this turn."
+            }
+          ]
+        },
+        "opponent": {}
+      },
+      "expected": {
+        "matched_rule_ids": [],
+        "mismatch_reason": "card_type_mismatch"
+      }
+    },
+    {
+      "id": "unregistered-location-mechanic-must-abstain",
+      "scope": "abstain",
+      "seed_offset": 42,
+      "position": {
+        "friendly": {
+          "mana": 1,
+          "max_mana": 1,
+          "hand": [
+            {
+              "entity_id": "20",
+              "card_id": "UNREGISTERED_LOCATION",
+              "name": "Unknown Location",
+              "card_type": "LOCATION",
+              "cost": 1,
+              "health": 3,
+              "current_health": 3,
+              "text": "Destroy a random enemy minion."
+            }
+          ]
+        },
+        "opponent": {}
+      },
+      "expected": {"matched_rule_ids": []}
+    },
+    {
+      "id": "text-hash-drift-must-abstain",
+      "scope": "abstain",
+      "seed_offset": 7,
+      "position": {
+        "friendly": {
+          "mana": 4,
+          "max_mana": 4,
+          "hand": [
+            {
+              "entity_id": "20",
+              "card_id": "CORE_CS2_029",
+              "name": "Changed Fireball",
+              "card_type": "SPELL",
+              "cost": 4,
+              "text": "Deal 5 damage."
+            }
+          ]
+        },
+        "opponent": {}
+      },
+      "expected": {
+        "matched_rule_ids": [],
+        "mismatch_reason": "english_text_sha256_mismatch"
+      }
+    },
+    {
+      "id": "steady-shot-target-modifier-must-abstain",
+      "scope": "abstain",
+      "seed_offset": 14,
+      "position": {
+        "friendly": {
+          "mana": 2,
+          "max_mana": 2,
+          "hero_power_available": true,
+          "player_tags": {"STEADY_SHOT_CAN_TARGET": 1},
+          "hero_power": {
+            "entity_id": "11",
+            "card_id": "HERO_05dbp",
+            "name": "Steady Shot",
+            "card_type": "HERO_POWER",
+            "cost": 2,
+            "text": "Hero Power\nDeal $2 damage to the enemy hero.Hero Power\nDeal $2 damage."
+          }
+        },
+        "opponent": {}
+      },
+      "expected": {
+        "matched_rule_ids": [],
+        "mismatch_reason": "context_tag_active"
+      }
+    },
+    {
+      "id": "fireblast-current-damage-bonus-must-abstain",
+      "scope": "abstain",
+      "seed_offset": 23,
+      "position": {
+        "friendly": {
+          "mana": 2,
+          "max_mana": 2,
+          "hero_power_available": true,
+          "player_tags": {
+            "CURRENT_HEROPOWER_DAMAGE_BONUS": 1,
+            "HERO_POWER_DOUBLE": 0,
+            "HEROPOWER_DAMAGE": 0
+          },
+          "hero_power": {
+            "entity_id": "11",
+            "card_id": "HERO_08bp",
+            "name": "Fireblast",
+            "card_type": "HERO_POWER",
+            "cost": 2,
+            "text": "<b>Hero Power</b>\nDeal $1 damage."
+          }
+        },
+        "opponent": {}
+      },
+      "expected": {
+        "matched_rule_ids": [],
+        "mismatch_reason": "context_tag_active"
+      }
+    },
+    {
+      "id": "fireblast-double-must-abstain",
+      "scope": "abstain",
+      "seed_offset": 24,
+      "position": {
+        "friendly": {
+          "mana": 2,
+          "max_mana": 2,
+          "hero_power_available": true,
+          "player_tags": {
+            "CURRENT_HEROPOWER_DAMAGE_BONUS": 0,
+            "HERO_POWER_DOUBLE": 1,
+            "HEROPOWER_DAMAGE": 0
+          },
+          "hero_power": {
+            "entity_id": "11",
+            "card_id": "HERO_08bp",
+            "name": "Fireblast",
+            "card_type": "HERO_POWER",
+            "cost": 2,
+            "text": "<b>Hero Power</b>\nDeal $1 damage."
+          }
+        },
+        "opponent": {}
+      },
+      "expected": {
+        "matched_rule_ids": [],
+        "mismatch_reason": "context_tag_active"
+      }
+    },
+    {
+      "id": "fireblast-damage-override-must-abstain",
+      "scope": "abstain",
+      "seed_offset": 25,
+      "position": {
+        "friendly": {
+          "mana": 2,
+          "max_mana": 2,
+          "hero_power_available": true,
+          "player_tags": {
+            "CURRENT_HEROPOWER_DAMAGE_BONUS": 0,
+            "HERO_POWER_DOUBLE": 0,
+            "HEROPOWER_DAMAGE": 2
+          },
+          "hero_power": {
+            "entity_id": "11",
+            "card_id": "HERO_08bp",
+            "name": "Fireblast",
+            "card_type": "HERO_POWER",
+            "cost": 2,
+            "text": "<b>Hero Power</b>\nDeal $1 damage."
+          }
+        },
+        "opponent": {}
+      },
+      "expected": {
+        "matched_rule_ids": [],
+        "mismatch_reason": "context_tag_active"
+      }
+    },
+    {
+      "id": "fireblast-owner-tags-missing-must-abstain",
+      "scope": "abstain",
+      "seed_offset": 26,
+      "position": {
+        "friendly": {
+          "mana": 2,
+          "max_mana": 2,
+          "hero_power_available": true,
+          "omit_player_entity": true,
+          "hero_power": {
+            "entity_id": "11",
+            "card_id": "HERO_08bp",
+            "name": "Fireblast",
+            "card_type": "HERO_POWER",
+            "cost": 2,
+            "text": "<b>Hero Power</b>\nDeal $1 damage."
+          }
+        },
+        "opponent": {}
+      },
+      "expected": {
+        "matched_rule_ids": [],
+        "mismatch_reason": "owner_public_rule_tags_unavailable"
+      }
+    },
+    {
+      "id": "wrong-card-type-must-abstain",
+      "scope": "abstain",
+      "seed_offset": 8,
+      "position": {
+        "friendly": {
+          "mana": 4,
+          "max_mana": 4,
+          "hand": [
+            {
+              "entity_id": "20",
+              "card_id": "CORE_CS2_029",
+              "name": "Wrong Type Fireball",
+              "card_type": "MINION",
+              "cost": 4,
+              "attack": 1,
+              "health": 1,
+              "text": "Deal 6 damage."
+            }
+          ]
+        },
+        "opponent": {}
+      },
+      "expected": {
+        "matched_rule_ids": [],
+        "mismatch_reason": "card_type_mismatch"
+      }
+    },
+    {
+      "id": "unregistered-discover-must-abstain",
+      "scope": "abstain",
+      "seed_offset": 9,
+      "position": {
+        "friendly": {
+          "mana": 1,
+          "max_mana": 1,
+          "hand": [
+            {
+              "entity_id": "20",
+              "card_id": "EVAL_DISCOVER",
+              "name": "Unknown Discover",
+              "card_type": "SPELL",
+              "cost": 1,
+              "text": "Discover a card.",
+              "mechanics": ["DISCOVER"]
+            }
+          ]
+        },
+        "opponent": {}
+      },
+      "expected": {"matched_rule_ids": []}
+    },
+    {
+      "id": "fan-of-knives-draw-identity-must-abstain",
+      "scope": "abstain",
+      "seed_offset": 31,
+      "position": {
+        "friendly": {
+          "mana": 3,
+          "max_mana": 3,
+          "hand": [
+            {
+              "entity_id": "20",
+              "card_id": "CORE_EX1_129",
+              "name": "Fan of Knives",
+              "card_type": "SPELL",
+              "cost": 3,
+              "text": "Deal 1 damage to all enemy minions. Draw a card."
+            }
+          ]
+        },
+        "opponent": {}
+      },
+      "expected": {"matched_rule_ids": []}
+    },
+    {
+      "id": "shadow-of-demise-transform-history-must-abstain",
+      "scope": "abstain",
+      "seed_offset": 32,
+      "position": {
+        "friendly": {
+          "mana": 1,
+          "max_mana": 1,
+          "hand": [
+            {
+              "entity_id": "20",
+              "card_id": "CORE_RLK_567",
+              "name": "Shadow of Demise",
+              "card_type": "SPELL",
+              "cost": 1,
+              "text": "Each time you cast a spell, transform this into a copy of it."
+            }
+          ]
+        },
+        "opponent": {}
+      },
+      "expected": {"matched_rule_ids": []}
+    },
+    {
+      "id": "ebb-and-flow-history-condition-must-abstain",
+      "scope": "abstain",
+      "seed_offset": 33,
+      "position": {
+        "friendly": {
+          "mana": 1,
+          "max_mana": 1,
+          "hand": [
+            {
+              "entity_id": "20",
+              "card_id": "TIME_702",
+              "name": "Ebb and Flow",
+              "card_type": "SPELL",
+              "cost": 1,
+              "text": "Deal 3 damage. If you played a minion while holding this, gain 5 Armor."
+            }
+          ]
+        },
+        "opponent": {}
+      },
+      "expected": {"matched_rule_ids": []}
+    },
+    {
+      "id": "jade-guardians-random-generation-must-abstain",
+      "scope": "abstain",
+      "seed_offset": 34,
+      "position": {
+        "friendly": {
+          "mana": 3,
+          "max_mana": 3,
+          "hand": [
+            {
+              "entity_id": "20",
+              "card_id": "JAIL_474",
+              "name": "Jade Guardians",
+              "card_type": "SPELL",
+              "cost": 3,
+              "text": "Get two random 8-Cost minions. They cost (1) less for each card you played for 2 Mana this game. ()"
+            }
+          ]
+        },
+        "opponent": {}
+      },
+      "expected": {"matched_rule_ids": []}
+    },
+    {
+      "id": "malorne-discover-history-must-abstain",
+      "scope": "abstain",
+      "seed_offset": 35,
+      "position": {
+        "friendly": {
+          "mana": 4,
+          "max_mana": 4,
+          "hand": [
+            {
+              "entity_id": "20",
+              "card_id": "EDR_888",
+              "name": "Malorne the Waywatcher",
+              "card_type": "MINION",
+              "cost": 4,
+              "attack": 4,
+              "health": 5,
+              "current_health": 5,
+              "text": "Battlecry: Discover a Legendary Wild God. If you've Imbued your Hero Power 4 times, set its Cost to (1).",
+              "mechanics": ["BATTLECRY", "DISCOVER"]
+            }
+          ]
+        },
+        "opponent": {}
+      },
+      "expected": {"matched_rule_ids": []}
+    },
+    {
+      "id": "blessing-of-the-bronze-random-rewind-must-abstain",
+      "scope": "abstain",
+      "seed_offset": 36,
+      "position": {
+        "friendly": {
+          "mana": 1,
+          "max_mana": 1,
+          "hero_power_available": true,
+          "hero_power": {
+            "entity_id": "11",
+            "card_id": "END_000p",
+            "name": "Blessing of the Bronze",
+            "card_type": "HERO_POWER",
+            "cost": 1,
+            "text": "Rewind Get a random minion from another class. It costs (1) less."
+          }
+        },
+        "opponent": {}
+      },
+      "expected": {"matched_rule_ids": []}
+    },
+    {
+      "id": "unregistered-random-must-abstain",
+      "scope": "abstain",
+      "seed_offset": 10,
+      "position": {
+        "friendly": {
+          "mana": 1,
+          "max_mana": 1,
+          "hand": [
+            {
+              "entity_id": "20",
+              "card_id": "EVAL_RANDOM",
+              "name": "Unknown Random",
+              "card_type": "SPELL",
+              "cost": 1,
+              "text": "Deal 1 damage to a random enemy."
+            }
+          ]
+        },
+        "opponent": {}
+      },
+      "expected": {"matched_rule_ids": []}
+    },
+    {
+      "id": "unregistered-choose-one-must-abstain",
+      "scope": "abstain",
+      "seed_offset": 11,
+      "position": {
+        "friendly": {
+          "mana": 1,
+          "max_mana": 1,
+          "hand": [
+            {
+              "entity_id": "20",
+              "card_id": "EVAL_CHOOSE_ONE",
+              "name": "Unknown Choice",
+              "card_type": "SPELL",
+              "cost": 1,
+              "text": "Choose One - Draw a card; or gain Armor.",
+              "mechanics": ["CHOOSE_ONE"]
+            }
+          ]
+        },
+        "opponent": {}
+      },
+      "expected": {"matched_rule_ids": []}
+    },
+    {
+      "id": "unknown-alternative-does-not-hide-clean-direct-lethal",
+      "scope": "scoped_lethal",
+      "seed_offset": 12,
+      "position": {
+        "friendly": {
+          "mana": 1,
+          "max_mana": 1,
+          "hand": [
+            {
+              "entity_id": "20",
+              "card_id": "EVAL_UNKNOWN_ALTERNATIVE",
+              "name": "Unknown Alternative",
+              "card_type": "SPELL",
+              "cost": 1,
+              "text": "Do something unknown.",
+              "oracle_omit": true
+            }
+          ],
+          "board": [
+            {
+              "entity_id": "40",
+              "card_id": "EVAL_ATTACKER",
+              "name": "Visible Attacker",
+              "card_type": "MINION",
+              "attack": 3,
+              "health": 3,
+              "current_health": 3,
+              "can_attack": true
+            }
+          ]
+        },
+        "opponent": {
+          "hero": {"health": 3, "current_health": 3}
+        }
+      },
+      "expected": {
+        "matched_rule_ids": [],
+        "optimal_first_action_ids": ["attack:40:30"]
+      }
+    },
+    {
+      "id": "raw-hdt-earthen-roar-single-target-without-dragon",
+      "scope": "exact",
+      "seed_offset": 200,
+      "position": {
+        "friendly": {
+          "mana": 1,
+          "max_mana": 1,
+          "hand": [
+            {
+              "entity_id": "20",
+              "card_id": "CATA_554",
+              "name": "Earthen Roar",
+              "card_type": "SPELL",
+              "cost": 1,
+              "text": "Set an enemy minion's Health to 1. If you're holding a Dragon, pick another.",
+              "oracle_effects": [
+                {"kind": "set_health", "amount": 1, "target": "enemy_minion"}
+              ]
+            }
+          ]
+        },
+        "opponent": {
+          "board": [
+            {"entity_id": "40", "card_type": "MINION", "health": 5, "current_health": 5}
+          ]
+        }
+      },
+      "expected": {
+        "matched_rule_ids": ["cata-earthen-roar-single-target-no-dragon-v1"]
+      }
+    },
+    {
+      "id": "raw-hdt-consecration-enemy-aoe",
+      "scope": "exact",
+      "seed_offset": 201,
+      "position": {
+        "friendly": {
+          "mana": 3,
+          "max_mana": 3,
+          "hand": [
+            {
+              "entity_id": "20",
+              "card_id": "CORE_CS2_093",
+              "name": "Consecration",
+              "card_type": "SPELL",
+              "cost": 3,
+              "text": "Deal 2 damage to all enemies.",
+              "oracle_effects": [
+                {"kind": "damage", "amount": 2, "target": "all_enemy_characters"}
+              ]
+            }
+          ]
+        },
+        "opponent": {}
+      },
+      "expected": {"matched_rule_ids": ["core-consecration-enemy-aoe-v1"]}
+    },
+    {
+      "id": "raw-hdt-flamestrike-enemy-minion-aoe",
+      "scope": "exact",
+      "seed_offset": 202,
+      "position": {
+        "friendly": {
+          "mana": 7,
+          "max_mana": 7,
+          "hand": [
+            {
+              "entity_id": "20",
+              "card_id": "CORE_CS2_032",
+              "name": "Flamestrike",
+              "card_type": "SPELL",
+              "cost": 7,
+              "text": "Deal 5 damage to all enemy minions.",
+              "oracle_effects": [
+                {"kind": "damage", "amount": 5, "target": "all_enemy_minions"}
+              ]
+            }
+          ]
+        },
+        "opponent": {}
+      },
+      "expected": {"matched_rule_ids": ["core-flamestrike-enemy-minion-aoe-v1"]}
+    },
+    {
+      "id": "raw-hdt-hellfire-all-character-aoe",
+      "scope": "exact",
+      "seed_offset": 203,
+      "position": {
+        "friendly": {
+          "mana": 3,
+          "max_mana": 3,
+          "hand": [
+            {
+              "entity_id": "20",
+              "card_id": "CORE_CS2_062",
+              "name": "Hellfire",
+              "card_type": "SPELL",
+              "cost": 3,
+              "text": "Deal 3 damage to ALL characters.",
+              "oracle_effects": [
+                {"kind": "damage", "amount": 3, "target": "all_characters"}
+              ]
+            }
+          ]
+        },
+        "opponent": {}
+      },
+      "expected": {"matched_rule_ids": ["core-hellfire-all-character-aoe-v1"]}
+    },
+    {
+      "id": "raw-hdt-glacial-shard-battlecry-freeze",
+      "scope": "exact",
+      "seed_offset": 204,
+      "position": {
+        "friendly": {
+          "mana": 1,
+          "max_mana": 1,
+          "hand": [
+            {
+              "entity_id": "20",
+              "card_id": "CORE_UNG_205",
+              "name": "Glacial Shard",
+              "card_type": "MINION",
+              "cost": 1,
+              "attack": 2,
+              "health": 1,
+              "text": "<b>Battlecry:</b> <b>Freeze</b> an enemy.",
+              "mechanics": ["BATTLECRY", "FREEZE"],
+              "oracle_effects": [
+                {"kind": "freeze", "amount": 0, "target": "enemy_character"}
+              ]
+            }
+          ]
+        },
+        "opponent": {}
+      },
+      "expected": {"matched_rule_ids": ["core-glacial-shard-battlecry-freeze-v1"]}
+    },
+    {
+      "id": "raw-hdt-beaming-sidekick-health-buff",
+      "scope": "exact",
+      "seed_offset": 205,
+      "position": {
+        "friendly": {
+          "mana": 1,
+          "max_mana": 1,
+          "hand": [
+            {
+              "entity_id": "20",
+              "card_id": "CORE_ULD_191",
+              "name": "Beaming Sidekick",
+              "card_type": "MINION",
+              "cost": 1,
+              "attack": 1,
+              "health": 2,
+              "text": "<b>Battlecry:</b> Give a friendly minion +2 Health.",
+              "mechanics": ["BATTLECRY"],
+              "oracle_effects": [
+                {"kind": "buff_health", "amount": 2, "target": "friendly_minion"}
+              ]
+            }
+          ],
+          "board": [
+            {"entity_id": "40", "card_type": "MINION", "health": 2, "current_health": 2}
+          ]
+        },
+        "opponent": {}
+      },
+      "expected": {"matched_rule_ids": ["core-beaming-sidekick-battlecry-health-buff-v1"]}
+    },
+    {
+      "id": "raw-hdt-equality-all-minion-health",
+      "scope": "exact",
+      "seed_offset": 206,
+      "position": {
+        "friendly": {
+          "mana": 2,
+          "max_mana": 2,
+          "hand": [
+            {
+              "entity_id": "20",
+              "card_id": "CORE_EX1_619",
+              "name": "Equality",
+              "card_type": "SPELL",
+              "cost": 2,
+              "text": "Change the Health of ALL minions to 1.",
+              "oracle_effects": [
+                {"kind": "set_health", "amount": 1, "target": "all_minions"}
+              ]
+            }
+          ]
+        },
+        "opponent": {}
+      },
+      "expected": {"matched_rule_ids": ["core-equality-all-minion-health-v1"]}
+    },
+    {
+      "id": "raw-hdt-blizzard-enemy-minion-aoe-freeze",
+      "scope": "exact",
+      "seed_offset": 207,
+      "position": {
+        "friendly": {
+          "mana": 6,
+          "max_mana": 6,
+          "hand": [
+            {
+              "entity_id": "20",
+              "card_id": "CORE_CS2_028",
+              "name": "Blizzard",
+              "card_type": "SPELL",
+              "cost": 6,
+              "text": "Deal 2 damage to all enemy minions and <b>Freeze</b> them.",
+              "mechanics": ["FREEZE"],
+              "oracle_effects": [
+                {"kind": "damage", "amount": 2, "target": "all_enemy_minions"},
+                {"kind": "freeze", "amount": 0, "target": "all_enemy_minions"}
+              ]
+            }
+          ]
+        },
+        "opponent": {}
+      },
+      "expected": {"matched_rule_ids": ["core-blizzard-enemy-minion-aoe-freeze-v1"]}
+    },
+    {
+      "id": "raw-hdt-holy-nova-enemy-damage-friendly-heal",
+      "scope": "exact",
+      "seed_offset": 208,
+      "position": {
+        "friendly": {
+          "mana": 3,
+          "max_mana": 3,
+          "hand": [
+            {
+              "entity_id": "20",
+              "card_id": "CORE_CS1_112",
+              "name": "Holy Nova",
+              "card_type": "SPELL",
+              "cost": 3,
+              "text": "Deal 2 damage to all enemy minions. Restore 2 Health to all friendly characters.",
+              "oracle_effects": [
+                {"kind": "damage", "amount": 2, "target": "all_enemy_minions"},
+                {"kind": "heal", "amount": 2, "target": "all_friendly_characters"}
+              ]
+            }
+          ]
+        },
+        "opponent": {}
+      },
+      "expected": {"matched_rule_ids": ["core-holy-nova-enemy-damage-friendly-heal-v1"]}
+    }
+  ]
+}

@@ -1,0 +1,16 @@
+{
+  "host": "127.0.0.1",
+  "port": 17853,
+  "default_time_budget_ms": 2500,
+  "max_time_budget_ms": 10000,
+  "default_max_iterations": 5000,
+  "max_iterations": 50000,
+  "max_depth": 24,
+  "top_k": 3,
+  "exploration_constant": 1.35,
+  "max_request_bytes": 2097152,
+  "training_log_path": "data/training-v2.jsonl",
+  "behavior_prior_path": "data/behavior-prior-v1.json",
+  "decision_ranker_path": "data/decision-ranker-v1.json",
+  "advisor_data_path": ""
+}

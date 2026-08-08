@@ -1,0 +1,352 @@
+{
+  "schema_version": 1,
+  "suite_id": "oracle-turn-v1",
+  "seed": 20260729,
+  "description": "Deterministic proof fixtures for a deliberately small public turn subset; not a complete Hearthstone benchmark.",
+  "thresholds": {
+    "min_proven_top1_rate": 1.0,
+    "min_proven_top3_rate": 1.0,
+    "max_false_lethal_rate": 0.0,
+    "min_legality_rate": 1.0,
+    "min_exact_fixture_count": 7,
+    "max_approximate_rate": 0.12,
+    "max_abstain_rate": 0.12,
+    "max_latency_p95_ms": 10000
+  },
+  "fixtures": [
+    {
+      "id": "unique-face-lethal",
+      "category": "unique_lethal",
+      "scope": "exact",
+      "position": {
+        "friendly": {
+          "board": [
+            {
+              "entity_id": "only-attacker",
+              "attack": 3,
+              "health": 2,
+              "can_attack": true
+            }
+          ]
+        },
+        "opponent": {
+          "hero": {
+            "health": 3,
+            "current_health": 3
+          }
+        }
+      },
+      "expected": {
+        "has_lethal": true,
+        "winning_first_action_count": 1
+      }
+    },
+    {
+      "id": "multiple-face-lethals",
+      "category": "multiple_lethal",
+      "scope": "exact",
+      "seed_offset": 1,
+      "position": {
+        "friendly": {
+          "board": [
+            {
+              "entity_id": "attacker-a",
+              "attack": 3,
+              "health": 2,
+              "can_attack": true
+            },
+            {
+              "entity_id": "attacker-b",
+              "attack": 4,
+              "health": 2,
+              "can_attack": true
+            }
+          ]
+        },
+        "opponent": {
+          "hero": {
+            "health": 3,
+            "current_health": 3
+          }
+        }
+      },
+      "expected": {
+        "has_lethal": true,
+        "winning_first_action_count": 2
+      }
+    },
+    {
+      "id": "insufficient-face-damage",
+      "category": "no_lethal",
+      "scope": "exact",
+      "seed_offset": 2,
+      "position": {
+        "friendly": {
+          "board": [
+            {
+              "entity_id": "small-attacker",
+              "attack": 3,
+              "health": 2,
+              "can_attack": true
+            }
+          ]
+        },
+        "opponent": {
+          "hero": {
+            "health": 5,
+            "current_health": 5
+          }
+        }
+      },
+      "expected": {
+        "has_lethal": false,
+        "winning_first_action_count": 0
+      }
+    },
+    {
+      "id": "clear-taunt-then-lethal",
+      "category": "taunt",
+      "scope": "exact",
+      "seed_offset": 3,
+      "position": {
+        "friendly": {
+          "board": [
+            {
+              "entity_id": "taunt-clear-a",
+              "attack": 2,
+              "health": 2,
+              "can_attack": true
+            },
+            {
+              "entity_id": "taunt-clear-b",
+              "attack": 2,
+              "health": 2,
+              "can_attack": true
+            }
+          ]
+        },
+        "opponent": {
+          "hero": {
+            "health": 2,
+            "current_health": 2
+          },
+          "board": [
+            {
+              "entity_id": "blocking-taunt",
+              "attack": 0,
+              "health": 2,
+              "taunt": true,
+              "can_attack": false
+            }
+          ]
+        }
+      },
+      "expected": {
+        "has_lethal": true,
+        "winning_first_action_count": 2
+      }
+    },
+    {
+      "id": "divine-shield-order-matters",
+      "category": "divine_shield",
+      "scope": "exact",
+      "seed_offset": 4,
+      "position": {
+        "friendly": {
+          "board": [
+            {
+              "entity_id": "shield-ping-a",
+              "attack": 1,
+              "health": 2,
+              "can_attack": true
+            },
+            {
+              "entity_id": "shield-ping-b",
+              "attack": 1,
+              "health": 2,
+              "can_attack": true
+            },
+            {
+              "entity_id": "face-finisher",
+              "attack": 2,
+              "health": 2,
+              "can_attack": true
+            }
+          ]
+        },
+        "opponent": {
+          "hero": {
+            "health": 2,
+            "current_health": 2
+          },
+          "board": [
+            {
+              "entity_id": "shielded-taunt",
+              "attack": 0,
+              "health": 1,
+              "taunt": true,
+              "divine_shield": true,
+              "can_attack": false
+            }
+          ]
+        }
+      },
+      "expected": {
+        "has_lethal": true,
+        "winning_first_action_count": 2
+      }
+    },
+    {
+      "id": "mana-sequence-two-spells",
+      "category": "mana_sequence",
+      "scope": "exact",
+      "seed_offset": 5,
+      "position": {
+        "friendly": {
+          "mana": 3,
+          "max_mana": 3,
+          "hand": [
+            {
+              "entity_id": "one-mana-bolt",
+              "card_id": "EVAL_BOLT_1",
+              "card_type": "SPELL",
+              "cost": 1,
+              "effects": [
+                {
+                  "kind": "damage",
+                  "amount": 1,
+                  "target": "enemy_hero"
+                }
+              ]
+            },
+            {
+              "entity_id": "two-mana-bolt",
+              "card_id": "EVAL_BOLT_2",
+              "card_type": "SPELL",
+              "cost": 2,
+              "effects": [
+                {
+                  "kind": "damage",
+                  "amount": 2,
+                  "target": "enemy_hero"
+                }
+              ]
+            }
+          ]
+        },
+        "opponent": {
+          "hero": {
+            "health": 3,
+            "current_health": 3
+          }
+        }
+      },
+      "expected": {
+        "has_lethal": true,
+        "winning_first_action_count": 2
+      }
+    },
+    {
+      "id": "empty-turn-negative-control",
+      "category": "negative_control",
+      "scope": "exact",
+      "seed_offset": 6,
+      "position": {
+        "friendly": {
+          "mana": 0,
+          "board": []
+        },
+        "opponent": {
+          "hero": {
+            "health": 30,
+            "current_health": 30
+          }
+        }
+      },
+      "expected": {
+        "has_lethal": false,
+        "winning_first_action_count": 0
+      }
+    },
+    {
+      "id": "known-lethal-with-unsupported-alternative",
+      "category": "approximate_control",
+      "scope": "approximate",
+      "seed_offset": 7,
+      "position": {
+        "friendly": {
+          "mana": 1,
+          "board": [
+            {
+              "entity_id": "approx-attacker",
+              "attack": 3,
+              "health": 2,
+              "can_attack": true
+            }
+          ],
+          "hand": [
+            {
+              "entity_id": "unknown-spell",
+              "card_id": "EVAL_UNKNOWN",
+              "card_type": "SPELL",
+              "cost": 1,
+              "effect_coverage": "unsupported",
+              "unsupported_effects": [
+                "card_text_not_parsed"
+              ]
+            }
+          ]
+        },
+        "opponent": {
+          "hero": {
+            "health": 3,
+            "current_health": 3
+          }
+        }
+      }
+    },
+    {
+      "id": "unsupported-effect-abstention-control",
+      "category": "abstain_control",
+      "scope": "abstain",
+      "seed_offset": 8,
+      "position": {
+        "friendly": {
+          "mana": 1,
+          "hand": [
+            {
+              "entity_id": "unsupported-transform",
+              "card_id": "EVAL_TRANSFORM",
+              "card_type": "SPELL",
+              "cost": 1,
+              "effects": [
+                {
+                  "kind": "transform",
+                  "target": "enemy_minion"
+                }
+              ],
+              "effect_coverage": "unsupported",
+              "unsupported_effects": [
+                "transform"
+              ]
+            }
+          ]
+        },
+        "opponent": {
+          "hero": {
+            "health": 30,
+            "current_health": 30
+          },
+          "board": [
+            {
+              "entity_id": "transform-target",
+              "attack": 1,
+              "health": 1,
+              "can_attack": false
+            }
+          ]
+        }
+      }
+    }
+  ]
+}

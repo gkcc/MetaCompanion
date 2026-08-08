@@ -1,0 +1,617 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://metacompanion.local/schemas/card-effect-ir-v1.schema.json",
+  "title": "Meta Companion Card Effect IR v1",
+  "description": "Reviewed Hearthstone card rules compiled into event-driven state transitions. Free-text classification alone must never produce a verified bundle.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "ruleset_id",
+    "authoring_contract",
+    "source",
+    "pools",
+    "cards"
+  ],
+  "properties": {
+    "schema_version": {"const": 1},
+    "ruleset_id": {"type": "string", "minLength": 1},
+    "authoring_contract": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["free_text_is_executable", "review_required", "transition_tests_required"],
+      "properties": {
+        "free_text_is_executable": {"const": false},
+        "review_required": {"const": true},
+        "transition_tests_required": {"const": true}
+      }
+    },
+    "source": {"$ref": "#/$defs/source"},
+    "pools": {
+      "type": "array",
+      "items": {"$ref": "#/$defs/card_pool"}
+    },
+    "cards": {
+      "type": "array",
+      "items": {"$ref": "#/$defs/card_rule"}
+    }
+  },
+  "$defs": {
+    "source": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["card_defs_build", "official_pool_sha256", "generated_at_utc"],
+      "properties": {
+        "card_defs_build": {"type": "string", "minLength": 1},
+        "official_pool_sha256": {"$ref": "#/$defs/sha256"},
+        "generated_at_utc": {"type": "string", "format": "date-time"},
+        "patch": {"type": "string"},
+        "format": {"enum": ["standard", "arena", "wild", "twist", "all"]}
+      }
+    },
+    "sha256": {
+      "type": "string",
+      "pattern": "^[A-Fa-f0-9]{64}$"
+    },
+    "card_rule": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "card_id",
+        "card_type",
+        "text_fingerprint",
+        "status",
+        "intrinsic",
+        "dependencies",
+        "clauses",
+        "verification"
+      ],
+      "properties": {
+        "card_id": {"type": "string", "minLength": 1},
+        "dbf_id": {"type": "integer", "minimum": 1},
+        "card_type": {
+          "enum": ["HERO", "HERO_POWER", "MINION", "SPELL", "WEAPON", "LOCATION", "ENCHANTMENT", "TOKEN"]
+        },
+        "text_fingerprint": {"$ref": "#/$defs/text_fingerprint"},
+        "status": {"enum": ["draft", "reviewed", "transition_verified", "disabled"]},
+        "intrinsic": {
+          "type": "array",
+          "items": {"$ref": "#/$defs/intrinsic"}
+        },
+        "dependencies": {"$ref": "#/$defs/dependencies"},
+        "clauses": {
+          "type": "array",
+          "items": {"$ref": "#/$defs/clause"}
+        },
+        "verification": {"$ref": "#/$defs/verification"}
+      }
+    },
+    "text_fingerprint": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["locale", "normalized_text", "sha256"],
+      "properties": {
+        "locale": {"type": "string", "minLength": 2},
+        "normalized_text": {"type": "string"},
+        "sha256": {"$ref": "#/$defs/sha256"},
+        "accepted_alternate_sha256": {
+          "type": "array",
+          "items": {"$ref": "#/$defs/sha256"},
+          "uniqueItems": true
+        }
+      }
+    },
+    "intrinsic": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind"],
+      "properties": {
+        "kind": {
+          "enum": [
+            "attack",
+            "health",
+            "durability",
+            "cost",
+            "tribe",
+            "spell_school",
+            "keyword",
+            "targeting_requirement",
+            "play_requirement"
+          ]
+        },
+        "value": {"$ref": "#/$defs/scalar"},
+        "name": {"type": "string"},
+        "conditions": {
+          "type": "array",
+          "items": {"$ref": "#/$defs/condition"}
+        }
+      }
+    },
+    "dependencies": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["card_ids", "token_ids", "enchantment_ids", "hero_power_ids", "pool_ids", "keyword_rule_ids"],
+      "properties": {
+        "card_ids": {"$ref": "#/$defs/unique_strings"},
+        "token_ids": {"$ref": "#/$defs/unique_strings"},
+        "enchantment_ids": {"$ref": "#/$defs/unique_strings"},
+        "hero_power_ids": {"$ref": "#/$defs/unique_strings"},
+        "pool_ids": {"$ref": "#/$defs/unique_strings"},
+        "keyword_rule_ids": {"$ref": "#/$defs/unique_strings"}
+      }
+    },
+    "card_pool": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "pool_id",
+        "source",
+        "formats",
+        "collectible",
+        "class_mode",
+        "constraints",
+        "exclude_self",
+        "exclude_card_ids"
+      ],
+      "properties": {
+        "pool_id": {"type": "string", "pattern": "^[a-z][a-z0-9_.-]*$"},
+        "source": {
+          "enum": [
+            "current_format",
+            "owner_deck",
+            "opponent_deck",
+            "owner_hand",
+            "opponent_hand",
+            "graveyard",
+            "historical",
+            "entourage"
+          ]
+        },
+        "formats": {
+          "type": "array",
+          "minItems": 1,
+          "items": {"enum": ["standard", "arena", "wild", "twist", "current"]},
+          "uniqueItems": true
+        },
+        "collectible": {"type": "boolean"},
+        "class_mode": {
+          "enum": ["any", "controller", "controller_or_neutral", "another_class", "specific"]
+        },
+        "class_ids": {
+          "type": "array",
+          "items": {"type": "integer", "minimum": 1},
+          "uniqueItems": true
+        },
+        "constraints": {"$ref": "#/$defs/card_pool_constraints"},
+        "exclude_self": {"type": "boolean"},
+        "exclude_card_ids": {"$ref": "#/$defs/unique_strings"},
+        "notes": {"type": "string"}
+      }
+    },
+    "card_pool_constraints": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "cost": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "min": {"type": "integer", "minimum": 0},
+            "max": {"type": "integer", "minimum": 0}
+          },
+          "minProperties": 1
+        },
+        "card_types": {
+          "type": "array",
+          "items": {"enum": ["HERO", "MINION", "SPELL", "WEAPON", "LOCATION"]},
+          "uniqueItems": true
+        },
+        "spell_school_ids": {
+          "type": "array",
+          "items": {"type": "integer", "minimum": 1},
+          "uniqueItems": true
+        },
+        "minion_type_ids": {
+          "type": "array",
+          "items": {"type": "integer", "minimum": 1},
+          "uniqueItems": true
+        },
+        "card_set_ids": {
+          "type": "array",
+          "items": {"type": "integer", "minimum": 1},
+          "uniqueItems": true
+        },
+        "rarity_ids": {
+          "type": "array",
+          "items": {"type": "integer", "minimum": 1},
+          "uniqueItems": true
+        },
+        "keyword_ids": {
+          "type": "array",
+          "items": {"type": "integer", "minimum": 1},
+          "uniqueItems": true
+        },
+        "required_keywords": {"$ref": "#/$defs/unique_strings"},
+        "dynamic_constraints": {"$ref": "#/$defs/unique_strings"}
+      }
+    },
+    "unique_strings": {
+      "type": "array",
+      "items": {"type": "string", "minLength": 1},
+      "uniqueItems": true
+    },
+    "clause": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "clause_id",
+        "trigger",
+        "conditions",
+        "selector_bindings",
+        "operations",
+        "resolution",
+        "randomness",
+        "visibility"
+      ],
+      "properties": {
+        "clause_id": {"type": "string", "minLength": 1},
+        "trigger": {"$ref": "#/$defs/trigger"},
+        "conditions": {
+          "type": "array",
+          "items": {"$ref": "#/$defs/condition"}
+        },
+        "selector_bindings": {
+          "type": "object",
+          "propertyNames": {"pattern": "^[a-z][a-z0-9_]*$"},
+          "additionalProperties": {"$ref": "#/$defs/selector"}
+        },
+        "operations": {
+          "type": "array",
+          "minItems": 1,
+          "items": {"$ref": "#/$defs/operation"}
+        },
+        "resolution": {"$ref": "#/$defs/resolution"},
+        "randomness": {"$ref": "#/$defs/randomness"},
+        "visibility": {"$ref": "#/$defs/visibility"}
+      }
+    },
+    "trigger": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "controller", "frequency"],
+      "properties": {
+        "kind": {
+          "enum": [
+            "play_resolution",
+            "battlecry",
+            "deathrattle",
+            "location_activation",
+            "start_of_game",
+            "start_of_turn",
+            "end_of_turn",
+            "before_event",
+            "after_event",
+            "continuous_aura",
+            "replacement",
+            "quest_progress"
+          ]
+        },
+        "controller": {"enum": ["owner", "opponent", "either", "system"]},
+        "event_kind": {"type": "string"},
+        "frequency": {"enum": ["once", "each_event", "first_each_turn", "limited"]},
+        "limit": {"$ref": "#/$defs/expression"}
+      }
+    },
+    "condition": {
+      "oneOf": [
+        {"$ref": "#/$defs/condition_group"},
+        {"$ref": "#/$defs/condition_not"},
+        {"$ref": "#/$defs/condition_compare"},
+        {"$ref": "#/$defs/condition_predicate"}
+      ]
+    },
+    "condition_group": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["op", "args"],
+      "properties": {
+        "op": {"enum": ["all", "any"]},
+        "args": {
+          "type": "array",
+          "minItems": 1,
+          "items": {"$ref": "#/$defs/condition"}
+        }
+      }
+    },
+    "condition_not": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["op", "arg"],
+      "properties": {
+        "op": {"const": "not"},
+        "arg": {"$ref": "#/$defs/condition"}
+      }
+    },
+    "condition_compare": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["op", "left", "comparator", "right"],
+      "properties": {
+        "op": {"const": "compare"},
+        "left": {"$ref": "#/$defs/expression"},
+        "comparator": {"enum": ["eq", "ne", "lt", "lte", "gt", "gte", "contains", "in"]},
+        "right": {"$ref": "#/$defs/expression"}
+      }
+    },
+    "condition_predicate": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["op", "name", "args"],
+      "properties": {
+        "op": {"const": "predicate"},
+        "name": {"type": "string", "minLength": 1},
+        "args": {
+          "type": "array",
+          "items": {"$ref": "#/$defs/expression"}
+        }
+      }
+    },
+    "selector": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["controller", "zones", "entity_types", "choice", "cardinality", "snapshot"],
+      "properties": {
+        "controller": {"enum": ["owner", "opponent", "either", "source_controller", "event_controller"]},
+        "zones": {
+          "type": "array",
+          "minItems": 1,
+          "items": {"enum": ["hero", "hero_power", "hand", "deck", "battlefield", "weapon", "location", "graveyard", "set_aside"]},
+          "uniqueItems": true
+        },
+        "entity_types": {
+          "type": "array",
+          "minItems": 1,
+          "items": {"enum": ["character", "hero", "hero_power", "minion", "spell", "weapon", "location", "card"]},
+          "uniqueItems": true
+        },
+        "filters": {
+          "type": "array",
+          "items": {"$ref": "#/$defs/condition"}
+        },
+        "choice": {"enum": ["player", "automatic", "random_uniform", "random_weighted", "all"]},
+        "cardinality": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["min", "max"],
+          "properties": {
+            "min": {"type": "integer", "minimum": 0},
+            "max": {"type": "integer", "minimum": 0}
+          }
+        },
+        "snapshot": {"enum": ["at_trigger", "at_resolution", "live_each_repeat"]},
+        "ordering": {"enum": ["none", "left_to_right", "play_order", "cost_ascending", "cost_descending", "random"]}
+      }
+    },
+    "operation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "targets", "arguments"],
+      "properties": {
+        "kind": {
+          "enum": [
+            "damage",
+            "heal",
+            "gain_armor",
+            "draw",
+            "discover",
+            "generate",
+            "summon",
+            "destroy",
+            "transform",
+            "modify_stats",
+            "set_stats",
+            "grant_keyword",
+            "remove_keyword",
+            "equip_weapon",
+            "freeze",
+            "discard",
+            "shuffle",
+            "move_zone",
+            "take_control",
+            "resurrect",
+            "attack",
+            "cast",
+            "trigger_clause",
+            "modify_cost",
+            "gain_mana",
+            "refresh_mana",
+            "overload",
+            "modify_hero_power",
+            "copy",
+            "set_counter",
+            "increment_counter",
+            "emit_event",
+            "install_modifier",
+            "remove_modifier"
+          ]
+        },
+        "targets": {
+          "type": "array",
+          "items": {"type": "string", "pattern": "^[a-z][a-z0-9_]*$"},
+          "uniqueItems": true
+        },
+        "arguments": {"$ref": "#/$defs/operation_arguments"},
+        "result_binding": {"type": "string", "pattern": "^[a-z][a-z0-9_]*$"}
+      }
+    },
+    "operation_arguments": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "amount": {"$ref": "#/$defs/expression"},
+        "count": {"$ref": "#/$defs/expression"},
+        "attack": {"$ref": "#/$defs/expression"},
+        "health": {"$ref": "#/$defs/expression"},
+        "cost": {"$ref": "#/$defs/expression"},
+        "card": {"$ref": "#/$defs/card_reference"},
+        "pool_id": {"type": "string"},
+        "keyword": {"type": "string"},
+        "from_zone": {"type": "string"},
+        "to_zone": {"type": "string"},
+        "duration": {"$ref": "#/$defs/duration"},
+        "damage_kind": {"enum": ["normal", "fatigue", "hero_attack", "spell", "excess"]},
+        "excess_damage": {"enum": ["lost", "carry_to_enemy_hero", "return_source_to_hand"]},
+        "modifier": {"$ref": "#/$defs/modifier"},
+        "event_kind": {"type": "string"},
+        "clause_ids": {"$ref": "#/$defs/unique_strings"}
+      }
+    },
+    "card_reference": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "value"],
+      "properties": {
+        "kind": {"enum": ["card_id", "token_id", "bound_entity", "source_copy", "pool_sample"]},
+        "value": {"type": "string", "minLength": 1}
+      }
+    },
+    "modifier": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["layer", "property", "mode", "value", "duration"],
+      "properties": {
+        "layer": {"enum": ["base", "set", "add", "multiply", "cost", "permission", "replacement", "trigger_multiplier"]},
+        "property": {"type": "string", "minLength": 1},
+        "mode": {"enum": ["set", "add", "multiply", "minimum", "maximum", "replace_event", "grant", "deny"]},
+        "value": {"$ref": "#/$defs/expression"},
+        "duration": {"$ref": "#/$defs/duration"},
+        "consumes_on": {"type": "string"}
+      }
+    },
+    "duration": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind"],
+      "properties": {
+        "kind": {"enum": ["immediate", "this_turn", "next_turn", "until_next_turn", "fixed_turns", "while_source_active", "rest_of_game", "until_consumed", "permanent"]},
+        "turns": {"$ref": "#/$defs/expression"},
+        "expires_on_event": {"type": "string"}
+      }
+    },
+    "resolution": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["queue", "operation_order", "recalculate_legality_after_each_operation"],
+      "properties": {
+        "queue": {"enum": ["immediate", "event_queue", "death_queue", "end_of_phase_queue"]},
+        "operation_order": {"enum": ["listed", "simultaneous", "controller_choice", "active_player_first"]},
+        "recalculate_legality_after_each_operation": {"type": "boolean"},
+        "atomic_group": {"type": "string"}
+      }
+    },
+    "randomness": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "enumeration", "observation"],
+      "properties": {
+        "kind": {"enum": ["deterministic", "player_choice", "uniform", "weighted", "discover", "shuffle", "adversarial_unknown"]},
+        "enumeration": {"enum": ["exact", "pool_exact", "sampled", "belief_weighted", "not_applicable"]},
+        "pool_id": {"type": "string"},
+        "sample_count": {"type": "integer", "minimum": 1},
+        "with_replacement": {"type": "boolean"},
+        "observation": {"enum": ["public_before_choice", "public_after_resolution", "owner_only", "hidden"]}
+      }
+    },
+    "visibility": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["reads", "writes", "belief_update"],
+      "properties": {
+        "reads": {
+          "type": "array",
+          "items": {"enum": ["public_state", "owner_hand", "owner_deck", "opponent_hand", "opponent_deck", "event_history", "random_pool"]},
+          "uniqueItems": true
+        },
+        "writes": {
+          "type": "array",
+          "items": {"enum": ["public_state", "owner_private_state", "opponent_private_state", "event_history", "belief_state"]},
+          "uniqueItems": true
+        },
+        "belief_update": {"enum": ["none", "reveal", "negative_evidence", "generated_card", "deck_draw", "deck_shuffle", "secret_choice"]}
+      }
+    },
+    "expression": {
+      "oneOf": [
+        {"$ref": "#/$defs/expression_literal"},
+        {"$ref": "#/$defs/expression_ref"},
+        {"$ref": "#/$defs/expression_call"}
+      ]
+    },
+    "expression_literal": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "value"],
+      "properties": {
+        "kind": {"const": "literal"},
+        "value": {"$ref": "#/$defs/scalar"}
+      }
+    },
+    "expression_ref": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "path"],
+      "properties": {
+        "kind": {"enum": ["state_ref", "event_ref", "binding_ref", "counter_ref"]},
+        "path": {"type": "string", "minLength": 1}
+      }
+    },
+    "expression_call": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "op", "args"],
+      "properties": {
+        "kind": {"const": "call"},
+        "op": {"enum": ["add", "subtract", "multiply", "divide", "min", "max", "count", "sum", "clamp"]},
+        "args": {
+          "type": "array",
+          "minItems": 1,
+          "items": {"$ref": "#/$defs/expression"}
+        }
+      }
+    },
+    "scalar": {
+      "type": ["number", "integer", "string", "boolean", "null"]
+    },
+    "verification": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["reviewed", "text_match_required", "tests", "observed_transitions"],
+      "properties": {
+        "reviewed": {"type": "boolean"},
+        "reviewed_at_utc": {"type": "string", "format": "date-time"},
+        "reviewer": {"type": "string"},
+        "text_match_required": {"const": true},
+        "tests": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["fixture_id", "pre_state_sha256", "expected_post_state_sha256"],
+            "properties": {
+              "fixture_id": {"type": "string", "minLength": 1},
+              "pre_state_sha256": {"$ref": "#/$defs/sha256"},
+              "expected_post_state_sha256": {"$ref": "#/$defs/sha256"},
+              "chance_seed": {"type": "integer"}
+            }
+          }
+        },
+        "observed_transitions": {
+          "type": "array",
+          "items": {"$ref": "#/$defs/sha256"},
+          "uniqueItems": true
+        },
+        "known_limitations": {"$ref": "#/$defs/unique_strings"}
+      }
+    }
+  }
+}

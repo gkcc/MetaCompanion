@@ -1,0 +1,16 @@
+{
+  "schema": "trajectory-readiness-policy-v1",
+  "thresholds": {
+    "min_unique_games": 2,
+    "min_canonical_decisions": 4,
+    "min_terminal_result_games": 2,
+    "min_solve_result_join_rate": 1.0,
+    "min_exact_action_rate": 1.0,
+    "min_replayable_transition_rate": 1.0,
+    "max_partial_action_rate": 0.0,
+    "max_unsupported_solve_rate": 0.0,
+    "max_cancelled_solve_rate": 0.0,
+    "max_partial_solve_rate": 0.0,
+    "max_non_ok_solve_rate": 0.0
+  }
+}

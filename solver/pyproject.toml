@@ -1,0 +1,18 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "metacompanion-solver"
+version = "0.1.0"
+description = "Local, conservative turn-line solver MVP for Meta Companion"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = []
+
+[project.scripts]
+metacompanion-solver = "metacompanion_solver.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["metacompanion_solver*"]

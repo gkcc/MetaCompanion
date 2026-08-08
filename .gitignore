@@ -21,6 +21,7 @@ build/
 bld/
 [Bb]in/
 [Oo]bj/
+**/target/
 
 # Visual Studo 2015 cache/options directory
 .vs/
@@ -155,6 +156,11 @@ AppPackages/
 
 # Others
 *.[Cc]ache
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.venv/
 ClientBin/
 [Ss]tyle[Cc]op.*
 ~$*
@@ -168,6 +174,7 @@ hsreplay_archetypes.*.json
 hsreplay_cookie.txt
 hsreplay_deckcodes.txt
 archetype_deck_branches.tsv
+archetype_model_branches.tsv
 match_history.tsv
 hdt_opponent_history.tsv
 local_meta_*.tsv
@@ -182,6 +189,13 @@ anomalies.tsv
 patch_marker.txt
 Premium/
 Logs/
+**/training.jsonl
+**/training-v2.jsonl
+**/behavior-v1.jsonl
+**/behavior-imitation-v1.jsonl
+**/behavior-imitation-v1.manifest.json
+**/behavior-outbox-v1/
+**/result-outbox-v1/
 .tmp_hsreplay_js/
 pending-install-*.log
 *.pfx

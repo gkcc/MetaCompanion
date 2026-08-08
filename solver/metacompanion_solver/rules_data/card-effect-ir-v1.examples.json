@@ -1,0 +1,408 @@
+{
+  "schema_version": 1,
+  "ruleset_id": "card-effect-ir-v1-examples",
+  "authoring_contract": {
+    "free_text_is_executable": false,
+    "review_required": true,
+    "transition_tests_required": true
+  },
+  "source": {
+    "card_defs_build": "247416",
+    "official_pool_sha256": "CEDD954E1F9E1406E997F12E6755515DD72ED303E8470A3FE2CF272F6598D103",
+    "generated_at_utc": "2026-08-01T18:00:00Z",
+    "patch": "CURRENT_PATCH",
+    "format": "standard"
+  },
+  "pools": [
+    {
+      "pool_id": "current-any-class-one-cost-spells",
+      "source": "current_format",
+      "formats": ["current"],
+      "collectible": true,
+      "class_mode": "any",
+      "class_ids": [],
+      "constraints": {
+        "cost": {"min": 1, "max": 1},
+        "card_types": ["SPELL"],
+        "spell_school_ids": [],
+        "minion_type_ids": [],
+        "card_set_ids": [],
+        "rarity_ids": [],
+        "keyword_ids": [],
+        "required_keywords": [],
+        "dynamic_constraints": []
+      },
+      "exclude_self": false,
+      "exclude_card_ids": [],
+      "notes": "Example for Discover a 1-Cost spell from any class."
+    },
+    {
+      "pool_id": "current-controller-holy-spells",
+      "source": "current_format",
+      "formats": ["current"],
+      "collectible": true,
+      "class_mode": "controller_or_neutral",
+      "class_ids": [],
+      "constraints": {
+        "card_types": ["SPELL"],
+        "spell_school_ids": [5],
+        "minion_type_ids": [],
+        "card_set_ids": [],
+        "rarity_ids": [],
+        "keyword_ids": [],
+        "required_keywords": [],
+        "dynamic_constraints": []
+      },
+      "exclude_self": false,
+      "exclude_card_ids": [],
+      "notes": "Example for a random or Discover Holy spell."
+    }
+  ],
+  "cards": [
+    {
+      "card_id": "TIME_606",
+      "dbf_id": 119704,
+      "card_type": "MINION",
+      "text_fingerprint": {
+        "locale": "enUS",
+        "normalized_text": "Your Hero Power costs (0) while your hand has 3 or less cards.",
+        "sha256": "75ba0629522c230e4ff954baf845359188244f7cab01e64dc14e2d7966a0bea3",
+        "accepted_alternate_sha256": []
+      },
+      "status": "transition_verified",
+      "intrinsic": [
+        {"kind": "cost", "value": 1, "conditions": []},
+        {"kind": "attack", "value": 1, "conditions": []},
+        {"kind": "health", "value": 3, "conditions": []}
+      ],
+      "dependencies": {
+        "card_ids": [],
+        "token_ids": [],
+        "enchantment_ids": [],
+        "hero_power_ids": [],
+        "pool_ids": [],
+        "keyword_rule_ids": ["continuous-aura-v1"]
+      },
+      "clauses": [
+        {
+          "clause_id": "hero-power-zero-cost-while-small-hand",
+          "trigger": {
+            "kind": "continuous_aura",
+            "controller": "owner",
+            "frequency": "each_event"
+          },
+          "conditions": [
+            {
+              "op": "compare",
+              "left": {"kind": "state_ref", "path": "owner.hand.count"},
+              "comparator": "lte",
+              "right": {"kind": "literal", "value": 3}
+            }
+          ],
+          "selector_bindings": {
+            "owner_hero_power": {
+              "controller": "owner",
+              "zones": ["hero_power"],
+              "entity_types": ["hero_power"],
+              "filters": [],
+              "choice": "automatic",
+              "cardinality": {"min": 1, "max": 1},
+              "snapshot": "at_resolution",
+              "ordering": "none"
+            }
+          },
+          "operations": [
+            {
+              "kind": "install_modifier",
+              "targets": ["owner_hero_power"],
+              "arguments": {
+                "modifier": {
+                  "layer": "cost",
+                  "property": "cost",
+                  "mode": "set",
+                  "value": {"kind": "literal", "value": 0},
+                  "duration": {"kind": "while_source_active"}
+                }
+              }
+            }
+          ],
+          "resolution": {
+            "queue": "immediate",
+            "operation_order": "listed",
+            "recalculate_legality_after_each_operation": true
+          },
+          "randomness": {
+            "kind": "deterministic",
+            "enumeration": "not_applicable",
+            "observation": "public_after_resolution"
+          },
+          "visibility": {
+            "reads": ["public_state"],
+            "writes": ["public_state"],
+            "belief_update": "none"
+          }
+        }
+      ],
+      "verification": {
+        "reviewed": true,
+        "reviewed_at_utc": "2026-08-01T00:00:00Z",
+        "reviewer": "hdt-visible-point-effects-v1",
+        "text_match_required": true,
+        "tests": [],
+        "observed_transitions": [],
+        "known_limitations": [
+          "The planner must re-enumerate legal actions after every hand-size-changing transition."
+        ]
+      }
+    },
+    {
+      "card_id": "TLC_836",
+      "dbf_id": 121029,
+      "card_type": "MINION",
+      "text_fingerprint": {
+        "locale": "enUS",
+        "normalized_text": "Whenever you play a 1-Cost minion, double its stats. Whenever you cast a 1-Cost spell, cast it twice.",
+        "sha256": "bf6434e85f606d3feefa1210bb116d937618575b39cfd380b0057c22f1c4598c",
+        "accepted_alternate_sha256": []
+      },
+      "status": "reviewed",
+      "intrinsic": [
+        {"kind": "cost", "value": 3, "conditions": []},
+        {"kind": "attack", "value": 2, "conditions": []},
+        {"kind": "health", "value": 5, "conditions": []}
+      ],
+      "dependencies": {
+        "card_ids": [],
+        "token_ids": [],
+        "enchantment_ids": [],
+        "hero_power_ids": [],
+        "pool_ids": [],
+        "keyword_rule_ids": ["after-card-play-v1", "repeat-spell-resolution-v1"]
+      },
+      "clauses": [
+        {
+          "clause_id": "double-one-cost-minion-stats",
+          "trigger": {
+            "kind": "after_event",
+            "controller": "owner",
+            "event_kind": "CARD_PLAYED",
+            "frequency": "each_event"
+          },
+          "conditions": [
+            {
+              "op": "all",
+              "args": [
+                {
+                  "op": "compare",
+                  "left": {"kind": "event_ref", "path": "card.original_cost"},
+                  "comparator": "eq",
+                  "right": {"kind": "literal", "value": 1}
+                },
+                {
+                  "op": "compare",
+                  "left": {"kind": "event_ref", "path": "card.card_type"},
+                  "comparator": "eq",
+                  "right": {"kind": "literal", "value": "MINION"}
+                }
+              ]
+            }
+          ],
+          "selector_bindings": {
+            "played_minion": {
+              "controller": "event_controller",
+              "zones": ["battlefield"],
+              "entity_types": ["minion"],
+              "filters": [],
+              "choice": "automatic",
+              "cardinality": {"min": 1, "max": 1},
+              "snapshot": "at_resolution",
+              "ordering": "none"
+            }
+          },
+          "operations": [
+            {
+              "kind": "set_stats",
+              "targets": ["played_minion"],
+              "arguments": {
+                "attack": {
+                  "kind": "call",
+                  "op": "multiply",
+                  "args": [
+                    {"kind": "binding_ref", "path": "played_minion.attack"},
+                    {"kind": "literal", "value": 2}
+                  ]
+                },
+                "health": {
+                  "kind": "call",
+                  "op": "multiply",
+                  "args": [
+                    {"kind": "binding_ref", "path": "played_minion.max_health"},
+                    {"kind": "literal", "value": 2}
+                  ]
+                }
+              }
+            }
+          ],
+          "resolution": {
+            "queue": "event_queue",
+            "operation_order": "listed",
+            "recalculate_legality_after_each_operation": true
+          },
+          "randomness": {
+            "kind": "deterministic",
+            "enumeration": "not_applicable",
+            "observation": "public_after_resolution"
+          },
+          "visibility": {
+            "reads": ["public_state", "event_history"],
+            "writes": ["public_state", "event_history"],
+            "belief_update": "none"
+          }
+        },
+        {
+          "clause_id": "repeat-one-cost-spell",
+          "trigger": {
+            "kind": "after_event",
+            "controller": "owner",
+            "event_kind": "SPELL_CAST_DECLARED",
+            "frequency": "each_event"
+          },
+          "conditions": [
+            {
+              "op": "compare",
+              "left": {"kind": "event_ref", "path": "card.original_cost"},
+              "comparator": "eq",
+              "right": {"kind": "literal", "value": 1}
+            }
+          ],
+          "selector_bindings": {},
+          "operations": [
+            {
+              "kind": "cast",
+              "targets": [],
+              "arguments": {
+                "count": {"kind": "literal", "value": 1},
+                "card": {"kind": "bound_entity", "value": "event.card"}
+              }
+            }
+          ],
+          "resolution": {
+            "queue": "event_queue",
+            "operation_order": "listed",
+            "recalculate_legality_after_each_operation": true
+          },
+          "randomness": {
+            "kind": "deterministic",
+            "enumeration": "not_applicable",
+            "observation": "public_after_resolution"
+          },
+          "visibility": {
+            "reads": ["public_state", "event_history"],
+            "writes": ["public_state", "event_history"],
+            "belief_update": "none"
+          }
+        }
+      ],
+      "verification": {
+        "reviewed": true,
+        "reviewed_at_utc": "2026-08-01T00:00:00Z",
+        "reviewer": "hdt-visible-point-effects-v1",
+        "text_match_required": true,
+        "tests": [],
+        "observed_transitions": [],
+        "known_limitations": [
+          "Repeated spell target inheritance and recursion suppression require transition fixtures before transition_verified status."
+        ]
+      }
+    },
+    {
+      "card_id": "CORE_REV_990",
+      "dbf_id": 111459,
+      "card_type": "LOCATION",
+      "text_fingerprint": {
+        "locale": "enUS",
+        "normalized_text": "Deal 1 damage to a minion and give it +2 Attack.",
+        "sha256": "2fbb1b4b3c902e6e160ed3c3603092f62ccb88f56ef0c5d2479713dd69276480",
+        "accepted_alternate_sha256": []
+      },
+      "status": "transition_verified",
+      "intrinsic": [
+        {"kind": "cost", "value": 1, "conditions": []},
+        {"kind": "durability", "value": 3, "conditions": []}
+      ],
+      "dependencies": {
+        "card_ids": [],
+        "token_ids": [],
+        "enchantment_ids": [],
+        "hero_power_ids": [],
+        "pool_ids": [],
+        "keyword_rule_ids": ["location-activation-v1"]
+      },
+      "clauses": [
+        {
+          "clause_id": "damage-and-buff-target-minion",
+          "trigger": {
+            "kind": "location_activation",
+            "controller": "owner",
+            "frequency": "each_event"
+          },
+          "conditions": [],
+          "selector_bindings": {
+            "chosen_minion": {
+              "controller": "either",
+              "zones": ["battlefield"],
+              "entity_types": ["minion"],
+              "filters": [],
+              "choice": "player",
+              "cardinality": {"min": 1, "max": 1},
+              "snapshot": "at_trigger",
+              "ordering": "none"
+            }
+          },
+          "operations": [
+            {
+              "kind": "damage",
+              "targets": ["chosen_minion"],
+              "arguments": {
+                "amount": {"kind": "literal", "value": 1},
+                "damage_kind": "normal"
+              }
+            },
+            {
+              "kind": "modify_stats",
+              "targets": ["chosen_minion"],
+              "arguments": {
+                "attack": {"kind": "literal", "value": 2},
+                "duration": {"kind": "permanent"}
+              }
+            }
+          ],
+          "resolution": {
+            "queue": "event_queue",
+            "operation_order": "listed",
+            "recalculate_legality_after_each_operation": true
+          },
+          "randomness": {
+            "kind": "player_choice",
+            "enumeration": "exact",
+            "observation": "public_before_choice"
+          },
+          "visibility": {
+            "reads": ["public_state"],
+            "writes": ["public_state", "event_history"],
+            "belief_update": "none"
+          }
+        }
+      ],
+      "verification": {
+        "reviewed": true,
+        "reviewed_at_utc": "2026-08-01T00:00:00Z",
+        "reviewer": "hdt-visible-point-effects-v1",
+        "text_match_required": true,
+        "tests": [],
+        "observed_transitions": [],
+        "known_limitations": []
+      }
+    }
+  ]
+}

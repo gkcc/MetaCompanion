@@ -1,0 +1,402 @@
+{
+  "schema_version": 1,
+  "suite_id": "oracle-turnpair-v1",
+  "seed": 20260729,
+  "description": "Independent deterministic current-turn plus opponent-best-response fixtures. This is a deliberately small public combat subset, not a complete Hearthstone benchmark.",
+  "thresholds": {
+    "min_top1_rate": 1.0,
+    "min_top3_rate": 1.0,
+    "min_friendly_action_legality_rate": 1.0,
+    "min_response_action_legality_rate": 1.0,
+    "max_mean_minimax_regret": 0.0,
+    "max_max_minimax_regret": 0,
+    "max_false_safe_rate": 0.0,
+    "max_proof_contract_failure_count": 0,
+    "max_response_contract_failure_count": 0,
+    "max_fixture_contract_failure_count": 0,
+    "max_abstain_violation_count": 0,
+    "min_multi_optimal_first_action_recall_at_k": 1.0,
+    "min_distinct_recommended_first_action_rate": 1.0,
+    "max_duplicate_first_action_count": 0,
+    "max_root_action_coverage_contract_failure_count": 0,
+    "max_portfolio_regret_contract_failure_count": 0,
+    "max_viable_portfolio_contract_failure_count": 0,
+    "min_multi_optimal_fixture_count": 3,
+    "min_exact_fixture_count": 7,
+    "max_latency_p95_ms": 10000
+  },
+  "fixtures": [
+    {
+      "id": "face-greed-loses-to-counterlethal",
+      "category": "counterlethal_negative_control",
+      "scope": "exact",
+      "position": {
+        "friendly": {
+          "hero": { "health": 30, "current_health": 3 },
+          "board": [
+            {
+              "entity_id": "ours",
+              "attack": 3,
+              "health": 3,
+              "can_attack": true
+            }
+          ]
+        },
+        "opponent": {
+          "hero": { "health": 30, "current_health": 30 },
+          "board": [
+            {
+              "entity_id": "theirs",
+              "attack": 3,
+              "health": 1,
+              "can_attack": false
+            }
+          ]
+        }
+      },
+      "expected": {
+        "optimal_first_action_ids": [
+          "attack:ours:theirs"
+        ]
+      }
+    },
+    {
+      "id": "taunt-clear-order-preserves-survival",
+      "category": "taunt",
+      "scope": "exact",
+      "seed_offset": 1,
+      "position": {
+        "friendly": {
+          "hero": { "health": 30, "current_health": 5 },
+          "board": [
+            {
+              "entity_id": "small",
+              "attack": 1,
+              "health": 3,
+              "can_attack": true
+            },
+            {
+              "entity_id": "big",
+              "attack": 4,
+              "health": 5,
+              "can_attack": true
+            }
+          ]
+        },
+        "opponent": {
+          "hero": { "health": 30, "current_health": 30 },
+          "board": [
+            {
+              "entity_id": "guard",
+              "attack": 1,
+              "health": 1,
+              "taunt": true,
+              "can_attack": false
+            },
+            {
+              "entity_id": "threat",
+              "attack": 5,
+              "health": 2,
+              "can_attack": false
+            }
+          ]
+        }
+      },
+      "expected": {
+        "optimal_first_action_ids": [
+          "attack:small:guard"
+        ]
+      }
+    },
+    {
+      "id": "divine-shield-ping-before-finisher",
+      "category": "divine_shield",
+      "scope": "exact",
+      "seed_offset": 2,
+      "position": {
+        "friendly": {
+          "hero": { "health": 30, "current_health": 4 },
+          "board": [
+            {
+              "entity_id": "shield-ping",
+              "attack": 1,
+              "health": 1,
+              "can_attack": true
+            },
+            {
+              "entity_id": "shield-finisher",
+              "attack": 3,
+              "health": 5,
+              "can_attack": true
+            }
+          ]
+        },
+        "opponent": {
+          "hero": { "health": 30, "current_health": 30 },
+          "board": [
+            {
+              "entity_id": "shielded-threat",
+              "attack": 4,
+              "health": 3,
+              "taunt": true,
+              "divine_shield": true,
+              "can_attack": false
+            }
+          ]
+        }
+      },
+      "expected": {
+        "optimal_first_action_ids": [
+          "attack:shield-ping:shielded-threat"
+        ]
+      }
+    },
+    {
+      "id": "two-equivalent-safe-first-trades",
+      "category": "multiple_first_actions",
+      "scope": "exact",
+      "seed_offset": 3,
+      "position": {
+        "friendly": {
+          "hero": { "health": 30, "current_health": 4 },
+          "board": [
+            {
+              "entity_id": "trade-a",
+              "attack": 1,
+              "health": 2,
+              "can_attack": true
+            },
+            {
+              "entity_id": "trade-b",
+              "attack": 1,
+              "health": 2,
+              "can_attack": true
+            }
+          ]
+        },
+        "opponent": {
+          "hero": { "health": 30, "current_health": 30 },
+          "board": [
+            {
+              "entity_id": "threat",
+              "attack": 4,
+              "health": 1,
+              "taunt": true,
+              "can_attack": false
+            }
+          ]
+        }
+      },
+      "expected": {
+        "optimal_first_action_ids": [
+          "attack:trade-a:threat",
+          "attack:trade-b:threat"
+        ],
+        "required_portfolio_first_action_ids": [
+          "attack:trade-a:threat",
+          "attack:trade-b:threat"
+        ],
+        "max_returned_alternative_regret": 0
+      }
+    },
+    {
+      "id": "immediate-lethal-keeps-proof-contract",
+      "category": "lethal_contract",
+      "scope": "exact",
+      "seed_offset": 4,
+      "position": {
+        "friendly": {
+          "hero": { "health": 30, "current_health": 20 },
+          "board": [
+            {
+              "entity_id": "lethal",
+              "attack": 3,
+              "health": 2,
+              "can_attack": true
+            }
+          ]
+        },
+        "opponent": {
+          "hero": { "health": 3, "current_health": 3 }
+        }
+      },
+      "expected": {
+        "optimal_first_action_ids": [
+          "attack:lethal:opponent-hero"
+        ]
+      }
+    },
+    {
+      "id": "wide-first-action-counterlethal",
+      "category": "wide_first_action_counterlethal",
+      "scope": "exact",
+      "seed_offset": 7,
+      "options": {
+        "time_budget_ms": 1000,
+        "max_iterations": 1000,
+        "max_depth": 12,
+        "top_k": 3
+      },
+      "position": {
+        "friendly": {
+          "hero": { "health": 30, "current_health": 3 },
+          "board": [
+            {
+              "entity_id": "a-small",
+              "attack": 1,
+              "health": 1,
+              "can_attack": true
+            },
+            {
+              "entity_id": "b-small",
+              "attack": 1,
+              "health": 1,
+              "can_attack": true
+            },
+            {
+              "entity_id": "z-big",
+              "attack": 3,
+              "health": 3,
+              "can_attack": true
+            }
+          ]
+        },
+        "opponent": {
+          "hero": { "health": 30, "current_health": 30 },
+          "board": [
+            {
+              "entity_id": "threat",
+              "attack": 3,
+              "health": 3,
+              "can_attack": false
+            },
+            {
+              "entity_id": "bait",
+              "attack": 0,
+              "health": 1,
+              "can_attack": false
+            }
+          ]
+        }
+      },
+      "expected": {
+        "optimal_first_action_ids": [
+          "attack:a-small:opponent-hero",
+          "attack:b-small:opponent-hero",
+          "attack:z-big:threat"
+        ],
+        "required_portfolio_first_action_ids": [
+          "attack:a-small:opponent-hero",
+          "attack:b-small:opponent-hero",
+          "attack:z-big:threat"
+        ],
+        "max_returned_alternative_regret": 0
+      }
+    },
+    {
+      "id": "cooptimal-portfolio-no-duplicate",
+      "category": "cooptimal_portfolio_no_duplicate",
+      "scope": "exact",
+      "seed_offset": 8,
+      "position": {
+        "friendly": {
+          "hero": { "health": 30, "current_health": 20 },
+          "board": [
+            {
+              "entity_id": "portfolio-a",
+              "attack": 2,
+              "health": 1,
+              "can_attack": true
+            },
+            {
+              "entity_id": "portfolio-b",
+              "attack": 2,
+              "health": 1,
+              "can_attack": true
+            }
+          ]
+        },
+        "opponent": {
+          "hero": { "health": 2, "current_health": 2 }
+        }
+      },
+      "expected": {
+        "optimal_first_action_ids": [
+          "attack:portfolio-a:opponent-hero",
+          "attack:portfolio-b:opponent-hero"
+        ],
+        "required_portfolio_first_action_ids": [
+          "attack:portfolio-a:opponent-hero",
+          "attack:portfolio-b:opponent-hero"
+        ],
+        "max_returned_alternative_regret": 0,
+        "root_action_coverage_complete": true
+      }
+    },
+    {
+      "id": "unknown-opponent-draw-is-approximate",
+      "category": "approximate_draw_control",
+      "scope": "approximate",
+      "seed_offset": 5,
+      "position": {
+        "friendly": {
+          "hero": { "health": 30, "current_health": 10 },
+          "board": [
+            {
+              "entity_id": "visible-attacker",
+              "attack": 2,
+              "health": 2,
+              "can_attack": true
+            }
+          ]
+        },
+        "opponent": {
+          "hero": { "health": 30, "current_health": 30 },
+          "deck_size": 1
+        }
+      }
+    },
+    {
+      "id": "unsupported-transform-returns-best-effort-partial",
+      "category": "unsupported_best_effort_control",
+      "scope": "approximate",
+      "seed_offset": 6,
+      "position": {
+        "friendly": {
+          "hero": { "health": 30, "current_health": 10 },
+          "mana": 1,
+          "max_mana": 1,
+          "hand": [
+            {
+              "entity_id": "unsupported-transform",
+              "card_id": "EVAL_TRANSFORM",
+              "card_type": "SPELL",
+              "cost": 1,
+              "effects": [
+                {
+                  "kind": "transform",
+                  "target": "enemy_minion"
+                }
+              ],
+              "effect_coverage": "unsupported",
+              "unsupported_effects": [
+                "transform"
+              ]
+            }
+          ]
+        },
+        "opponent": {
+          "hero": { "health": 30, "current_health": 30 },
+          "board": [
+            {
+              "entity_id": "transform-target",
+              "attack": 1,
+              "health": 1,
+              "can_attack": false
+            }
+          ]
+        }
+      }
+    }
+  ]
+}

@@ -1,0 +1,3647 @@
+{
+  "schema_version": 1,
+  "ruleset_id": "hdt-text-template-effects-v1",
+  "status": "complete",
+  "matching_contract": "card_id+normalized_english_text_sha256+card_type+closed_grammar_v1",
+  "runtime_effect_coverage": "generic",
+  "source": {
+    "official_pool_run_id": "20260802T125951158Z-2a17ea38",
+    "card_defs_build": "247416",
+    "card_defs_sha256": "1D9CF031FB1FE37A39FDF4F515702BCC2425EB71BA8BE0A236948372B15A38BB",
+    "official_manifest_sha256": "BD76EB5DE72D02FB97B9CA431CDA5E10626A640E6FAE9C241FBC7DBBBC40A60E",
+    "standard_pool_sha256": "7CABF4CF539F14D300A051F14F4D7BE841A3CF39D697E5D172C9C754A2B32FF2",
+    "arena_pool_sha256": "8FFC01B34E43C73379656D034081CF0468B272066A3120CE0963041C8ED88426",
+    "rules_generated_from_free_text": true,
+    "exact_claim_allowed": false
+  },
+  "counts": {
+    "unique_official_cards": 1811,
+    "compiled_generic_rules": 143,
+    "already_exact_cards": 39,
+    "uncompiled_cards": 1629
+  },
+  "rules": [
+    {
+      "rule_id": "text-template-bar-024-v1",
+      "card_ids": [
+        "BAR_024"
+      ],
+      "card_type": "MINION",
+      "trigger": "frenzy",
+      "accepted_texts": [
+        {
+          "normalized": "Frenzy: Deal 3 damage to the enemy hero.",
+          "sha256": "950db71552bb5b88f4dd62d9afb3950e98318b3f6a72bd359f84d35c704a63b9"
+        }
+      ],
+      "effects": [
+        {
+          "kind": "damage",
+          "amount": 3,
+          "target": "enemy_hero",
+          "trigger": "frenzy"
+        }
+      ]
+    },
+    {
+      "rule_id": "text-template-bar-025-v1",
+      "card_ids": [
+        "BAR_025"
+      ],
+      "card_type": "MINION",
+      "trigger": "frenzy",
+      "accepted_texts": [
+        {
+          "normalized": "Frenzy: Gain Divine Shield .",
+          "sha256": "cfb25c1935d3df31dd202210f422c2ec55014cc2568240c0b201a5063f38aa57"
+        }
+      ],
+      "effects": [
+        {
+          "kind": "grant_keywords",
+          "target": "self",
+          "divine_shield": true,
+          "trigger": "frenzy"
+        }
+      ]
+    },
+    {
+      "rule_id": "text-template-bar-026-v1",
+      "card_ids": [
+        "BAR_026"
+      ],
+      "card_type": "MINION",
+      "trigger": "deathrattle",
+      "accepted_texts": [
+        {
+          "normalized": "Taunt Deathrattle: Restore 4 Health to your hero.",
+          "sha256": "8a0d2e3e07a30f2b5d2fcc770ee792b32c6b77d776b96ddb58108d672b2a8c5c"
+        }
+      ],
+      "effects": [
+        {
+          "kind": "heal",
+          "amount": 4,
+          "target": "friendly_hero",
+          "trigger": "deathrattle"
+        }
+      ]
+    },
+    {
+      "rule_id": "text-template-bar-027-v1",
+      "card_ids": [
+        "BAR_027"
+      ],
+      "card_type": "MINION",
+      "trigger": "deathrattle",
+      "accepted_texts": [
+        {
+          "normalized": "Deathrattle: Deal 5 damage to your hero.",
+          "sha256": "9d9de61135a705c0d90646ae3cbbfa6b4b3974fe0f32ddecac981f24cb9b31aa"
+        }
+      ],
+      "effects": [
+        {
+          "kind": "damage",
+          "amount": 5,
+          "target": "friendly_hero",
+          "trigger": "deathrattle"
+        }
+      ]
+    },
+    {
+      "rule_id": "text-template-bar-034-v1",
+      "card_ids": [
+        "BAR_034"
+      ],
+      "card_type": "SPELL",
+      "trigger": "play_resolution",
+      "accepted_texts": [
+        {
+          "normalized": "Summon a 2/2 Beast with Rush . (Upgrades when you have 5 Mana.)",
+          "sha256": "9ac1ebcdd8c1787216d0aa92405e6d883dbe117aa1353d6353ac73c2b094549e"
+        }
+      ],
+      "effects": [
+        {
+          "kind": "summon",
+          "target": "none",
+          "count": 1,
+          "card_id": "BAR_034t3",
+          "name": "Tamed Crab",
+          "attack": 2,
+          "health": 2,
+          "rush": true
+        }
+      ]
+    },
+    {
+      "rule_id": "text-template-bar-035-v1",
+      "card_ids": [
+        "BAR_035"
+      ],
+      "card_type": "MINION",
+      "trigger": "after_spell_cast",
+      "accepted_texts": [
+        {
+          "normalized": "After you cast a spell, summon a 1/1 Hyena with Rush .",
+          "sha256": "d15be407cdbaf62baeb5b53ef0d27ca2cb2ddcf0fc39106859551cb579de42d5"
+        }
+      ],
+      "effects": [
+        {
+          "kind": "summon",
+          "target": "none",
+          "count": 1,
+          "card_id": "BAR_035t",
+          "name": "Swift Hyena",
+          "attack": 1,
+          "health": 1,
+          "rush": true,
+          "trigger": "after_spell_cast"
+        }
+      ]
+    },
+    {
+      "rule_id": "text-template-bar-060-v1",
+      "card_ids": [
+        "BAR_060"
+      ],
+      "card_type": "MINION",
+      "trigger": "battlecry",
+      "accepted_texts": [
+        {
+          "normalized": "Battlecry: Summon a 2/1 Hog with Rush .",
+          "sha256": "a997c9624db685a3d00f807a511c1553f46eeed2cd4b5d5d5aee3357e5f51469"
+        }
+      ],
+      "effects": [
+        {
+          "kind": "summon",
+          "target": "none",
+          "count": 1,
+          "card_id": "BAR_060t",
+          "name": "Hog",
+          "attack": 2,
+          "health": 1,
+          "rush": true
+        }
+      ]
+    },
+    {
+      "rule_id": "text-template-bar-061-v1",
+      "card_ids": [
+        "BAR_061"
+      ],
+      "card_type": "MINION",
+      "trigger": "battlecry",
+      "accepted_texts": [
+        {
+          "normalized": "Battlecry: Give your weapon +1 Attack.",
+          "sha256": "688196ea34bc2d46223f339d2ba12ffc2faddf0e3430f5026663c8a69277bd63"
+        }
+      ],
+      "effects": [
+        {
+          "kind": "buff_weapon_attack",
+          "amount": 1,
+          "target": "none"
+        }
+      ]
+    },
+    {
+      "rule_id": "text-template-bar-069-v1",
+      "card_ids": [
+        "BAR_069"
+      ],
+      "card_type": "MINION",
+      "trigger": "battlecry",
+      "accepted_texts": [
+        {
+          "normalized": "Taunt Battlecry: Deal 6 damage to this minion.",
+          "sha256": "6b121a8f6e8e62e4360b5144dbab3462d0eff597af73d07c75212d8af832ba7d"
+        }
+      ],
+      "effects": [
+        {
+          "kind": "damage",
+          "amount": 6,
+          "target": "self"
+        }
+      ]
+    },
+    {
+      "rule_id": "text-template-bar-072-v1",
+      "card_ids": [
+        "BAR_072"
+      ],
+      "card_type": "MINION",
+      "trigger": "deathrattle",
+      "accepted_texts": [
+        {
+          "normalized": "Deathrattle: Summon a 5/8 Demonspawn with Taunt .",
+          "sha256": "f1a91ff778500c96275aed02b14adb980f53a0bc1b454ac8c2aa3c099763063f"
+        }
+      ],
+      "effects": [
+        {
+          "kind": "summon",
+          "target": "none",
+          "count": 1,
+          "card_id": "BAR_072t",
+          "name": "Demonspawn",
+          "attack": 5,
+          "health": 8,
+          "taunt": true,
+          "trigger": "deathrattle"
+        }
+      ]
+    },
+    {
+      "rule_id": "text-template-bar-073-v1",
+      "card_ids": [
+        "BAR_073"
+      ],
+      "card_type": "MINION",
+      "trigger": "frenzy",
+      "accepted_texts": [
+        {
+          "normalized": "Frenzy: Give your other minions +2/+2.",
+          "sha256": "09d58cb81170f32288f91eef7b26cde964df3ca2deccc6b67084485b53347156"
+        }
+      ],
+      "effects": [
+        {
+          "kind": "buff_attack",
+          "amount": 2,
+          "target": "all_other_friendly_minions",
+          "trigger": "frenzy"
+        },
+        {
+          "kind": "buff_health",
+          "amount": 2,
+          "target": "all_other_friendly_minions",
+          "trigger": "frenzy"
+        }
+      ]
+    },
+    {
+      "rule_id": "text-template-bar-305-v1",
+      "card_ids": [
+        "BAR_305"
+      ],
+      "card_type": "SPELL",
+      "trigger": "play_resolution",
+      "accepted_texts": [
+        {
+          "normalized": "Freeze a random enemy minion. (Upgrades when you have 5 Mana.)",
+          "sha256": "871f1f105512605c1038e7e711499c94267d94ad0af411ed562f22477c4d3714"
+        }
+      ],
+      "effects": [
+        {
+          "kind": "freeze",
+          "target": "enemy_minion",
+          "random": true
+        }
+      ]
+    },
+    {
+      "rule_id": "text-template-bar-309-v1",
+      "card_ids": [
+        "BAR_309"
+      ],
+      "card_type": "SPELL",
+      "trigger": "play_resolution",
+      "accepted_texts": [
+        {
+          "normalized": "Restore 5 Health to each hero.",
+          "sha256": "e38a29ec83cb6a460b1915f1d560c07cf4699bc8470b49e0db0a8b0b41928663"
+        }
+      ],
+      "effects": [
+        {
+          "kind": "heal",
+          "amount": 5,
+          "target": "friendly_hero"
+        },
+        {
+          "kind": "heal",
+          "amount": 5,
+          "target": "enemy_hero"
+        }
+      ]
+    },
+    {
+      "rule_id": "text-template-bar-310-v1",
+      "card_ids": [
+        "BAR_310"
+      ],
+      "card_type": "MINION",
+      "trigger": "deathrattle",
+      "accepted_texts": [
+        {
+          "normalized": "Taunt Deathrattle: Restore 8 Health to all friendly characters.",
+          "sha256": "9a857e0000cf716ccbbfed878a236d85de9939389bc613ae951fccf9f0c4f830"
+        }
+      ],
+      "effects": [
+        {
+          "kind": "heal",
+          "amount": 8,
+          "target": "all_friendly_characters",
+          "trigger": "deathrattle"
+        }
+      ]
+    },
+    {
+      "rule_id": "text-template-bar-314-v1",
+      "card_ids": [
+        "BAR_314"
+      ],
+      "card_type": "SPELL",
+      "trigger": "play_resolution",
+      "accepted_texts": [
+        {
+          "normalized": "Deal 1 damage to all enemy minions. (Upgrades when you have 5 Mana.)",
+          "sha256": "e7c8ebe289b8d7e0f148afbac76ecf598195f2e06ddb0fa5096a4287fb06ac99"
+        }
+      ],
+      "effects": [
+        {
+          "kind": "damage",
+          "amount": 1,
+          "target": "all_enemy_minions"
+        }
+      ]
+    },
+    {
+      "rule_id": "text-template-bar-319-v1",
+      "card_ids": [
+        "BAR_319"
+      ],
+      "card_type": "SPELL",
+      "trigger": "play_resolution",
+      "accepted_texts": [
+        {
+          "normalized": "Deal 2 damage. (Upgrades when you have 5 Mana.)",
+          "sha256": "4755125b51414dd6724fb0fdb2f5b823d6e9d05b20c749982ebfc1306a2de718"
+        }
+      ],
+      "effects": [
+        {
+          "kind": "damage",
+          "amount": 2,
+          "target": "any_character"
+        }
+      ]
+    },
+    {
+      "rule_id": "text-template-bar-327-v1",
+      "card_ids": [
+        "BAR_327"
+      ],
+      "card_type": "SPELL",
+      "trigger": "play_resolution",
+      "accepted_texts": [
+        {
+          "normalized": "Summon two 2/2 Demons with Lifesteal .",
+          "sha256": "e6fb6c286d82992e0fc2ed62ad15b07df204819bf3b5a2e60b3dc36c1cde8c48"
+        }
+      ],
+      "effects": [
+        {
+          "kind": "summon",
+          "target": "none",
+          "count": 2,
+          "card_id": "BAR_327t",
+          "name": "Ravenous Vilefiend",
+          "attack": 2,
+          "health": 2,
+          "lifesteal": true
+        }
+      ]
+    },
+    {
+      "rule_id": "text-template-bar-533-v1",
+      "card_ids": [
+        "BAR_533"
+      ],
+      "card_type": "SPELL",
+      "trigger": "play_resolution",
+      "accepted_texts": [
+        {
+          "normalized": "Summon two 1/2 Turtles with Taunt .",
+          "sha256": "7f48b4312f1b0abf9a33b80d98fda8bd951b7fae138c94bc08f4bfa5d3cf84db"
+        }
+      ],
+      "effects": [
+        {
+          "kind": "summon",
+          "target": "none",
+          "count": 2,
+          "card_id": "BAR_533t",
+          "name": "Thornguard Turtle",
+          "attack": 1,
+          "health": 2,
+          "taunt": true
+        }
+      ]
+    },
+    {
+      "rule_id": "text-template-bar-534-v1",
+      "card_ids": [
+        "BAR_534"
+      ],
+      "card_type": "SPELL",
+      "trigger": "play_resolution",
+      "accepted_texts": [
+        {
+          "normalized": "Give your minions +1/+3.",
+          "sha256": "a844425113e54d8773c2d3a9af02c9ce890fb10d7336e085d6750f16142d9fbd"
+        }
+      ],
+      "effects": [
+        {
+          "kind": "buff_attack",
+          "amount": 1,
+          "target": "all_friendly_minions"
+        },
+        {
+          "kind": "buff_health",
+          "amount": 3,
+          "target": "all_friendly_minions"
+        }
+      ]
+    },
+    {
+      "rule_id": "text-template-bar-535-v1",
+      "card_ids": [
+        "BAR_535"
+      ],
+      "card_type": "MINION",
+      "trigger": "deathrattle",
+      "accepted_texts": [
+        {
+          "normalized": "Taunt Deathrattle: Gain 5 Armor.",
+          "sha256": "6ec6f5f1ef9179603a707696c9692bf251f288eb0932b69995b77624476bd388"
+        }
+      ],
+      "effects": [
+        {
+          "kind": "armor",
+          "amount": 5,
+          "target": "none",
+          "trigger": "deathrattle"
+        }
+      ]
+    },
+    {
+      "rule_id": "text-template-bar-538-v1",
+      "card_ids": [
+        "BAR_538"
+      ],
+      "card_type": "MINION",
+      "trigger": "frenzy",
+      "accepted_texts": [
+        {
+          "normalized": "Rush Frenzy: Transform into a 6/7 Kodo with Taunt .",
+          "sha256": "0c08f7c3e402f85adb2a1b7e416c62fa970202afe6f5bf52763a47e6761f41e4"
+        }
+      ],
+      "effects": [
+        {
+          "kind": "transform",
+          "target": "self",
+          "card_id": "BAR_538t",
+          "name": "Druid of the Plains",
+          "attack": 6,
+          "health": 7,
+          "taunt": true,
+          "trigger": "frenzy"
+        }
+      ]
+    },
+    {
+      "rule_id": "text-template-bar-551-v1",
+      "card_ids": [
+        "BAR_551"
+      ],
+      "card_type": "MINION",
+      "trigger": "battlecry",
+      "accepted_texts": [
+        {
+          "normalized": "Battlecry: Draw a 1, 2, and 3-Cost spell.",
+          "sha256": "60ffa539ece1082e27e0e47a18fcf31cefb1f7b17c0d6a959ebf21c472ad1e81"
+        }
+      ],
+      "effects": [
+        {
+          "kind": "draw_from_pool",
+          "target": "none",
+          "count": 1,
+          "random": true,
+          "pool_selection": "uniform_random",
+          "pool_destination": "hand",
+          "offer_count": 1,
+          "with_replacement": false,
+          "pool": {
+            "source": "owner_deck",
+            "collectible": true,
+            "card_types": [
+              "SPELL"
+            ],
+            "class_mode": "any",
+            "spell_school_ids": [],
+            "minion_type_ids": [],
+            "required_keywords": [],
+            "cost_min": 1,
+            "cost_max": 1
+          }
+        },
+        {
+          "kind": "draw_from_pool",
+          "target": "none",
+          "count": 1,
+          "random": true,
+          "pool_selection": "uniform_random",
+          "pool_destination": "hand",
+          "offer_count": 1,
+          "with_replacement": false,
+          "pool": {
+            "source": "owner_deck",
+            "collectible": true,
+            "card_types": [
+              "SPELL"
+            ],
+            "class_mode": "any",
+            "spell_school_ids": [],
+            "minion_type_ids": [],
+            "required_keywords": [],
+            "cost_min": 2,
+            "cost_max": 2
+          }
+        },
+        {
+          "kind": "draw_from_pool",
+          "target": "none",
+          "count": 1,
+          "random": true,
+          "pool_selection": "uniform_random",
+          "pool_destination": "hand",
+          "offer_count": 1,
+          "with_replacement": false,
+          "pool": {
+            "source": "owner_deck",
+            "collectible": true,
+            "card_types": [
+              "SPELL"
+            ],
+            "class_mode": "any",
+            "spell_school_ids": [],
+            "minion_type_ids": [],
+            "required_keywords": [],
+            "cost_min": 3,
+            "cost_max": 3
+          }
+        }
+      ]
+    },
+    {
+      "rule_id": "text-template-bar-750-v1",
+      "card_ids": [
+        "BAR_750"
+      ],
+      "card_type": "MINION",
+      "trigger": "battlecry",
+      "accepted_texts": [
+        {
+          "normalized": "Taunt Battlecry: Deal 1 damage to all enemy minions.",
+          "sha256": "dfb3ace78ad3553b60f091ff442877a42b2a806617d89c2140e290ee8ab43770"
+        }
+      ],
+      "effects": [
+        {
+          "kind": "damage",
+          "amount": 1,
+          "target": "all_enemy_minions"
+        }
+      ]
+    },
+    {
+      "rule_id": "text-template-bar-751-v1",
+      "card_ids": [
+        "BAR_751"
+      ],
+      "card_type": "MINION",
+      "trigger": "deathrattle",
+      "accepted_texts": [
+        {
+          "normalized": "Deathrattle: Summon a 1/1 Tinyfin.",
+          "sha256": "23e8f6e1fcd55e1f8cdc69c8ca995e9d66cd84e88daefdd71093813601feba14"
+        }
+      ],
+      "effects": [
+        {
+          "kind": "summon",
+          "target": "none",
+          "count": 1,
+          "card_id": "BAR_751t",
+          "name": "Diremuck Tinyfin",
+          "attack": 1,
+          "health": 1,
+          "trigger": "deathrattle"
+        }
+      ]
+    },
+    {
+      "rule_id": "text-template-bar-840-v1",
+      "card_ids": [
+        "BAR_840"
+      ],
+      "card_type": "MINION",
+      "trigger": "battlecry_and_frenzy",
+      "accepted_texts": [
+        {
+          "normalized": "Battlecry and Frenzy: Deal 1 damage to all other minions.",
+          "sha256": "2cc790a167481a731bc98d57d282a80c01e83b4b9321261dbce25a39ebaf839c"
+        }
+      ],
+      "effects": [
+        {
+          "kind": "damage",
+          "amount": 1,
+          "target": "all_other_minions"
+        },
+        {
+          "kind": "damage",
+          "amount": 1,
+          "target": "all_other_minions",
+          "trigger": "frenzy"
+        }
+      ]
+    },
+    {
+      "rule_id": "text-template-bar-871-v1",
+      "card_ids": [
+        "BAR_871"
+      ],
+      "card_type": "MINION",
+      "trigger": "turn_start",
+      "accepted_texts": [
+        {
+          "normalized": "At the start of your turn, summon two Silver Hand Recruits.",
+          "sha256": "56faf4fb1159aec1533deeb921bc2ca7c0c45058cb2950713d2d50b06d5c8715"
+        }
+      ],
+      "effects": [
+        {
+          "kind": "summon",
+          "target": "none",
+          "count": 2,
+          "card_id": "CS2_101t",
+          "name": "Silver Hand Recruit",
+          "attack": 1,
+          "health": 1,
+          "trigger": "turn_start"
+        }
+      ]
+    },
+    {
+      "rule_id": "text-template-bar-873-v1",
+      "card_ids": [
+        "BAR_873"
+      ],
+      "card_type": "MINION",
+      "trigger": "battlecry",
+      "accepted_texts": [
+        {
+          "normalized": "Battlecry: Draw a Holy spell.",
+          "sha256": "6f118777edcce27fdfec5c5e7735886301e6478083fcf11db006ca4a8098ccd4"
+        }
+      ],
+      "effects": [
+        {
+          "kind": "draw_from_pool",
+          "target": "none",
+          "count": 1,
+          "random": true,
+          "pool_selection": "uniform_random",
+          "pool_destination": "hand",
+          "offer_count": 1,
+          "with_replacement": false,
+          "pool": {
+            "source": "owner_deck",
+            "collectible": true,
+            "card_types": [
+              "SPELL"
+            ],
+            "class_mode": "any",
+            "spell_school_ids": [
+              5
+            ],
+            "minion_type_ids": [],
+            "required_keywords": []
+          }
+        }
+      ]
+    },
+    {
+      "rule_id": "text-template-bar-880-v1",
+      "card_ids": [
+        "BAR_880"
+      ],
+      "card_type": "SPELL",
+      "trigger": "play_resolution",
+      "accepted_texts": [
+        {
+          "normalized": "Give a random friendly minion +3 Attack. (Upgrades when you have 5 Mana.)",
+          "sha256": "b14d0625f1dc7609bfe12dbd5b9b32f34e762513f51f7aff8142e27124a70e94"
+        }
+      ],
+      "effects": [
+        {
+          "kind": "buff_attack",
+          "amount": 3,
+          "target": "friendly_minion",
+          "random": true
+        }
+      ]
+    },
+    {
+      "rule_id": "text-template-bar-891-v1",
+      "card_ids": [
+        "BAR_891"
+      ],
+      "card_type": "SPELL",
+      "trigger": "play_resolution",
+      "accepted_texts": [
+        {
+          "normalized": "Give your hero +2 Attack this turn. (Upgrades when you have 5 Mana.)",
+          "sha256": "d28d3d701118d8c870e89d766b5d861add4eab2b0cb22e7b9c77af49239be684"
+        }
+      ],
+      "effects": [
+        {
+          "kind": "gain_hero_attack",
+          "amount": 2,
+          "target": "none"
+        }
+      ]
+    },
+    {
+      "rule_id": "text-template-bar-896-v1",
+      "card_ids": [
+        "BAR_896"
+      ],
+      "card_type": "MINION",
+      "trigger": "frenzy",
+      "accepted_texts": [
+        {
+          "normalized": "Rush Frenzy: Draw a card.",
+          "sha256": "549f56193527f5e74817b8517f55f2f116507c8f5f59ba7c6b44d10be14f06d1"
+        }
+      ],
+      "effects": [
+        {
+          "kind": "draw",
+          "target": "none",
+          "count": 1,
+          "trigger": "frenzy"
+        }
+      ]
+    },
+    {
+      "rule_id": "text-template-bar-910-v1",
+      "card_ids": [
+        "BAR_910"
+      ],
+      "card_type": "SPELL",
+      "trigger": "play_resolution",
+      "accepted_texts": [
+        {
+          "normalized": "Destroy a friendly minion. Deal 2 damage to all enemy minions.",
+          "sha256": "2d44820e32a00974368cdb3b384b587944bf58f223fa1d60d2a2bfa5309b4c7d"
+        }
+      ],
+      "effects": [
+        {
+          "kind": "destroy",
+          "target": "friendly_minion"
+        },
+        {
+          "kind": "damage",
+          "amount": 2,
+          "target": "all_enemy_minions"
+        }
+      ]
+    },
+    {
+      "rule_id": "text-template-bar-914-v1",
+      "card_ids": [
+        "BAR_914"
+      ],
+      "card_type": "SPELL",
+      "trigger": "play_resolution",
+      "accepted_texts": [
+        {
+          "normalized": "Summon a 3/2 Imp. (Upgrades when you have 5 Mana.)",
+          "sha256": "5ff5e3cef6ee1fb4d636affe68c296592e849382396e6d734b329f4ca2580683"
+        }
+      ],
+      "effects": [
+        {
+          "kind": "summon",
+          "target": "none",
+          "count": 1,
+          "card_id": "BAR_914t3",
+          "name": "Imp Familiar",
+          "attack": 3,
+          "health": 2
+        }
+      ]
+    },
+    {
+      "rule_id": "text-template-cata-133-v1",
+      "card_ids": [
+        "CATA_133"
+      ],
+      "card_type": "MINION",
+      "trigger": "turn_end",
+      "accepted_texts": [
+        {
+          "normalized": "Elusive At the end of your turn, give your other minions +1/+1.",
+          "sha256": "408025b58c5551e7d00b718fe28381570ccb535e0325cc7768b68cd852a99d1c"
+        }
+      ],
+      "effects": [
+        {
+          "kind": "buff_attack",
+          "amount": 1,
+          "target": "all_other_friendly_minions",
+          "trigger": "turn_end"
+        },
+        {
+          "kind": "buff_health",
+          "amount": 1,
+          "target": "all_other_friendly_minions",
+          "trigger": "turn_end"
+        }
+      ]
+    },
+    {
+      "rule_id": "text-template-cata-304-v1",
+      "card_ids": [
+        "CATA_304"
+      ],
+      "card_type": "MINION",
+      "trigger": "battlecry",
+      "accepted_texts": [
+        {
+          "normalized": "Lifesteal Battlecry: Deal 4 damage to this minion.",
+          "sha256": "d1477bac48721a5abf7669715c4b24c7ac2a8dab15bfaea7018dfab2f5efacf4"
+        }
+      ],
+      "effects": [
+        {
+          "kind": "damage",
+          "amount": 4,
+          "target": "self"
+        }
+      ]
+    },
+    {
+      "rule_id": "text-template-cata-475-v1",
+      "card_ids": [
+        "CATA_475"
+      ],
+      "card_type": "MINION",
+      "trigger": "turn_end",
+      "accepted_texts": [
+        {
+          "normalized": "At the end of your turn, deal 2 damage to all enemies.",
+          "sha256": "45422004ec4aa06b8d4913603e1c7d97f182e4998fef5d291a6fa33272e5eeb3"
+        }
+      ],
+      "effects": [
+        {
+          "kind": "damage",
+          "amount": 2,
+          "target": "all_enemy_characters",
+          "trigger": "turn_end"
+        }
+      ]
+    },
+    {
+      "rule_id": "text-template-cata-476-v1",
+      "card_ids": [
+        "CATA_476"
+      ],
+      "card_type": "MINION",
+      "trigger": "turn_end",
+      "accepted_texts": [
+        {
+          "normalized": "At the end of your turn, summon a 6/6 Elemental Dragon with Divine Shield .",
+          "sha256": "95f94a2b2381a2c78b5bd317ca8626f65761b1f28abfc9d28ae37dfcc7b5c876"
+        }
+      ],
+      "effects": [
+        {
+          "kind": "summon",
+          "target": "none",
+          "count": 1,
+          "card_id": "CATA_476t",
+          "name": "Sandscale Dragon",
+          "attack": 6,
+          "health": 6,
+          "divine_shield": true,
+          "trigger": "turn_end"
+        }
+      ]
+    },
+    {
+      "rule_id": "text-template-cata-612-v1",
+      "card_ids": [
+        "CATA_612"
+      ],
+      "card_type": "MINION",
+      "trigger": "battlecry",
+      "accepted_texts": [
+        {
+          "normalized": "Battlecry: Freeze this.",
+          "sha256": "6ee5718af5af146f48c91c50f569b873f0460c2ca091b9ea276b58cb0b2759c2"
+        }
+      ],
+      "effects": [
+        {
+          "kind": "freeze",
+          "target": "self"
+        }
+      ]
+    },
+    {
+      "rule_id": "text-template-cata-999-v1",
+      "card_ids": [
+        "CATA_999"
+      ],
+      "card_type": "MINION",
+      "trigger": "turn_end",
+      "accepted_texts": [
+        {
+          "normalized": "At the end of your turn, deal 4 damage to the enemy hero.",
+          "sha256": "a43566af11d7d54f1eced1aa829a0a5c56792296dade4d9e7e1e237a86de292e"
+        }
+      ],
+      "effects": [
+        {
+          "kind": "damage",
+          "amount": 4,
+          "target": "enemy_hero",
+          "trigger": "turn_end"
+        }
+      ]
+    },
+    {
+      "rule_id": "text-template-core-at-064-v1",
+      "card_ids": [
+        "CORE_AT_064"
+      ],
+      "card_type": "SPELL",
+      "trigger": "play_resolution",
+      "accepted_texts": [
+        {
+          "normalized": "Deal 3 damage. Gain 3 Armor.",
+          "sha256": "8958956c6ecf023588d061595e0fe8dc833e443b2670f6a533b4d25bd6f67393"
+        }
+      ],
+      "effects": [
+        {
+          "kind": "damage",
+          "amount": 3,
+          "target": "any_character"
+        },
+        {
+          "kind": "armor",
+          "amount": 3,
+          "target": "none"
+        }
+      ]
+    },
+    {
+      "rule_id": "text-template-core-av-337-v1",
+      "card_ids": [
+        "CORE_AV_337"
+      ],
+      "card_type": "MINION",
+      "trigger": "deathrattle",
+      "accepted_texts": [
+        {
+          "normalized": "Taunt Deathrattle: Summon two 2/4 Cubs with Taunt .",
+          "sha256": "a647d676304e7d02eec33d10faac7998d0b4b629876de9803a5e838cb80dae91"
+        }
+      ],
+      "effects": [
+        {
+          "kind": "summon",
+          "target": "none",
+          "count": 2,
+          "card_id": "AV_337t",
+          "name": "Mountain Cub",
+          "attack": 2,
+          "health": 4,
+          "taunt": true,
+          "trigger": "deathrattle"
+        }
+      ]
+    },
+    {
+      "rule_id": "text-template-core-bar-310-v1",
+      "card_ids": [
+        "CORE_BAR_310"
+      ],
+      "card_type": "MINION",
+      "trigger": "deathrattle",
+      "accepted_texts": [
+        {
+          "normalized": "Taunt Deathrattle: Restore 8 Health to all friendly characters.",
+          "sha256": "9a857e0000cf716ccbbfed878a236d85de9939389bc613ae951fccf9f0c4f830"
+        }
+      ],
+      "effects": [
+        {
+          "kind": "heal",
+          "amount": 8,
+          "target": "all_friendly_characters",
+          "trigger": "deathrattle"
+        }
+      ]
+    },
+    {
+      "rule_id": "text-template-core-bot-222-v1",
+      "card_ids": [
+        "CORE_BOT_222"
+      ],
+      "card_type": "SPELL",
+      "trigger": "play_resolution",
+      "accepted_texts": [
+        {
+          "normalized": "Deal 4 damage to a minion and your hero.",
+          "sha256": "9d189ef36fbb4ef235f3e7974f371da74553bbd732247592444be9cc0ae0323e"
+        }
+      ],
+      "effects": [
+        {
+          "kind": "damage",
+          "amount": 4,
+          "target": "any_minion"
+        },
+        {
+          "kind": "damage",
+          "amount": 4,
+          "target": "friendly_hero"
+        }
+      ]
+    },
+    {
+      "rule_id": "text-template-core-bt-035-v1",
+      "card_ids": [
+        "CORE_BT_035"
+      ],
+      "card_type": "SPELL",
+      "trigger": "play_resolution",
+      "accepted_texts": [
+        {
+          "normalized": "Give your hero +2 Attack this turn. Draw a card.",
+          "sha256": "499418d4c0b7d6bf63843cbccb293734428cb09ba51506f10875d52228192147"
+        }
+      ],
+      "effects": [
+        {
+          "kind": "gain_hero_attack",
+          "amount": 2,
+          "target": "none"
+        },
+        {
+          "kind": "draw",
+          "target": "none",
+          "count": 1
+        }
+      ]
+    },
+    {
+      "rule_id": "text-template-core-bt-292-v1",
+      "card_ids": [
+        "CORE_BT_292"
+      ],
+      "card_type": "SPELL",
+      "trigger": "play_resolution",
+      "accepted_texts": [
+        {
+          "normalized": "Give a minion +2/+1. Draw a card.",
+          "sha256": "8a865782fc3ef2bb0b73b8d5ec4e9d5b1cb94884e63cb0abd635a012ead8c5bd"
+        }
+      ],
+      "effects": [
+        {
+          "kind": "buff_attack",
+          "amount": 2,
+          "target": "any_minion"
+        },
+        {
+          "kind": "buff_health",
+          "amount": 1,
+          "target": "any_minion"
+        },
+        {
+          "kind": "draw",
+          "target": "none",
+          "count": 1
+        }
+      ]
+    },
+    {
+      "rule_id": "text-template-core-bt-351-v1",
+      "card_ids": [
+        "CORE_BT_351"
+      ],
+      "card_type": "MINION",
+      "trigger": "after_hero_attack",
+      "accepted_texts": [
+        {
+          "normalized": "After your hero attacks, gain +1 Attack.",
+          "sha256": "7f0e765ebbeda40db1b20adec90a572b76df1e7a44a987ad8edc5f59d9657b63"
+        }
+      ],
+      "effects": [
+        {
+          "kind": "buff_attack",
+          "amount": 1,
+          "target": "self",
+          "trigger": "after_hero_attack"
+        }
+      ]
+    },
+    {
+      "rule_id": "text-template-core-cfm-604-v1",
+      "card_ids": [
+        "CORE_CFM_604"
+      ],
+      "card_type": "SPELL",
+      "trigger": "play_resolution",
+      "accepted_texts": [
+        {
+          "normalized": "Restore 12 Health to a friendly character. Draw a card.",
+          "sha256": "a6dccc8d3cb85b73ebb3b44206e8d06f2645241bbbc13e940a19fe24ae7a1431"
+        }
+      ],
+      "effects": [
+        {
+          "kind": "heal",
+          "amount": 12,
+          "target": "friendly_character"
+        },
+        {
+          "kind": "draw",
+          "target": "none",
+          "count": 1
+        }
+      ]
+    },
+    {
+      "rule_id": "text-template-core-cs2-004-v1",
+      "card_ids": [
+        "CORE_CS2_004"
+      ],
+      "card_type": "SPELL",
+      "trigger": "play_resolution",
+      "accepted_texts": [
+        {
+          "normalized": "Give a minion +2 Health. Draw a card.",
+          "sha256": "8a285589fbf9ae9fba2a614406ac46fc4a89745286226dbe6ad15ceb0bc6b337"
+        }
+      ],
+      "effects": [
+        {
+          "kind": "buff_health",
+          "amount": 2,
+          "target": "any_minion"
+        },
+        {
+          "kind": "draw",
+          "target": "none",
+          "count": 1
+        }
+      ]
+    },
+    {
+      "rule_id": "text-template-core-cs2-009-v1",
+      "card_ids": [
+        "CORE_CS2_009"
+      ],
+      "card_type": "SPELL",
+      "trigger": "play_resolution",
+      "accepted_texts": [
+        {
+          "normalized": "Give a minion Taunt and +2/+3. (+2 Attack/+3 Health)",
+          "sha256": "1465b8a2c13afe5e27f9232591d786909c16f6c67f28ce5cbb180fb6f9dc6c00"
+        }
+      ],
+      "effects": [
+        {
+          "kind": "grant_keywords",
+          "target": "any_minion",
+          "taunt": true
+        },
+        {
+          "kind": "buff_attack",
+          "amount": 2,
+          "target": "any_minion"
+        },
+        {
+          "kind": "buff_health",
+          "amount": 3,
+          "target": "any_minion"
+        }
+      ]
+    },
+    {
+      "rule_id": "text-template-core-cs2-023-v1",
+      "card_ids": [
+        "CORE_CS2_023"
+      ],
+      "card_type": "SPELL",
+      "trigger": "play_resolution",
+      "accepted_texts": [
+        {
+          "normalized": "Draw 2 cards.",
+          "sha256": "d431f7496ea56cf6c2970ab414d18e15ae296393776c135f4ec582d724ae5ae1"
+        }
+      ],
+      "effects": [
+        {
+          "kind": "draw",
+          "target": "none",
+          "count": 2
+        }
+      ]
+    },
+    {
+      "rule_id": "text-template-core-cs2-074-v1",
+      "card_ids": [
+        "CORE_CS2_074"
+      ],
+      "card_type": "SPELL",
+      "trigger": "play_resolution",
+      "accepted_texts": [
+        {
+          "normalized": "Give your weapon +2 Attack.",
+          "sha256": "62ebadccf21b504d9da1aa52e1d7eae476c330dd5643cb0d951a274bd063ab78"
+        }
+      ],
+      "effects": [
+        {
+          "kind": "buff_weapon_attack",
+          "amount": 2,
+          "target": "none"
+        }
+      ]
+    },
+    {
+      "rule_id": "text-template-core-cs2-076-v1",
+      "card_ids": [
+        "CORE_CS2_076"
+      ],
+      "card_type": "SPELL",
+      "trigger": "play_resolution",
+      "accepted_texts": [
+        {
+          "normalized": "Destroy an enemy minion.",
+          "sha256": "72562e1de706442e27e115722d5e083e43f949be4b3c6d3c9503cafff3522041"
+        }
+      ],
+      "effects": [
+        {
+          "kind": "destroy",
+          "target": "enemy_minion"
+        }
+      ]
+    },
+    {
+      "rule_id": "text-template-core-cs2-094-v1",
+      "card_ids": [
+        "CORE_CS2_094"
+      ],
+      "card_type": "SPELL",
+      "trigger": "play_resolution",
+      "accepted_texts": [
+        {
+          "normalized": "Deal 3 damage. Draw a card.",
+          "sha256": "67ecdd4b2896b95ab1c8e4b235db8d1e139ffa53971823d70ad02db01c0ef554"
+        }
+      ],
+      "effects": [
+        {
+          "kind": "damage",
+          "amount": 3,
+          "target": "any_character"
+        },
+        {
+          "kind": "draw",
+          "target": "none",
+          "count": 1
+        }
+      ]
+    },
+    {
+      "rule_id": "text-template-core-cs2-108-v1",
+      "card_ids": [
+        "CORE_CS2_108"
+      ],
+      "card_type": "SPELL",
+      "trigger": "play_resolution",
+      "accepted_texts": [
+        {
+          "normalized": "Destroy a damaged enemy minion.",
+          "sha256": "a67629a656c26eb76d901524a98751999532a5474d56cd41b5097d70ee81f6eb"
+        }
+      ],
+      "effects": [
+        {
+          "kind": "destroy",
+          "target": "damaged_enemy_minion"
+        }
+      ]
+    },
+    {
+      "rule_id": "text-template-core-dmf-067-v1",
+      "card_ids": [
+        "CORE_DMF_067"
+      ],
+      "card_type": "MINION",
+      "trigger": "battlecry_and_deathrattle",
+      "accepted_texts": [
+        {
+          "normalized": "Battlecry and Deathrattle: Each player draws a card.",
+          "sha256": "7d6770e991ef5f8c38b6b0d9a0e37124a8dc429236b9e3e4d49e0f4fa74d4a59"
+        }
+      ],
+      "effects": [
+        {
+          "kind": "draw_both_players",
+          "target": "none",
+          "count": 1
+        },
+        {
+          "kind": "draw_both_players",
+          "target": "none",
+          "count": 1,
+          "trigger": "deathrattle"
+        }
+      ]
+    },
+    {
+      "rule_id": "text-template-core-ex1-096-v1",
+      "card_ids": [
+        "CORE_EX1_096"
+      ],
+      "card_type": "MINION",
+      "trigger": "deathrattle",
+      "accepted_texts": [
+        {
+          "normalized": "Deathrattle: Draw a card.",
+          "sha256": "3d661d10ac53627f31c4f5970177bc73c803a4499b5d408fae268582c646f669"
+        }
+      ],
+      "effects": [
+        {
+          "kind": "draw",
+          "target": "none",
+          "count": 1,
+          "trigger": "deathrattle"
+        }
+      ]
+    },
+    {
+      "rule_id": "text-template-core-ex1-110-v1",
+      "card_ids": [
+        "CORE_EX1_110"
+      ],
+      "card_type": "MINION",
+      "trigger": "deathrattle",
+      "accepted_texts": [
+        {
+          "normalized": "Taunt Deathrattle: Summon a 5/5 Baine Bloodhoof.",
+          "sha256": "00d003516e5d899c7e7ee4036067beabf4c5d21e004726b0f849f2c63a4dcdd1"
+        }
+      ],
+      "effects": [
+        {
+          "kind": "summon",
+          "target": "none",
+          "count": 1,
+          "card_id": "EX1_110t",
+          "name": "Baine Bloodhoof",
+          "attack": 5,
+          "health": 5,
+          "trigger": "deathrattle"
+        }
+      ]
+    },
+    {
+      "rule_id": "text-template-core-ex1-129-v1",
+      "card_ids": [
+        "CORE_EX1_129"
+      ],
+      "card_type": "SPELL",
+      "trigger": "play_resolution",
+      "accepted_texts": [
+        {
+          "normalized": "Deal 1 damage to all enemy minions. Draw a card.",
+          "sha256": "7b719bef0d2556ab2eba3c4a7778a2cbca2118d955e63fc9ba9c321f4116253f"
+        }
+      ],
+      "effects": [
+        {
+          "kind": "damage",
+          "amount": 1,
+          "target": "all_enemy_minions"
+        },
+        {
+          "kind": "draw",
+          "target": "none",
+          "count": 1
+        }
+      ]
+    },
+    {
+      "rule_id": "text-template-core-ex1-169-v1",
+      "card_ids": [
+        "CORE_EX1_169"
+      ],
+      "card_type": "SPELL",
+      "trigger": "play_resolution",
+      "accepted_texts": [
+        {
+          "normalized": "Gain 1 Mana Crystal this turn only.",
+          "sha256": "7e0b9838c71ab2fca09f4defa0790398e06cf2d4f4f0c10ea1634a74b712d126"
+        }
+      ],
+      "effects": [
+        {
+          "kind": "gain_mana",
+          "amount": 1,
+          "target": "none"
+        }
+      ]
+    },
+    {
+      "rule_id": "text-template-core-ex1-246-v1",
+      "card_ids": [
+        "CORE_EX1_246"
+      ],
+      "card_type": "SPELL",
+      "trigger": "play_resolution",
+      "accepted_texts": [
+        {
+          "normalized": "Transform a minion into a 0/1 Frog with Taunt .",
+          "sha256": "3fae4e2d86c9744ad9d6bd163969eaafb40c9d2ee00c2be891c05dece0535dc4"
+        }
+      ],
+      "effects": [
+        {
+          "kind": "transform",
+          "target": "any_minion",
+          "card_id": "hexfrog",
+          "name": "Frog",
+          "attack": 0,
+          "health": 1,
+          "taunt": true
+        }
+      ]
+    },
+    {
+      "rule_id": "text-template-core-ex1-278-v1",
+      "card_ids": [
+        "CORE_EX1_278"
+      ],
+      "card_type": "SPELL",
+      "trigger": "play_resolution",
+      "accepted_texts": [
+        {
+          "normalized": "Deal 1 damage. Draw a card.",
+          "sha256": "c6923c02f21a57eec6c52415791b2aa4ee2c39f8e55192a0bfbcb90a9e8f752d"
+        }
+      ],
+      "effects": [
+        {
+          "kind": "damage",
+          "amount": 1,
+          "target": "any_character"
+        },
+        {
+          "kind": "draw",
+          "target": "none",
+          "count": 1
+        }
+      ]
+    },
+    {
+      "rule_id": "text-template-core-ex1-309-v1",
+      "card_ids": [
+        "CORE_EX1_309"
+      ],
+      "card_type": "SPELL",
+      "trigger": "play_resolution",
+      "accepted_texts": [
+        {
+          "normalized": "Destroy a minion. Restore 3 Health to your hero.",
+          "sha256": "389bbed91d14f0c82527ac02baf1b680958f4d85a59b100ead1a72fd1cc02c02"
+        }
+      ],
+      "effects": [
+        {
+          "kind": "destroy",
+          "target": "any_minion"
+        },
+        {
+          "kind": "heal",
+          "amount": 3,
+          "target": "friendly_hero"
+        }
+      ]
+    },
+    {
+      "rule_id": "text-template-core-ex1-312-v1",
+      "card_ids": [
+        "CORE_EX1_312"
+      ],
+      "card_type": "SPELL",
+      "trigger": "play_resolution",
+      "accepted_texts": [
+        {
+          "normalized": "Destroy all minions and locations.",
+          "sha256": "8dacba93ec5317d5b951cb9fba6562b749490080a04695cab923bd30e955832b"
+        }
+      ],
+      "effects": [
+        {
+          "kind": "destroy_all_minions_and_locations",
+          "target": "none"
+        }
+      ]
+    },
+    {
+      "rule_id": "text-template-core-ex1-362-v1",
+      "card_ids": [
+        "CORE_EX1_362"
+      ],
+      "card_type": "MINION",
+      "trigger": "battlecry",
+      "accepted_texts": [
+        {
+          "normalized": "Battlecry: Give a friendly minion Divine Shield .",
+          "sha256": "697ea236d36202c7431c43718dc15086aed92406e0aea432d75a3ea7227446b2"
+        }
+      ],
+      "effects": [
+        {
+          "kind": "grant_keywords",
+          "target": "friendly_minion",
+          "divine_shield": true
+        }
+      ]
+    },
+    {
+      "rule_id": "text-template-core-ex1-383-v1",
+      "card_ids": [
+        "CORE_EX1_383"
+      ],
+      "card_type": "MINION",
+      "trigger": "deathrattle",
+      "accepted_texts": [
+        {
+          "normalized": "Divine Shield , Taunt Deathrattle: Equip a 5/3 Ashbringer.",
+          "sha256": "febc14cd5f162ec0405a540b2c69dedbd516294470d8fa0675685322a20b612d"
+        }
+      ],
+      "effects": [
+        {
+          "kind": "equip_weapon",
+          "target": "none",
+          "card_id": "EX1_383t",
+          "name": "Ashbringer",
+          "attack": 5,
+          "durability": 3,
+          "trigger": "deathrattle"
+        }
+      ]
+    },
+    {
+      "rule_id": "text-template-core-ex1-506-v1",
+      "card_ids": [
+        "CORE_EX1_506"
+      ],
+      "card_type": "MINION",
+      "trigger": "battlecry",
+      "accepted_texts": [
+        {
+          "normalized": "Battlecry: Summon a 1/1 Murloc Scout.",
+          "sha256": "c355e507ed3115a9a868e0734fee0c12a01f56ee2dfa0df7cf9db505ca9aac45"
+        }
+      ],
+      "effects": [
+        {
+          "kind": "summon",
+          "target": "none",
+          "count": 1,
+          "card_id": "EX1_506a",
+          "name": "Murloc Scout",
+          "attack": 1,
+          "health": 1
+        }
+      ]
+    },
+    {
+      "rule_id": "text-template-core-ex1-606-v1",
+      "card_ids": [
+        "CORE_EX1_606"
+      ],
+      "card_type": "SPELL",
+      "trigger": "play_resolution",
+      "accepted_texts": [
+        {
+          "normalized": "Gain 5 Armor. Draw a card.",
+          "sha256": "a0b7ce874499dc40376ad4db97d215709ba6579d990327d696af1fd175db8e6f"
+        }
+      ],
+      "effects": [
+        {
+          "kind": "armor",
+          "amount": 5,
+          "target": "none"
+        },
+        {
+          "kind": "draw",
+          "target": "none",
+          "count": 1
+        }
+      ]
+    },
+    {
+      "rule_id": "text-template-core-gil-534-v1",
+      "card_ids": [
+        "CORE_GIL_534"
+      ],
+      "card_type": "MINION",
+      "trigger": "after_hero_attack",
+      "accepted_texts": [
+        {
+          "normalized": "After your hero attacks, give this minion +1/+1.",
+          "sha256": "1f72aed26cd0aa80ef4ef8aaa1ef7a9c83cd29252636d177aee3bfa69cf81bd3"
+        }
+      ],
+      "effects": [
+        {
+          "kind": "buff_attack",
+          "amount": 1,
+          "target": "self",
+          "trigger": "after_hero_attack"
+        },
+        {
+          "kind": "buff_health",
+          "amount": 1,
+          "target": "self",
+          "trigger": "after_hero_attack"
+        }
+      ]
+    },
+    {
+      "rule_id": "text-template-core-gil-622-v1",
+      "card_ids": [
+        "CORE_GIL_622"
+      ],
+      "card_type": "MINION",
+      "trigger": "battlecry",
+      "accepted_texts": [
+        {
+          "normalized": "Battlecry: Deal 3 damage to the enemy hero. Restore 3 Health to your hero.",
+          "sha256": "7d42e775cf976ec6fac2ee510ee9af2b3505dc543e5c3d221577eea1a30954d7"
+        }
+      ],
+      "effects": [
+        {
+          "kind": "damage",
+          "amount": 3,
+          "target": "enemy_hero"
+        },
+        {
+          "kind": "heal",
+          "amount": 3,
+          "target": "friendly_hero"
+        }
+      ]
+    },
+    {
+      "rule_id": "text-template-core-loot-013-v1",
+      "card_ids": [
+        "CORE_LOOT_013"
+      ],
+      "card_type": "MINION",
+      "trigger": "battlecry",
+      "accepted_texts": [
+        {
+          "normalized": "Taunt Battlecry: Deal 2 damage to your hero.",
+          "sha256": "919a29863f663b2fbc249a45fa40cfdf4635c469eb3885c62005d77b5a54c1a8"
+        }
+      ],
+      "effects": [
+        {
+          "kind": "damage",
+          "amount": 2,
+          "target": "friendly_hero"
+        }
+      ]
+    },
+    {
+      "rule_id": "text-template-core-loot-368-v1",
+      "card_ids": [
+        "CORE_LOOT_368"
+      ],
+      "card_type": "MINION",
+      "trigger": "deathrattle",
+      "accepted_texts": [
+        {
+          "normalized": "Taunt Deathrattle: Summon three 1/3 Demons with Taunt .",
+          "sha256": "f9110322f5f66aceaae64296ce2ba008a58d7d38617646a320c441ae777f572b"
+        }
+      ],
+      "effects": [
+        {
+          "kind": "summon",
+          "target": "none",
+          "count": 3,
+          "card_id": "CS2_065",
+          "name": "Voidwalker",
+          "attack": 1,
+          "health": 3,
+          "taunt": true,
+          "trigger": "deathrattle"
+        }
+      ]
+    },
+    {
+      "rule_id": "text-template-core-loot-413-v1",
+      "card_ids": [
+        "CORE_LOOT_413"
+      ],
+      "card_type": "MINION",
+      "trigger": "deathrattle",
+      "accepted_texts": [
+        {
+          "normalized": "Deathrattle: Gain 3 Armor.",
+          "sha256": "c59351f79eede12af3d394211611d5186643080a4798d4db1a9a5e2eab31440a"
+        }
+      ],
+      "effects": [
+        {
+          "kind": "armor",
+          "amount": 3,
+          "target": "none",
+          "trigger": "deathrattle"
+        }
+      ]
+    },
+    {
+      "rule_id": "text-template-core-new1-020-v1",
+      "card_ids": [
+        "CORE_NEW1_020"
+      ],
+      "card_type": "MINION",
+      "trigger": "after_spell_cast",
+      "accepted_texts": [
+        {
+          "normalized": "After you cast a spell, deal 1 damage to ALL minions.",
+          "sha256": "73f359aba3725379d538827a21de7b96b30b5fcb1f5552268b29d68a6454f2ac"
+        }
+      ],
+      "effects": [
+        {
+          "kind": "damage",
+          "amount": 1,
+          "target": "all_minions",
+          "trigger": "after_spell_cast"
+        }
+      ]
+    },
+    {
+      "rule_id": "text-template-core-new1-021-v1",
+      "card_ids": [
+        "CORE_NEW1_021"
+      ],
+      "card_type": "MINION",
+      "trigger": "turn_start",
+      "accepted_texts": [
+        {
+          "normalized": "At the start of your turn, destroy ALL minions.",
+          "sha256": "ab5e0d8a77e27e52dcc045e10144aab3434042515ad59f0d9477e7736c7a6d97"
+        }
+      ],
+      "effects": [
+        {
+          "kind": "destroy",
+          "target": "all_minions",
+          "trigger": "turn_start"
+        }
+      ]
+    },
+    {
+      "rule_id": "text-template-core-nx2-028-v1",
+      "card_ids": [
+        "CORE_NX2_028"
+      ],
+      "card_type": "MINION",
+      "trigger": "after_hero_attack",
+      "accepted_texts": [
+        {
+          "normalized": "After your hero attacks, gain 4 Armor and draw a card.",
+          "sha256": "5ace78b54bb0d80fff31fa3e332ed4b1a95b06e8cc1420ece7dfdc49bed8a4ba"
+        }
+      ],
+      "effects": [
+        {
+          "kind": "armor",
+          "amount": 4,
+          "target": "none",
+          "trigger": "after_hero_attack"
+        },
+        {
+          "kind": "draw",
+          "target": "none",
+          "count": 1,
+          "trigger": "after_hero_attack"
+        }
+      ]
+    },
+    {
+      "rule_id": "text-template-core-og-031-v1",
+      "card_ids": [
+        "CORE_OG_031"
+      ],
+      "card_type": "WEAPON",
+      "trigger": "deathrattle",
+      "accepted_texts": [
+        {
+          "normalized": "Deathrattle: Summon a 4/2 Elemental.",
+          "sha256": "cf8a2656ff661a31a06e3e1507d275174adcf2335fb76e947dc493a3fbddada7"
+        }
+      ],
+      "effects": [
+        {
+          "kind": "summon",
+          "target": "none",
+          "count": 1,
+          "card_id": "OG_031a",
+          "name": "Twilight Elemental",
+          "attack": 4,
+          "health": 2,
+          "trigger": "deathrattle"
+        }
+      ]
+    },
+    {
+      "rule_id": "text-template-core-og-149-v1",
+      "card_ids": [
+        "CORE_OG_149"
+      ],
+      "card_type": "MINION",
+      "trigger": "battlecry",
+      "accepted_texts": [
+        {
+          "normalized": "Battlecry: Deal 1 damage to all other minions.",
+          "sha256": "dd099f455dd4ff4c5b20c2b6fc8fc02d84989656d910a71d96b15b8017682f8b"
+        }
+      ],
+      "effects": [
+        {
+          "kind": "damage",
+          "amount": 1,
+          "target": "all_other_minions"
+        }
+      ]
+    },
+    {
+      "rule_id": "text-template-core-rlk-063-v1",
+      "card_ids": [
+        "CORE_RLK_063"
+      ],
+      "card_type": "SPELL",
+      "trigger": "play_resolution",
+      "accepted_texts": [
+        {
+          "normalized": "Deal 5 damage. Freeze all enemy minions. Summon a 5/5 Frostwyrm.",
+          "sha256": "24a589ef26a8535e3c52a17b05f4a40e8f2213c6c76e3de09d38d3c8eaeb2c06"
+        }
+      ],
+      "effects": [
+        {
+          "kind": "damage",
+          "amount": 5,
+          "target": "any_character"
+        },
+        {
+          "kind": "freeze",
+          "target": "all_enemy_minions"
+        },
+        {
+          "kind": "summon",
+          "target": "none",
+          "count": 1,
+          "card_id": "RLK_063t",
+          "name": "Frostwyrm",
+          "attack": 5,
+          "health": 5
+        }
+      ]
+    },
+    {
+      "rule_id": "text-template-core-rlk-657-v1",
+      "card_ids": [
+        "CORE_RLK_657"
+      ],
+      "card_type": "MINION",
+      "trigger": "battlecry_and_deathrattle",
+      "accepted_texts": [
+        {
+          "normalized": "Rush Battlecry and Deathrattle: Gain 6 Armor.",
+          "sha256": "d298adcb9c992965c31c1444c925d941c74c205c259436481ed040bee4ef9258"
+        }
+      ],
+      "effects": [
+        {
+          "kind": "armor",
+          "amount": 6,
+          "target": "none"
+        },
+        {
+          "kind": "armor",
+          "amount": 6,
+          "target": "none",
+          "trigger": "deathrattle"
+        }
+      ]
+    },
+    {
+      "rule_id": "text-template-core-sw-068-v1",
+      "card_ids": [
+        "CORE_SW_068"
+      ],
+      "card_type": "MINION",
+      "trigger": "deathrattle",
+      "accepted_texts": [
+        {
+          "normalized": "Taunt Deathrattle: Gain 8 Armor.",
+          "sha256": "3c1dde1cd89a13c02cb6df448a33c127ca43c6ea4c72d57b17057e104d38f9bd"
+        }
+      ],
+      "effects": [
+        {
+          "kind": "armor",
+          "amount": 8,
+          "target": "none",
+          "trigger": "deathrattle"
+        }
+      ]
+    },
+    {
+      "rule_id": "text-template-core-sw-088-v1",
+      "card_ids": [
+        "CORE_SW_088"
+      ],
+      "card_type": "SPELL",
+      "trigger": "play_resolution",
+      "accepted_texts": [
+        {
+          "normalized": "Deal 3 damage. Summon two 1/3 Voidwalkers with Taunt .",
+          "sha256": "2cb13a33d70e632210dda330432701441ac5e0ed5022d943eb61753db883bc13"
+        }
+      ],
+      "effects": [
+        {
+          "kind": "damage",
+          "amount": 3,
+          "target": "any_character"
+        },
+        {
+          "kind": "summon",
+          "target": "none",
+          "count": 2,
+          "card_id": "CS2_065",
+          "name": "Voidwalker",
+          "attack": 1,
+          "health": 3,
+          "taunt": true
+        }
+      ]
+    },
+    {
+      "rule_id": "text-template-core-trl-307-v1",
+      "card_ids": [
+        "CORE_TRL_307"
+      ],
+      "card_type": "SPELL",
+      "trigger": "play_resolution",
+      "accepted_texts": [
+        {
+          "normalized": "Restore 4 Health. Draw a card.",
+          "sha256": "9f7f278c499a0d8a5ef73ea4896dfbbcb74eff8ff46fa0d2d3b70c3a01c83788"
+        }
+      ],
+      "effects": [
+        {
+          "kind": "heal",
+          "amount": 4,
+          "target": "any_character"
+        },
+        {
+          "kind": "draw",
+          "target": "none",
+          "count": 1
+        }
+      ]
+    },
+    {
+      "rule_id": "text-template-core-uld-271-v1",
+      "card_ids": [
+        "CORE_ULD_271"
+      ],
+      "card_type": "MINION",
+      "trigger": "battlecry",
+      "accepted_texts": [
+        {
+          "normalized": "Taunt Battlecry: Deal 3 damage to this minion.",
+          "sha256": "bd1433e19f13aa19d9dea629830a47a44f3e8e9df1765813c1dbafe727173d5d"
+        }
+      ],
+      "effects": [
+        {
+          "kind": "damage",
+          "amount": 3,
+          "target": "self"
+        }
+      ]
+    },
+    {
+      "rule_id": "text-template-core-ung-848-v1",
+      "card_ids": [
+        "CORE_UNG_848"
+      ],
+      "card_type": "MINION",
+      "trigger": "battlecry",
+      "accepted_texts": [
+        {
+          "normalized": "Taunt Battlecry: Deal 2 damage to all other minions.",
+          "sha256": "9cac55f06804daa438faea4c1d5907e6f93b35d5f603ed914b8a2a1485ebe04e"
+        }
+      ],
+      "effects": [
+        {
+          "kind": "damage",
+          "amount": 2,
+          "target": "all_other_minions"
+        }
+      ]
+    },
+    {
+      "rule_id": "text-template-core-wc-701-v1",
+      "card_ids": [
+        "CORE_WC_701"
+      ],
+      "card_type": "MINION",
+      "trigger": "deathrattle",
+      "accepted_texts": [
+        {
+          "normalized": "Rush Deathrattle: Deal 1 damage to all enemy minions.",
+          "sha256": "bd1ee9e83735bed735a8789000ab5b27ef01b9fb1bd7d8106540516cb5e75643"
+        }
+      ],
+      "effects": [
+        {
+          "kind": "damage",
+          "amount": 1,
+          "target": "all_enemy_minions",
+          "trigger": "deathrattle"
+        }
+      ]
+    },
+    {
+      "rule_id": "text-template-deep-008-v1",
+      "card_ids": [
+        "DEEP_008"
+      ],
+      "card_type": "MINION",
+      "trigger": "turn_end",
+      "accepted_texts": [
+        {
+          "normalized": "At the end of your turn, gain 2 Armor and draw a card.",
+          "sha256": "d989930c1fa76ba806ad3e6b2cb2a1b8e82f90d44afe167f8abd1a2946ce0237"
+        }
+      ],
+      "effects": [
+        {
+          "kind": "armor",
+          "amount": 2,
+          "target": "none",
+          "trigger": "turn_end"
+        },
+        {
+          "kind": "draw",
+          "target": "none",
+          "count": 1,
+          "trigger": "turn_end"
+        }
+      ]
+    },
+    {
+      "rule_id": "text-template-deep-014-v1",
+      "card_ids": [
+        "DEEP_014"
+      ],
+      "card_type": "WEAPON",
+      "trigger": "after_hero_attack",
+      "accepted_texts": [
+        {
+          "normalized": "After your hero attacks, draw a card.",
+          "sha256": "f06799e7e94f17ca198c2bc3374c4755d9dfd82a4031bccf43d7fdd0dd8ff907"
+        }
+      ],
+      "effects": [
+        {
+          "kind": "draw",
+          "target": "none",
+          "count": 1,
+          "trigger": "after_hero_attack"
+        }
+      ]
+    },
+    {
+      "rule_id": "text-template-deep-023-v1",
+      "card_ids": [
+        "DEEP_023"
+      ],
+      "card_type": "MINION",
+      "trigger": "turn_end",
+      "accepted_texts": [
+        {
+          "normalized": "Stealth At the end of your turn, restore 2 Health to all friendly characters.",
+          "sha256": "4be24056d0d9f35b181ca1f51e1af3e982ad257feac7908c1a9359169fbb2f09"
+        }
+      ],
+      "effects": [
+        {
+          "kind": "heal",
+          "amount": 2,
+          "target": "all_friendly_characters",
+          "trigger": "turn_end"
+        }
+      ]
+    },
+    {
+      "rule_id": "text-template-deep-030-v1",
+      "card_ids": [
+        "DEEP_030"
+      ],
+      "card_type": "MINION",
+      "trigger": "battlecry_and_deathrattle",
+      "accepted_texts": [
+        {
+          "normalized": "Battlecry and Deathrattle: Draw a card. Deal 2 damage to your hero.",
+          "sha256": "c1b981a2c7941b8a9d69783b53fe6c717db4f94e01dbeceefb06c9082e7c09fb"
+        }
+      ],
+      "effects": [
+        {
+          "kind": "draw",
+          "target": "none",
+          "count": 1
+        },
+        {
+          "kind": "damage",
+          "amount": 2,
+          "target": "friendly_hero"
+        },
+        {
+          "kind": "draw",
+          "target": "none",
+          "count": 1,
+          "trigger": "deathrattle"
+        },
+        {
+          "kind": "damage",
+          "amount": 2,
+          "target": "friendly_hero",
+          "trigger": "deathrattle"
+        }
+      ]
+    },
+    {
+      "rule_id": "text-template-dino-130-v1",
+      "card_ids": [
+        "DINO_130"
+      ],
+      "card_type": "MINION",
+      "trigger": "deathrattle",
+      "accepted_texts": [
+        {
+          "normalized": "Deathrattle: Summon a 3/3 Beast. Give your minions +1/+1.",
+          "sha256": "996b8802ed8c53ec4d57130f1d178ee6d692e0423625015144361173709b6987"
+        }
+      ],
+      "effects": [
+        {
+          "kind": "summon",
+          "target": "none",
+          "count": 1,
+          "card_id": "DINO_130t",
+          "name": "Little Longneck",
+          "attack": 3,
+          "health": 3,
+          "trigger": "deathrattle"
+        },
+        {
+          "kind": "buff_attack",
+          "amount": 1,
+          "target": "all_friendly_minions",
+          "trigger": "deathrattle"
+        },
+        {
+          "kind": "buff_health",
+          "amount": 1,
+          "target": "all_friendly_minions",
+          "trigger": "deathrattle"
+        }
+      ]
+    },
+    {
+      "rule_id": "text-template-dino-403-v1",
+      "card_ids": [
+        "DINO_403"
+      ],
+      "card_type": "SPELL",
+      "trigger": "play_resolution",
+      "accepted_texts": [
+        {
+          "normalized": "Set a minion's stats to 8/8. Give it Charge .",
+          "sha256": "ca8261a8a475c3debc0c9fae9771acf182e9d2977081786759386b480097e4ef"
+        }
+      ],
+      "effects": [
+        {
+          "kind": "set_attack",
+          "amount": 8,
+          "target": "any_minion"
+        },
+        {
+          "kind": "set_health",
+          "amount": 8,
+          "target": "any_minion"
+        },
+        {
+          "kind": "grant_keywords",
+          "target": "any_minion",
+          "charge": true
+        }
+      ]
+    },
+    {
+      "rule_id": "text-template-dino-432-v1",
+      "card_ids": [
+        "DINO_432"
+      ],
+      "card_type": "SPELL",
+      "trigger": "play_resolution",
+      "accepted_texts": [
+        {
+          "normalized": "Set a minion's stats to 5/4 and give it Stealth . Draw 2 cards.",
+          "sha256": "5784a6109b9618a9687ef64e701dc7d228a50fa07ec5a3fe49c120c80e946fd5"
+        }
+      ],
+      "effects": [
+        {
+          "kind": "set_attack",
+          "amount": 5,
+          "target": "any_minion"
+        },
+        {
+          "kind": "set_health",
+          "amount": 4,
+          "target": "any_minion"
+        },
+        {
+          "kind": "grant_keywords",
+          "target": "any_minion",
+          "stealth": true
+        },
+        {
+          "kind": "draw",
+          "target": "none",
+          "count": 2
+        }
+      ]
+    },
+    {
+      "rule_id": "text-template-edr-253-v1",
+      "card_ids": [
+        "EDR_253"
+      ],
+      "card_type": "WEAPON",
+      "trigger": "after_hero_attack",
+      "accepted_texts": [
+        {
+          "normalized": "After your hero attacks, draw a card.",
+          "sha256": "f06799e7e94f17ca198c2bc3374c4755d9dfd82a4031bccf43d7fdd0dd8ff907"
+        }
+      ],
+      "effects": [
+        {
+          "kind": "draw",
+          "target": "none",
+          "count": 1,
+          "trigger": "after_hero_attack"
+        }
+      ]
+    },
+    {
+      "rule_id": "text-template-edr-459-v1",
+      "card_ids": [
+        "EDR_459"
+      ],
+      "card_type": "MINION",
+      "trigger": "multi_event",
+      "accepted_texts": [
+        {
+          "normalized": "Battlecry: Deal 3 damage to all other friendly minions. Deathrattle: Deal 3 damage to all enemy minions.",
+          "sha256": "bbe3d93a76adfd6b37d6d4d95667807df91dac4edf6429759ff0772077ac30aa"
+        }
+      ],
+      "effects": [
+        {
+          "kind": "damage",
+          "amount": 3,
+          "target": "all_other_friendly_minions"
+        },
+        {
+          "kind": "damage",
+          "amount": 3,
+          "target": "all_enemy_minions",
+          "trigger": "deathrattle"
+        }
+      ]
+    },
+    {
+      "rule_id": "text-template-edr-468-v1",
+      "card_ids": [
+        "EDR_468"
+      ],
+      "card_type": "MINION",
+      "trigger": "battlecry",
+      "accepted_texts": [
+        {
+          "normalized": "Battlecry: Deal 1 damage to a minion and give it +4 Attack.",
+          "sha256": "5266aa0fb1469ab75341081eefbfec9bc7e8dd173bb665264c43212493f4860c"
+        }
+      ],
+      "effects": [
+        {
+          "kind": "damage",
+          "amount": 1,
+          "target": "any_minion"
+        },
+        {
+          "kind": "buff_attack",
+          "amount": 4,
+          "target": "any_minion"
+        }
+      ]
+    },
+    {
+      "rule_id": "text-template-edr-470-v1",
+      "card_ids": [
+        "EDR_470"
+      ],
+      "card_type": "MINION",
+      "trigger": "after_hero_power",
+      "accepted_texts": [
+        {
+          "normalized": "Taunt After you use your Hero Power, gain +2 Health.",
+          "sha256": "1edba043a471d23d81e4de3540a9844b756743bd6944fd8de6bf931e19291868"
+        }
+      ],
+      "effects": [
+        {
+          "kind": "buff_health",
+          "amount": 2,
+          "target": "self",
+          "trigger": "after_hero_power"
+        }
+      ]
+    },
+    {
+      "rule_id": "text-template-edr-476-v1",
+      "card_ids": [
+        "EDR_476"
+      ],
+      "card_type": "SPELL",
+      "trigger": "play_resolution",
+      "accepted_texts": [
+        {
+          "normalized": "Deal 4 damage to all enemy characters. Restore 4 Health to all friendly characters.",
+          "sha256": "2f12c29f785e5a807eb6b4cc7823c7bf1442aafbd97cb029dcb3f72c9e77e92c"
+        }
+      ],
+      "effects": [
+        {
+          "kind": "damage",
+          "amount": 4,
+          "target": "all_enemy_characters"
+        },
+        {
+          "kind": "heal",
+          "amount": 4,
+          "target": "all_friendly_characters"
+        }
+      ]
+    },
+    {
+      "rule_id": "text-template-edr-492-v1",
+      "card_ids": [
+        "EDR_492"
+      ],
+      "card_type": "MINION",
+      "trigger": "battlecry",
+      "accepted_texts": [
+        {
+          "normalized": "Battlecry: Summon three 1/1 Ducklings with Rush .",
+          "sha256": "2cf8e6d1c14287b7eca28a2d2f50f3951e77a6da90ad877455c2276bb971253c"
+        }
+      ],
+      "effects": [
+        {
+          "kind": "summon",
+          "target": "none",
+          "count": 3,
+          "card_id": "EDR_492t",
+          "name": "Duckling",
+          "attack": 1,
+          "health": 1,
+          "rush": true
+        }
+      ]
+    },
+    {
+      "rule_id": "text-template-edr-816-v1",
+      "card_ids": [
+        "EDR_816"
+      ],
+      "card_type": "MINION",
+      "trigger": "turn_end",
+      "accepted_texts": [
+        {
+          "normalized": "At the end of your turn, give your other minions +1 Attack.",
+          "sha256": "86b48490047064663f88e492fd7d620f96af3a11ffb20ac9d2bd474981b66e98"
+        }
+      ],
+      "effects": [
+        {
+          "kind": "buff_attack",
+          "amount": 1,
+          "target": "all_other_friendly_minions",
+          "trigger": "turn_end"
+        }
+      ]
+    },
+    {
+      "rule_id": "text-template-edr-942-v1",
+      "card_ids": [
+        "EDR_942"
+      ],
+      "card_type": "MINION",
+      "trigger": "turn_end",
+      "accepted_texts": [
+        {
+          "normalized": "At the end of your turn, give your hero Divine Shield .",
+          "sha256": "d12a44083ec8541116ac543b2e210599186f3e3c28aa0d16796a3624df18d8e8"
+        }
+      ],
+      "effects": [
+        {
+          "kind": "grant_keywords",
+          "target": "friendly_hero",
+          "divine_shield": true,
+          "trigger": "turn_end"
+        }
+      ]
+    },
+    {
+      "rule_id": "text-template-end-007-v1",
+      "card_ids": [
+        "END_007"
+      ],
+      "card_type": "SPELL",
+      "trigger": "play_resolution",
+      "accepted_texts": [
+        {
+          "normalized": "Deal 1 damage. Give your hero +1 Attack this turn. Draw 1 card. Gain 1 Armor.",
+          "sha256": "3255507301323685658e325b8b1d9030c455881c17e2f582e4cb2dca12c8dde5"
+        }
+      ],
+      "effects": [
+        {
+          "kind": "damage",
+          "amount": 1,
+          "target": "any_character"
+        },
+        {
+          "kind": "gain_hero_attack",
+          "amount": 1,
+          "target": "none"
+        },
+        {
+          "kind": "draw",
+          "target": "none",
+          "count": 1
+        },
+        {
+          "kind": "armor",
+          "amount": 1,
+          "target": "none"
+        }
+      ]
+    },
+    {
+      "rule_id": "text-template-end-008-v1",
+      "card_ids": [
+        "END_008"
+      ],
+      "card_type": "MINION",
+      "trigger": "after_hero_power",
+      "accepted_texts": [
+        {
+          "normalized": "After you use your Hero Power, refresh 2 Mana Crystals.",
+          "sha256": "4b83134c2a78e7d968e3e5bed211ac22fb4a9484d6e7dc67f95354471a89a90b"
+        }
+      ],
+      "effects": [
+        {
+          "kind": "refresh_mana",
+          "amount": 2,
+          "target": "none",
+          "trigger": "after_hero_power"
+        }
+      ]
+    },
+    {
+      "rule_id": "text-template-fir-778-v1",
+      "card_ids": [
+        "FIR_778"
+      ],
+      "card_type": "MINION",
+      "trigger": "deathrattle",
+      "accepted_texts": [
+        {
+          "normalized": "Taunt Deathrattle: Deal 9 damage to all enemy minions.",
+          "sha256": "721a35f0fda32b6e5eae9a258242db45114e142f8f61508d4a2f259eb480f496"
+        }
+      ],
+      "effects": [
+        {
+          "kind": "damage",
+          "amount": 9,
+          "target": "all_enemy_minions",
+          "trigger": "deathrattle"
+        }
+      ]
+    },
+    {
+      "rule_id": "text-template-jail-007-v1",
+      "card_ids": [
+        "JAIL_007"
+      ],
+      "card_type": "MINION",
+      "trigger": "deathrattle",
+      "accepted_texts": [
+        {
+          "normalized": "Taunt Deathrattle: Deal 2 damage to all enemies.",
+          "sha256": "2bdd3baa04a9b42faaf2d1d67a8cb49d21f5ee8d59dce430d15652d5a5411e37"
+        }
+      ],
+      "effects": [
+        {
+          "kind": "damage",
+          "amount": 2,
+          "target": "all_enemy_characters",
+          "trigger": "deathrattle"
+        }
+      ]
+    },
+    {
+      "rule_id": "text-template-jail-872-v1",
+      "card_ids": [
+        "JAIL_872"
+      ],
+      "card_type": "MINION",
+      "trigger": "after_hero_attack",
+      "accepted_texts": [
+        {
+          "normalized": "After your hero attacks, draw a card.",
+          "sha256": "f06799e7e94f17ca198c2bc3374c4755d9dfd82a4031bccf43d7fdd0dd8ff907"
+        }
+      ],
+      "effects": [
+        {
+          "kind": "draw",
+          "target": "none",
+          "count": 1,
+          "trigger": "after_hero_attack"
+        }
+      ]
+    },
+    {
+      "rule_id": "text-template-rlk-708-v1",
+      "card_ids": [
+        "RLK_708"
+      ],
+      "card_type": "MINION",
+      "trigger": "battlecry_and_deathrattle",
+      "accepted_texts": [
+        {
+          "normalized": "Battlecry and Deathrattle: Draw a card.",
+          "sha256": "32ec3bdfd19d423813d60a1ffdd46464abb3c1f05247e5302594695dcf29d598"
+        }
+      ],
+      "effects": [
+        {
+          "kind": "draw",
+          "target": "none",
+          "count": 1
+        },
+        {
+          "kind": "draw",
+          "target": "none",
+          "count": 1,
+          "trigger": "deathrattle"
+        }
+      ]
+    },
+    {
+      "rule_id": "text-template-rlk-709-v1",
+      "card_ids": [
+        "RLK_709"
+      ],
+      "card_type": "SPELL",
+      "trigger": "play_resolution",
+      "accepted_texts": [
+        {
+          "normalized": "Deal 2 damage to all enemies. Draw a card.",
+          "sha256": "5be220cdde9d9dd6a524211bb59f67030d8d8d1c5a3c50f393df041cd31121b8"
+        }
+      ],
+      "effects": [
+        {
+          "kind": "damage",
+          "amount": 2,
+          "target": "all_enemy_characters"
+        },
+        {
+          "kind": "draw",
+          "target": "none",
+          "count": 1
+        }
+      ]
+    },
+    {
+      "rule_id": "text-template-sch-142-v1",
+      "card_ids": [
+        "SCH_142"
+      ],
+      "card_type": "MINION",
+      "trigger": "turn_end",
+      "accepted_texts": [
+        {
+          "normalized": "At the end of your turn, draw until you have 3 cards.",
+          "sha256": "1dfabb07cdf659e23f53b3d7c4d2309328f2cd9d2ef5b4ee14cca34faf85b7f6"
+        }
+      ],
+      "effects": [
+        {
+          "kind": "draw_until_hand_count",
+          "target": "none",
+          "count": 3,
+          "trigger": "turn_end"
+        }
+      ]
+    },
+    {
+      "rule_id": "text-template-sch-231-v1",
+      "card_ids": [
+        "SCH_231"
+      ],
+      "card_type": "MINION",
+      "trigger": "spellburst",
+      "accepted_texts": [
+        {
+          "normalized": "Spellburst: Gain +2 Attack.",
+          "sha256": "cd197ba7b8dd522ff0ae34672b233ea51d34acb8dc8e1df773658cc96b732396"
+        }
+      ],
+      "effects": [
+        {
+          "kind": "buff_attack",
+          "amount": 2,
+          "target": "self",
+          "trigger": "spellburst"
+        }
+      ]
+    },
+    {
+      "rule_id": "text-template-sch-311-v1",
+      "card_ids": [
+        "SCH_311"
+      ],
+      "card_type": "MINION",
+      "trigger": "battlecry",
+      "accepted_texts": [
+        {
+          "normalized": "Rush Battlecry: Give your other minions Rush .",
+          "sha256": "c20d75d2e5f8874a9721080957d2de1ee5884360e480a596e88bb84c491c5f9f"
+        }
+      ],
+      "effects": [
+        {
+          "kind": "grant_keywords",
+          "target": "all_other_friendly_minions",
+          "rush": true
+        }
+      ]
+    },
+    {
+      "rule_id": "text-template-sch-313-v1",
+      "card_ids": [
+        "SCH_313"
+      ],
+      "card_type": "MINION",
+      "trigger": "spellburst",
+      "accepted_texts": [
+        {
+          "normalized": "Spellburst: Deal 2 damage to all other minions.",
+          "sha256": "1f6f8006a32ec408db97400581420d6aada7fb3bcf434bdbb25be64bde1a3c0b"
+        }
+      ],
+      "effects": [
+        {
+          "kind": "damage",
+          "amount": 2,
+          "target": "all_other_minions",
+          "trigger": "spellburst"
+        }
+      ]
+    },
+    {
+      "rule_id": "text-template-sch-340-v1",
+      "card_ids": [
+        "SCH_340"
+      ],
+      "card_type": "MINION",
+      "trigger": "deathrattle",
+      "accepted_texts": [
+        {
+          "normalized": "Deathrattle: Summon a 4/4 Hapless Handler.",
+          "sha256": "ab9146621aa960351da314b5b641e48dcb2e48701bf8f0818858b871895a4746"
+        }
+      ],
+      "effects": [
+        {
+          "kind": "summon",
+          "target": "none",
+          "count": 1,
+          "card_id": "SCH_340t",
+          "name": "Hapless Handler",
+          "attack": 4,
+          "health": 4,
+          "trigger": "deathrattle"
+        }
+      ]
+    },
+    {
+      "rule_id": "text-template-sch-422-v1",
+      "card_ids": [
+        "SCH_422"
+      ],
+      "card_type": "SPELL",
+      "trigger": "play_resolution",
+      "accepted_texts": [
+        {
+          "normalized": "Draw an Outcast card from your deck.",
+          "sha256": "539c9ce13b5c1462837cd300747a0e6211b6869b8d936f2a84c5c4ed64d3875d"
+        }
+      ],
+      "effects": [
+        {
+          "kind": "draw_from_pool",
+          "target": "none",
+          "count": 1,
+          "random": true,
+          "pool_selection": "uniform_random",
+          "pool_destination": "hand",
+          "offer_count": 1,
+          "with_replacement": false,
+          "pool": {
+            "source": "owner_deck",
+            "collectible": true,
+            "card_types": [],
+            "class_mode": "any",
+            "spell_school_ids": [],
+            "minion_type_ids": [],
+            "required_keywords": [
+              "outcast"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "rule_id": "text-template-sch-526-v1",
+      "card_ids": [
+        "SCH_526"
+      ],
+      "card_type": "MINION",
+      "trigger": "multi_event",
+      "accepted_texts": [
+        {
+          "normalized": "Battlecry: Set the Health of all other minions to 1. Deathrattle: Deal 1 damage to all minions.",
+          "sha256": "8d8a2b5f823fa7dccb3e96fce7999179e893639cc870b5990deb67947abcebbf"
+        }
+      ],
+      "effects": [
+        {
+          "kind": "set_health",
+          "amount": 1,
+          "target": "all_other_minions"
+        },
+        {
+          "kind": "damage",
+          "amount": 1,
+          "target": "all_minions",
+          "trigger": "deathrattle"
+        }
+      ]
+    },
+    {
+      "rule_id": "text-template-sch-532-v1",
+      "card_ids": [
+        "SCH_532"
+      ],
+      "card_type": "MINION",
+      "trigger": "spellburst",
+      "accepted_texts": [
+        {
+          "normalized": "Divine Shield Spellburst: Gain Divine Shield .",
+          "sha256": "08976d5a1b3965e8783e4ecb8715294fa4c25902285dc29272602a2befcae63c"
+        }
+      ],
+      "effects": [
+        {
+          "kind": "grant_keywords",
+          "target": "self",
+          "divine_shield": true,
+          "trigger": "spellburst"
+        }
+      ]
+    },
+    {
+      "rule_id": "text-template-sch-535-v1",
+      "card_ids": [
+        "SCH_535"
+      ],
+      "card_type": "SPELL",
+      "trigger": "play_resolution",
+      "accepted_texts": [
+        {
+          "normalized": "Lifesteal Deal 3 damage to all minions.",
+          "sha256": "ad558c84510dc8a71dce7ba89c1d4070cacf0301a98fe1584a5e9c2436415b2c"
+        }
+      ],
+      "effects": [
+        {
+          "kind": "damage",
+          "amount": 3,
+          "target": "all_minions"
+        }
+      ]
+    },
+    {
+      "rule_id": "text-template-sch-614-v1",
+      "card_ids": [
+        "SCH_614"
+      ],
+      "card_type": "MINION",
+      "trigger": "spellburst",
+      "accepted_texts": [
+        {
+          "normalized": "Spellburst: Refresh your Mana Crystals.",
+          "sha256": "7308f13ff4d051b6c1689a87b6dfee04f712f452126989ee4903567da4ae96b7"
+        }
+      ],
+      "effects": [
+        {
+          "kind": "refresh_mana",
+          "amount": 10,
+          "target": "none",
+          "trigger": "spellburst"
+        }
+      ]
+    },
+    {
+      "rule_id": "text-template-sch-622-v1",
+      "card_ids": [
+        "SCH_622"
+      ],
+      "card_type": "WEAPON",
+      "trigger": "after_hero_attack",
+      "accepted_texts": [
+        {
+          "normalized": "After your hero attacks, gain +1 Attack.",
+          "sha256": "7f0e765ebbeda40db1b20adec90a572b76df1e7a44a987ad8edc5f59d9657b63"
+        }
+      ],
+      "effects": [
+        {
+          "kind": "buff_attack",
+          "amount": 1,
+          "target": "self",
+          "trigger": "after_hero_attack"
+        }
+      ]
+    },
+    {
+      "rule_id": "text-template-tid-001-v1",
+      "card_ids": [
+        "TID_001"
+      ],
+      "card_type": "SPELL",
+      "trigger": "play_resolution",
+      "accepted_texts": [
+        {
+          "normalized": "Deal 1 damage to an enemy, twice.",
+          "sha256": "b4f7b540f7927135000cad44f000d07a4629f559bc1ac50888af8c1946ab4133"
+        }
+      ],
+      "effects": [
+        {
+          "kind": "damage",
+          "amount": 1,
+          "target": "enemy_character"
+        },
+        {
+          "kind": "damage",
+          "amount": 1,
+          "target": "enemy_character"
+        }
+      ]
+    },
+    {
+      "rule_id": "text-template-tid-716-v1",
+      "card_ids": [
+        "TID_716"
+      ],
+      "card_type": "MINION",
+      "trigger": "battlecry",
+      "accepted_texts": [
+        {
+          "normalized": "Battlecry: Deal 5 damage. Gain 8 Armor.",
+          "sha256": "9c6d8781800a7e479c00a348816cbb7ceaa0539d5558997ccf1b93583a13aa9f"
+        }
+      ],
+      "effects": [
+        {
+          "kind": "damage",
+          "amount": 5,
+          "target": "any_character"
+        },
+        {
+          "kind": "armor",
+          "amount": 8,
+          "target": "none"
+        }
+      ]
+    },
+    {
+      "rule_id": "text-template-time-015-v1",
+      "card_ids": [
+        "TIME_015"
+      ],
+      "card_type": "MINION",
+      "trigger": "battlecry",
+      "accepted_texts": [
+        {
+          "normalized": "Divine Shield Battlecry: Restore 3 Health to your hero and give them Divine Shield .",
+          "sha256": "457eca04e3ba4f2a331cb28a4775b365532183abcdcd941a1eb40194334ed90f"
+        }
+      ],
+      "effects": [
+        {
+          "kind": "heal",
+          "amount": 3,
+          "target": "friendly_hero"
+        },
+        {
+          "kind": "grant_keywords",
+          "target": "friendly_hero",
+          "divine_shield": true
+        }
+      ]
+    },
+    {
+      "rule_id": "text-template-time-428-v1",
+      "card_ids": [
+        "TIME_428"
+      ],
+      "card_type": "MINION",
+      "trigger": "turn_end",
+      "accepted_texts": [
+        {
+          "normalized": "At the end of your turn, give your other minions +1 Health.",
+          "sha256": "e633413ff641fc9fe356745a468e38e1c43fb417fd34f5bb14630ecf7f436c86"
+        }
+      ],
+      "effects": [
+        {
+          "kind": "buff_health",
+          "amount": 1,
+          "target": "all_other_friendly_minions",
+          "trigger": "turn_end"
+        }
+      ]
+    },
+    {
+      "rule_id": "text-template-time-601-v1",
+      "card_ids": [
+        "TIME_601"
+      ],
+      "card_type": "MINION",
+      "trigger": "battlecry",
+      "accepted_texts": [
+        {
+          "normalized": "Battlecry: Draw until you have 3 cards.",
+          "sha256": "956f14bb1bbaed1671a95e12d1877830a4f50ccc8f9ce661f1faec8d4fba575f"
+        }
+      ],
+      "effects": [
+        {
+          "kind": "draw_until_hand_count",
+          "target": "none",
+          "count": 3
+        }
+      ]
+    },
+    {
+      "rule_id": "text-template-tlc-237-v1",
+      "card_ids": [
+        "TLC_237"
+      ],
+      "card_type": "MINION",
+      "trigger": "deathrattle",
+      "accepted_texts": [
+        {
+          "normalized": "Deathrattle: Summon four 2/1 Hatchlings.",
+          "sha256": "ee79db3668fb5b4e8e7603b7bb31720058b2b6e9a80995e5927a2d2664c426ba"
+        }
+      ],
+      "effects": [
+        {
+          "kind": "summon",
+          "target": "none",
+          "count": 4,
+          "card_id": "TLC_237t",
+          "name": "Skyscreamer Hatchling",
+          "attack": 2,
+          "health": 1,
+          "trigger": "deathrattle"
+        }
+      ]
+    },
+    {
+      "rule_id": "text-template-tlc-256-v1",
+      "card_ids": [
+        "TLC_256"
+      ],
+      "card_type": "MINION",
+      "trigger": "after_spell_cast",
+      "accepted_texts": [
+        {
+          "normalized": "After you cast a spell, gain Divine Shield .",
+          "sha256": "e141abcf5c90835b46d7332ff33cc42f1c4ce0fd306e9ce78bdb3d3d0e4ed17b"
+        }
+      ],
+      "effects": [
+        {
+          "kind": "grant_keywords",
+          "target": "self",
+          "divine_shield": true,
+          "trigger": "after_spell_cast"
+        }
+      ]
+    },
+    {
+      "rule_id": "text-template-tlc-443-v1",
+      "card_ids": [
+        "TLC_443"
+      ],
+      "card_type": "MINION",
+      "trigger": "deathrattle",
+      "accepted_texts": [
+        {
+          "normalized": "Reborn Deathrattle: Summon a 2/2 Undead Beast with Taunt .",
+          "sha256": "bf979ce625ec2b350b2ebb293abe10ee9eb6c5da56c23d9aa05a0d2df3adc3cb"
+        }
+      ],
+      "effects": [
+        {
+          "kind": "summon",
+          "target": "none",
+          "count": 1,
+          "card_id": "TLC_443t",
+          "name": "Reanimated Ossodon",
+          "attack": 2,
+          "health": 2,
+          "taunt": true,
+          "trigger": "deathrattle"
+        }
+      ]
+    },
+    {
+      "rule_id": "text-template-tlc-478-v1",
+      "card_ids": [
+        "TLC_478"
+      ],
+      "card_type": "WEAPON",
+      "trigger": "after_hero_attack",
+      "accepted_texts": [
+        {
+          "normalized": "After your hero attacks, deal 1 damage to all minions.",
+          "sha256": "f31e35704b228f857b85320f57c0e8eb6d13da6d992a98d0cfbc0d2c65d7d3d5"
+        }
+      ],
+      "effects": [
+        {
+          "kind": "damage",
+          "amount": 1,
+          "target": "all_minions",
+          "trigger": "after_hero_attack"
+        }
+      ]
+    },
+    {
+      "rule_id": "text-template-tlc-833-v1",
+      "card_ids": [
+        "TLC_833"
+      ],
+      "card_type": "WEAPON",
+      "trigger": "after_hero_attack",
+      "accepted_texts": [
+        {
+          "normalized": "After your hero attacks, summon a 2/1 Grub with Rush .",
+          "sha256": "abe79fa9a673b321bcfc99c92bb5541934586dcaf0eeb31406c27b335bc68587"
+        }
+      ],
+      "effects": [
+        {
+          "kind": "summon",
+          "target": "none",
+          "count": 1,
+          "card_id": "TLC_903t",
+          "name": "Silithid Grub",
+          "attack": 2,
+          "health": 1,
+          "rush": true,
+          "trigger": "after_hero_attack"
+        }
+      ]
+    },
+    {
+      "rule_id": "text-template-tlc-event-402-v1",
+      "card_ids": [
+        "TLC_EVENT_402"
+      ],
+      "card_type": "WEAPON",
+      "trigger": "deathrattle",
+      "accepted_texts": [
+        {
+          "normalized": "Deathrattle: Destroy all minions.",
+          "sha256": "bc428e10d9cd4f47ba52f1097d907210135378f155c8a8c26c153e37e79f2421"
+        }
+      ],
+      "effects": [
+        {
+          "kind": "destroy",
+          "target": "all_minions",
+          "trigger": "deathrattle"
+        }
+      ]
+    },
+    {
+      "rule_id": "text-template-tsc-001-v1",
+      "card_ids": [
+        "TSC_001"
+      ],
+      "card_type": "MINION",
+      "trigger": "deathrattle",
+      "accepted_texts": [
+        {
+          "normalized": "Deathrattle: Deal 4 damage to the enemy hero.",
+          "sha256": "f8545b6dc9f1ae9e558994b1e60ea207bc853c13c5d71115f974507d213937ac"
+        }
+      ],
+      "effects": [
+        {
+          "kind": "damage",
+          "amount": 4,
+          "target": "enemy_hero",
+          "trigger": "deathrattle"
+        }
+      ]
+    },
+    {
+      "rule_id": "text-template-tsc-002-v1",
+      "card_ids": [
+        "TSC_002"
+      ],
+      "card_type": "MINION",
+      "trigger": "after_hero_attack",
+      "accepted_texts": [
+        {
+          "normalized": "After your hero attacks, deal 1 damage to all enemies.",
+          "sha256": "d50dc52690b8a0b598a8013772e604dd0dfa9bc8f37235598015ac5f9b12390a"
+        }
+      ],
+      "effects": [
+        {
+          "kind": "damage",
+          "amount": 1,
+          "target": "all_enemy_characters",
+          "trigger": "after_hero_attack"
+        }
+      ]
+    },
+    {
+      "rule_id": "text-template-tsc-034-v1",
+      "card_ids": [
+        "TSC_034"
+      ],
+      "card_type": "MINION",
+      "trigger": "battlecry",
+      "accepted_texts": [
+        {
+          "normalized": "Battlecry: Draw 3 Murlocs.",
+          "sha256": "22becaf31b00d01efcff1e57c7f980937f2e34bf5a73e11c91d6a3a5d306a55c"
+        }
+      ],
+      "effects": [
+        {
+          "kind": "draw_from_pool",
+          "target": "none",
+          "count": 3,
+          "random": true,
+          "pool_selection": "uniform_random",
+          "pool_destination": "hand",
+          "offer_count": 1,
+          "with_replacement": false,
+          "pool": {
+            "source": "owner_deck",
+            "collectible": true,
+            "card_types": [
+              "MINION"
+            ],
+            "class_mode": "any",
+            "spell_school_ids": [],
+            "minion_type_ids": [
+              14
+            ],
+            "required_keywords": []
+          }
+        }
+      ]
+    },
+    {
+      "rule_id": "text-template-tsc-932-v1",
+      "card_ids": [
+        "TSC_932"
+      ],
+      "card_type": "SPELL",
+      "trigger": "play_resolution",
+      "accepted_texts": [
+        {
+          "normalized": "Deal 3 damage to an enemy. Summon a 5/5 Shark with Rush .",
+          "sha256": "787b20cb46f7dbdd9392b2b8ac09db377d93587fe4fa28525bdcf1aeb9217fb8"
+        }
+      ],
+      "effects": [
+        {
+          "kind": "damage",
+          "amount": 3,
+          "target": "enemy_character"
+        },
+        {
+          "kind": "summon",
+          "target": "none",
+          "count": 1,
+          "card_id": "TSC_932t",
+          "name": "Tiger Shark",
+          "attack": 5,
+          "health": 5,
+          "rush": true
+        }
+      ]
+    },
+    {
+      "rule_id": "text-template-tsc-935-v1",
+      "card_ids": [
+        "TSC_935"
+      ],
+      "card_type": "MINION",
+      "trigger": "deathrattle",
+      "accepted_texts": [
+        {
+          "normalized": "Deathrattle: Your opponent draws 2 cards.",
+          "sha256": "489b1f90ec348ef85c27e1209c90c2b370c501efbd745e7b4d410a5c221ca9bc"
+        }
+      ],
+      "effects": [
+        {
+          "kind": "draw_opponent",
+          "target": "none",
+          "count": 2,
+          "trigger": "deathrattle"
+        }
+      ]
+    },
+    {
+      "rule_id": "text-template-tsc-938-v1",
+      "card_ids": [
+        "TSC_938"
+      ],
+      "card_type": "MINION",
+      "trigger": "deathrattle",
+      "accepted_texts": [
+        {
+          "normalized": "Taunt Deathrattle: Draw a card.",
+          "sha256": "564cb9569b6c128d565a92c1efd88fcedc302fe3486ab9c59e87f1589d9dde72"
+        }
+      ],
+      "effects": [
+        {
+          "kind": "draw",
+          "target": "none",
+          "count": 1,
+          "trigger": "deathrattle"
+        }
+      ]
+    },
+    {
+      "rule_id": "text-template-tsc-941-v1",
+      "card_ids": [
+        "TSC_941"
+      ],
+      "card_type": "SPELL",
+      "trigger": "play_resolution",
+      "accepted_texts": [
+        {
+          "normalized": "Gain 3 Armor. Summon a 2/3 Naga with Taunt .",
+          "sha256": "21e39994a76563da4a465d0c1c88255fdadf2033e29a7afff7be0b63bba503bf"
+        }
+      ],
+      "effects": [
+        {
+          "kind": "armor",
+          "amount": 3,
+          "target": "none"
+        },
+        {
+          "kind": "summon",
+          "target": "none",
+          "count": 1,
+          "card_id": "TSC_941t",
+          "name": "Naga Centaur",
+          "attack": 2,
+          "health": 3,
+          "taunt": true
+        }
+      ]
+    },
+    {
+      "rule_id": "text-template-wc-008-v1",
+      "card_ids": [
+        "WC_008"
+      ],
+      "card_type": "MINION",
+      "trigger": "frenzy",
+      "accepted_texts": [
+        {
+          "normalized": "Frenzy: Summon four 1/1 Hyenas with Rush .",
+          "sha256": "514e0dcd8db9cbfa7eaedb7aed7bc9b3b3ee04888e4ae7e7b5210abae4a6560f"
+        }
+      ],
+      "effects": [
+        {
+          "kind": "summon",
+          "target": "none",
+          "count": 4,
+          "card_id": "BAR_035t",
+          "name": "Swift Hyena",
+          "attack": 1,
+          "health": 1,
+          "rush": true,
+          "trigger": "frenzy"
+        }
+      ]
+    },
+    {
+      "rule_id": "text-template-wc-026-v1",
+      "card_ids": [
+        "WC_026"
+      ],
+      "card_type": "MINION",
+      "trigger": "multi_event",
+      "accepted_texts": [
+        {
+          "normalized": "Frenzy: Gain 8 Armor. Deathrattle: Equip a 2/5 Turtle Spike.",
+          "sha256": "43ca3a532476080951ef81333a3a36760d33b3fb78495f4662b3adbd8c995041"
+        }
+      ],
+      "effects": [
+        {
+          "kind": "armor",
+          "amount": 8,
+          "target": "none",
+          "trigger": "frenzy"
+        },
+        {
+          "kind": "equip_weapon",
+          "target": "none",
+          "card_id": "WC_026t",
+          "name": "Turtle Spike",
+          "attack": 2,
+          "durability": 5,
+          "trigger": "deathrattle"
+        }
+      ]
+    },
+    {
+      "rule_id": "text-template-wc-032-v1",
+      "card_ids": [
+        "WC_032"
+      ],
+      "card_type": "WEAPON",
+      "trigger": "deathrattle",
+      "accepted_texts": [
+        {
+          "normalized": "Deathrattle: Give your minions Divine Shield .",
+          "sha256": "549a1ed7e5bc343ce2bbba4c387bdbf9dd8f0cb6f020ef1eee55b4574912be16"
+        }
+      ],
+      "effects": [
+        {
+          "kind": "grant_keywords",
+          "target": "all_friendly_minions",
+          "divine_shield": true,
+          "trigger": "deathrattle"
+        }
+      ]
+    },
+    {
+      "rule_id": "text-template-wc-701-v1",
+      "card_ids": [
+        "WC_701"
+      ],
+      "card_type": "MINION",
+      "trigger": "deathrattle",
+      "accepted_texts": [
+        {
+          "normalized": "Rush Deathrattle: Deal 1 damage to all enemy minions.",
+          "sha256": "bd1ee9e83735bed735a8789000ab5b27ef01b9fb1bd7d8106540516cb5e75643"
+        }
+      ],
+      "effects": [
+        {
+          "kind": "damage",
+          "amount": 1,
+          "target": "all_enemy_minions",
+          "trigger": "deathrattle"
+        }
+      ]
+    },
+    {
+      "rule_id": "text-template-ww-090-v1",
+      "card_ids": [
+        "WW_090"
+      ],
+      "card_type": "SPELL",
+      "trigger": "play_resolution",
+      "accepted_texts": [
+        {
+          "normalized": "Deal 6 damage to all minions. Summon a 6/6 Tumbleweed.",
+          "sha256": "f2b471101bdb078119ef3b147dd0fb590981bf08685894be2dda3b2f50626ad6"
+        }
+      ],
+      "effects": [
+        {
+          "kind": "damage",
+          "amount": 6,
+          "target": "all_minions"
+        },
+        {
+          "kind": "summon",
+          "target": "none",
+          "count": 1,
+          "card_id": "WW_090t",
+          "name": "Tumbleweed",
+          "attack": 6,
+          "health": 6
+        }
+      ]
+    },
+    {
+      "rule_id": "text-template-ww-391-v1",
+      "card_ids": [
+        "WW_391"
+      ],
+      "card_type": "MINION",
+      "trigger": "turn_end",
+      "accepted_texts": [
+        {
+          "normalized": "At the end of your turn, draw a card.",
+          "sha256": "f9033daf89d5c1ce30bbe8ca9de2d43657fa4dbf3dca2b950d5ffbf6d039de9e"
+        }
+      ],
+      "effects": [
+        {
+          "kind": "draw",
+          "target": "none",
+          "count": 1,
+          "trigger": "turn_end"
+        }
+      ]
+    },
+    {
+      "rule_id": "text-template-ww-410-v1",
+      "card_ids": [
+        "WW_410"
+      ],
+      "card_type": "SPELL",
+      "trigger": "play_resolution",
+      "accepted_texts": [
+        {
+          "normalized": "Deal 7 damage to a minion. Draw 7 cards.",
+          "sha256": "ce2f8bdc5bbfc3e66f6f4f35cef9aaa1d08808b3b4786c6a3013dbc65e95c9dd"
+        }
+      ],
+      "effects": [
+        {
+          "kind": "damage",
+          "amount": 7,
+          "target": "any_minion"
+        },
+        {
+          "kind": "draw",
+          "target": "none",
+          "count": 7
+        }
+      ]
+    },
+    {
+      "rule_id": "text-template-ww-806-v1",
+      "card_ids": [
+        "WW_806"
+      ],
+      "card_type": "SPELL",
+      "trigger": "play_resolution",
+      "accepted_texts": [
+        {
+          "normalized": "Summon two 1/1 Snakes with Stealth .",
+          "sha256": "ece531320af7440de88abd6f698ec73ad6773e8dac36afd2898b1112bf0e2a2c"
+        }
+      ],
+      "effects": [
+        {
+          "kind": "summon",
+          "target": "none",
+          "count": 2,
+          "card_id": "WW_806t",
+          "name": "Sidewinder",
+          "attack": 1,
+          "health": 1,
+          "stealth": true
+        }
+      ]
+    }
+  ]
+}

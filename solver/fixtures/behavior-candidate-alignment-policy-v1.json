@@ -1,0 +1,13 @@
+{
+  "schema": "behavior-candidate-alignment-policy-v1",
+  "thresholds": {
+    "min_train_eligible_games": 1,
+    "min_validation_eligible_games": 1,
+    "min_test_eligible_games": 1,
+    "min_train_eligible_records": 1,
+    "min_validation_eligible_records": 1,
+    "min_test_eligible_records": 1,
+    "min_local_exact_alignment_rate": 0.0,
+    "min_local_candidate_set_eligible_rate": 0.0
+  }
+}
