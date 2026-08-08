@@ -1282,6 +1282,126 @@ fn resolve_board_trigger(
     Ok(())
 }
 
+fn consume_once_trigger(
+    state: &mut GameState,
+    owner_side: PlayerSide,
+    entity_id: &str,
+    trigger: &str,
+) {
+    let owner = player_mut(state, owner_side);
+    if let Some(source) = owner
+        .board
+        .iter_mut()
+        .chain(owner.weapon.iter_mut())
+        .find(|source| source.entity_id.as_ref() == entity_id)
+    {
+        source.effects = source
+            .effects
+            .iter()
+            .filter(|effect| effect.trigger.as_ref() != trigger)
+            .cloned()
+            .collect::<Vec<_>>()
+            .into();
+    }
+}
+
+fn resolve_entity_once_trigger_outcomes(
+    state: &GameState,
+    owner_side: PlayerSide,
+    entity_id: &str,
+    trigger: &str,
+) -> Result<Vec<WeightedState>, SolverError> {
+    let Some(source) = player(state, owner_side)
+        .board
+        .iter()
+        .find(|source| source.entity_id.as_ref() == entity_id && source.current_health > 0)
+        .cloned()
+    else {
+        return Ok(vec![WeightedState {
+            state: state.clone(),
+            probability: ExactProbability::CERTAIN,
+        }]);
+    };
+    if !source
+        .effects
+        .iter()
+        .any(|effect| effect.trigger.as_ref() == trigger)
+    {
+        return Ok(vec![WeightedState {
+            state: state.clone(),
+            probability: ExactProbability::CERTAIN,
+        }]);
+    }
+    let mut prepared = state.clone();
+    consume_once_trigger(&mut prepared, owner_side, entity_id, trigger);
+    apply_trigger_effects_outcomes(&prepared, owner_side, &source, trigger, "")
+}
+
+fn resolve_board_trigger_outcomes(
+    state: &GameState,
+    owner_side: PlayerSide,
+    trigger: &str,
+) -> Result<Vec<WeightedState>, SolverError> {
+    let queued = {
+        let owner = player(state, owner_side);
+        owner
+            .board
+            .iter()
+            .chain(owner.weapon.iter())
+            .filter(|source| source.current_health > 0 || source.card_type == CardType::Weapon)
+            .flat_map(|source| {
+                source
+                    .effects
+                    .iter()
+                    .filter(move |effect| effect.trigger.as_ref() == trigger)
+                    .cloned()
+                    .map(move |effect| (source.clone(), effect))
+            })
+            .collect::<Vec<_>>()
+    };
+    let mut prepared = state.clone();
+    if trigger == "spellburst" {
+        let mut consumed_sources = Vec::<Arc<str>>::new();
+        for (source, _) in &queued {
+            if consumed_sources
+                .iter()
+                .any(|entity_id| entity_id == &source.entity_id)
+            {
+                continue;
+            }
+            consumed_sources.push(Arc::clone(&source.entity_id));
+        }
+        for entity_id in consumed_sources {
+            consume_once_trigger(&mut prepared, owner_side, &entity_id, "spellburst");
+        }
+    }
+    let mut outcomes = vec![WeightedState {
+        state: prepared,
+        probability: ExactProbability::CERTAIN,
+    }];
+    for (source, effect) in queued {
+        let mut single_effect_source = source;
+        single_effect_source.effects = vec![effect].into();
+        let mut expanded = Vec::<WeightedState>::new();
+        for outcome in outcomes {
+            for child in apply_trigger_effects_outcomes(
+                &outcome.state,
+                owner_side,
+                &single_effect_source,
+                trigger,
+                "",
+            )? {
+                expanded.push(WeightedState {
+                    state: child.state,
+                    probability: outcome.probability.multiply(child.probability)?,
+                });
+            }
+        }
+        outcomes = merge_weighted_states(expanded)?;
+    }
+    Ok(outcomes)
+}
+
 pub(crate) fn resolve_active_board_trigger(
     state: &mut GameState,
     trigger: &str,
@@ -1464,6 +1584,25 @@ fn resolve_broken_weapon(
     remove_dead(state)
 }
 
+fn resolve_broken_weapon_outcomes(
+    state: &GameState,
+    actor_side: PlayerSide,
+    weapon: &Card,
+) -> Result<Vec<WeightedState>, SolverError> {
+    let mut prepared = state.clone();
+    if weapon
+        .effects
+        .iter()
+        .any(|effect| effect.kind.as_ref() == "draw_non_starting_spell_on_weapon_break")
+    {
+        draw_non_starting_spell(&mut prepared, actor_side);
+    }
+    player_mut(&mut prepared, actor_side)
+        .graveyard
+        .push(weapon.clone());
+    apply_trigger_effects_outcomes(&prepared, actor_side, weapon, "deathrattle", "")
+}
+
 fn gain_hero_attack(state: &mut GameState, actor_side: PlayerSide, amount: u16) {
     let actor = player_mut(state, actor_side);
     actor.hero.attack = actor.hero.attack.saturating_add(amount);
@@ -1508,17 +1647,45 @@ fn resolve_surviving_frenzy_after_damage(
     resolve_entity_once_trigger(state, owner_side, &entity_id, "frenzy")
 }
 
-fn apply_character_effect(
+fn resolve_surviving_frenzy_after_damage_outcomes(
+    state: &GameState,
+    location: CharacterLocation,
+    outcome: DamageOutcome,
+) -> Result<Vec<WeightedState>, SolverError> {
+    if outcome.dealt == 0 {
+        return Ok(vec![WeightedState {
+            state: state.clone(),
+            probability: ExactProbability::CERTAIN,
+        }]);
+    }
+    let CharacterLocation::Board(owner_side, _) = location else {
+        return Ok(vec![WeightedState {
+            state: state.clone(),
+            probability: ExactProbability::CERTAIN,
+        }]);
+    };
+    if character(state, location).current_health == 0 {
+        return Ok(vec![WeightedState {
+            state: state.clone(),
+            probability: ExactProbability::CERTAIN,
+        }]);
+    }
+    let entity_id = character(state, location).entity_id.to_string();
+    resolve_entity_once_trigger_outcomes(state, owner_side, &entity_id, "frenzy")
+}
+
+fn apply_character_effect_without_triggers(
     state: &mut GameState,
     actor_side: PlayerSide,
     source: &Card,
     effect: &Effect,
     location: CharacterLocation,
     spell_power: u16,
-) -> Result<(), SolverError> {
+) -> Result<Option<DamageOutcome>, SolverError> {
     let base_amount = u16::try_from(effect.amount).map_err(|_| {
         SolverError::Unsupported(format!("negative point effect on {}", source.entity_id))
     })?;
+    let mut damage_outcome = None;
     match effect.kind.as_ref() {
         "damage" => {
             let outcome = damage(state, location, base_amount.saturating_add(spell_power));
@@ -1542,7 +1709,7 @@ fn apply_character_effect(
                     outcome.dealt.saturating_sub(simultaneous_overkill),
                 );
             }
-            resolve_surviving_frenzy_after_damage(state, location, outcome)?;
+            damage_outcome = Some(outcome);
         }
         "heal" => {
             let target = character_mut(state, location);
@@ -1665,7 +1832,55 @@ fn apply_character_effect(
             )));
         }
     }
+    Ok(damage_outcome)
+}
+
+fn apply_character_effect(
+    state: &mut GameState,
+    actor_side: PlayerSide,
+    source: &Card,
+    effect: &Effect,
+    location: CharacterLocation,
+    spell_power: u16,
+) -> Result<(), SolverError> {
+    if let Some(outcome) = apply_character_effect_without_triggers(
+        state,
+        actor_side,
+        source,
+        effect,
+        location,
+        spell_power,
+    )? {
+        resolve_surviving_frenzy_after_damage(state, location, outcome)?;
+    }
     Ok(())
+}
+
+fn apply_character_effect_outcomes(
+    state: &GameState,
+    actor_side: PlayerSide,
+    source: &Card,
+    effect: &Effect,
+    location: CharacterLocation,
+    spell_power: u16,
+) -> Result<Vec<WeightedState>, SolverError> {
+    let mut child = state.clone();
+    let damage_outcome = apply_character_effect_without_triggers(
+        &mut child,
+        actor_side,
+        source,
+        effect,
+        location,
+        spell_power,
+    )?;
+    if let Some(outcome) = damage_outcome {
+        resolve_surviving_frenzy_after_damage_outcomes(&child, location, outcome)
+    } else {
+        Ok(vec![WeightedState {
+            state: child,
+            probability: ExactProbability::CERTAIN,
+        }])
+    }
 }
 
 fn replay_target_id(state: &GameState, actor_side: PlayerSide, card: &Card) -> Option<String> {
@@ -2238,6 +2453,68 @@ fn apply_deterministic_effect(
     apply_character_effect(state, actor_side, source, effect, location, spell_power)
 }
 
+fn apply_deterministic_effect_outcomes(
+    state: &GameState,
+    actor_side: PlayerSide,
+    source: &Card,
+    effect: &Effect,
+    target_id: &str,
+    spell_power: u16,
+) -> Result<Vec<WeightedState>, SolverError> {
+    if effect.random {
+        return Err(SolverError::Unsupported(format!(
+            "chance transition received random effect {:?} as deterministic",
+            effect.kind
+        )));
+    }
+    if effect.kind.as_ref() != "damage"
+        || automatic_target_locations(
+            state,
+            actor_side,
+            effect.target.as_ref(),
+            source.entity_id.as_ref(),
+        )
+        .is_some()
+        || effect.target.as_ref() == "none"
+    {
+        let mut child = state.clone();
+        apply_deterministic_effect(
+            &mut child,
+            actor_side,
+            source,
+            effect,
+            target_id,
+            spell_power,
+        )?;
+        return Ok(vec![WeightedState {
+            state: child,
+            probability: ExactProbability::CERTAIN,
+        }]);
+    }
+    let resolved_target = match effect.target.as_ref() {
+        "self" => source.entity_id.to_string(),
+        "enemy_hero" => player(state, other_side(actor_side))
+            .hero
+            .entity_id
+            .to_string(),
+        "friendly_hero" => player(state, actor_side).hero.entity_id.to_string(),
+        _ => target_id.to_owned(),
+    };
+    if !target_id.is_empty()
+        && matches!(effect.target.as_ref(), "enemy_hero" | "friendly_hero")
+        && primary_target_mode(source) == effect.target.as_ref()
+        && target_id != resolved_target
+    {
+        return Err(SolverError::IllegalAction(
+            "fixed hero target does not match the reviewed card rule".to_owned(),
+        ));
+    }
+    let location = find_character(state, &resolved_target).ok_or_else(|| {
+        SolverError::IllegalAction(format!("oracle target no longer exists: {resolved_target}"))
+    })?;
+    apply_character_effect_outcomes(state, actor_side, source, effect, location, spell_power)
+}
+
 fn random_effect_target_locations(
     state: &GameState,
     actor_side: PlayerSide,
@@ -2755,21 +3032,18 @@ fn apply_pool_effect_outcomes(
     Ok(outcomes)
 }
 
-fn apply_effects_outcomes(
+fn apply_effect_sequence_raw_outcomes(
     state: &GameState,
     actor_side: PlayerSide,
     source: &Card,
+    effects: &[Effect],
     target_id: &str,
 ) -> Result<Vec<WeightedState>, SolverError> {
     let mut outcomes = vec![WeightedState {
         state: state.clone(),
         probability: ExactProbability::CERTAIN,
     }];
-    for effect in source
-        .effects
-        .iter()
-        .filter(|effect| effect.trigger.as_ref() == "resolution")
-    {
+    for effect in effects {
         let mut expanded = Vec::new();
         for outcome in outcomes {
             let spell_power = if source.card_type == CardType::Spell {
@@ -2788,19 +3062,19 @@ fn apply_effects_outcomes(
                 continue;
             }
             if !effect.random {
-                let mut child = outcome.state;
-                apply_deterministic_effect(
-                    &mut child,
+                for child in apply_deterministic_effect_outcomes(
+                    &outcome.state,
                     actor_side,
                     source,
                     effect,
                     target_id,
                     spell_power,
-                )?;
-                expanded.push(WeightedState {
-                    state: child,
-                    probability: outcome.probability,
-                });
+                )? {
+                    expanded.push(WeightedState {
+                        state: child.state,
+                        probability: outcome.probability.multiply(child.probability)?,
+                    });
+                }
                 continue;
             }
             if effect.kind.as_ref() == "damage_split" {
@@ -2832,12 +3106,22 @@ fn apply_effects_outcomes(
                         for target in targets {
                             let mut child = point.state.clone();
                             let dealt = damage(&mut child, target, 1);
-                            resolve_surviving_frenzy_after_damage(&mut child, target, dealt)?;
-                            remove_dead(&mut child)?;
-                            point_outcomes.push(WeightedState {
-                                state: child,
-                                probability: point.probability.multiply(branch_probability)?,
-                            });
+                            for frenzy_child in resolve_surviving_frenzy_after_damage_outcomes(
+                                &child, target, dealt,
+                            )? {
+                                for death_child in
+                                    resolve_death_queue_outcomes(&frenzy_child.state)?
+                                {
+                                    point_outcomes.push(WeightedState {
+                                        state: death_child.state,
+                                        probability: point
+                                            .probability
+                                            .multiply(branch_probability)?
+                                            .multiply(frenzy_child.probability)?
+                                            .multiply(death_child.probability)?,
+                                    });
+                                }
+                            }
                         }
                     }
                     split = merge_weighted_states(point_outcomes)?;
@@ -2867,27 +3151,178 @@ fn apply_effects_outcomes(
             }
             let branch_probability = ExactProbability::uniform(targets.len())?;
             for target in targets {
-                let mut child = outcome.state.clone();
-                apply_character_effect(
-                    &mut child,
+                for child in apply_character_effect_outcomes(
+                    &outcome.state,
                     actor_side,
                     source,
                     effect,
                     target,
                     spell_power,
-                )?;
-                expanded.push(WeightedState {
-                    state: child,
-                    probability: outcome.probability.multiply(branch_probability)?,
-                });
+                )? {
+                    expanded.push(WeightedState {
+                        state: child.state,
+                        probability: outcome
+                            .probability
+                            .multiply(branch_probability)?
+                            .multiply(child.probability)?,
+                    });
+                }
             }
         }
         outcomes = merge_weighted_states(expanded)?;
     }
-    for outcome in &mut outcomes {
-        remove_dead(&mut outcome.state)?;
-    }
     merge_weighted_states(outcomes)
+}
+
+fn trigger_effects(source: &Card, trigger: &str) -> Vec<Effect> {
+    source
+        .effects
+        .iter()
+        .filter(|effect| effect.trigger.as_ref() == trigger)
+        .cloned()
+        .collect()
+}
+
+fn apply_trigger_effects_raw_outcomes(
+    state: &GameState,
+    actor_side: PlayerSide,
+    source: &Card,
+    trigger: &str,
+    target_id: &str,
+) -> Result<Vec<WeightedState>, SolverError> {
+    let effects = trigger_effects(source, trigger);
+    apply_effect_sequence_raw_outcomes(state, actor_side, source, &effects, target_id)
+}
+
+fn collect_dead_batch(state: &mut GameState) -> Result<Vec<(PlayerSide, Card)>, SolverError> {
+    let active_side = side_for_player(state, &state.active_player_id)?;
+    let mut queued = Vec::<(PlayerSide, Card)>::new();
+    for side in [active_side, other_side(active_side)] {
+        let owner = player_mut(state, side);
+        let mut surviving = Vec::with_capacity(owner.board.len());
+        for card in owner.board.drain(..) {
+            if occupies_board_slot(&card) {
+                surviving.push(card);
+            } else {
+                queued.push((side, card));
+            }
+        }
+        owner.board = surviving;
+    }
+    for (owner_side, dead) in &queued {
+        player_mut(state, *owner_side).graveyard.push(dead.clone());
+    }
+    Ok(queued)
+}
+
+/// Resolve simultaneous deaths in active-player order while preserving every
+/// public chance branch emitted by Deathrattles. Newly-created deaths are
+/// queued only after the complete current batch has resolved, matching the
+/// deterministic queue above without collapsing a random draw or target.
+fn resolve_death_queue_outcomes(state: &GameState) -> Result<Vec<WeightedState>, SolverError> {
+    let mut frontier = vec![WeightedState {
+        state: state.clone(),
+        probability: ExactProbability::CERTAIN,
+    }];
+    let mut completed = Vec::<WeightedState>::new();
+    while !frontier.is_empty() {
+        let mut next_frontier = Vec::<WeightedState>::new();
+        for outcome in frontier {
+            let mut base = outcome.state;
+            let queued = collect_dead_batch(&mut base)?;
+            if queued.is_empty() {
+                completed.push(WeightedState {
+                    state: base,
+                    probability: outcome.probability,
+                });
+                continue;
+            }
+            let mut branches = vec![WeightedState {
+                state: base,
+                probability: outcome.probability,
+            }];
+            for (owner_side, dead) in queued {
+                let mut expanded = Vec::<WeightedState>::new();
+                for branch in branches {
+                    for child in apply_trigger_effects_raw_outcomes(
+                        &branch.state,
+                        owner_side,
+                        &dead,
+                        "deathrattle",
+                        "",
+                    )? {
+                        expanded.push(WeightedState {
+                            state: child.state,
+                            probability: branch.probability.multiply(child.probability)?,
+                        });
+                    }
+                }
+                branches = merge_weighted_states(expanded)?;
+            }
+            next_frontier.extend(branches);
+        }
+        frontier = merge_weighted_states(next_frontier)?;
+    }
+    merge_weighted_states(completed)
+}
+
+fn resolve_weighted_death_queues(
+    outcomes: Vec<WeightedState>,
+) -> Result<Vec<WeightedState>, SolverError> {
+    let mut expanded = Vec::<WeightedState>::new();
+    for outcome in outcomes {
+        for child in resolve_death_queue_outcomes(&outcome.state)? {
+            expanded.push(WeightedState {
+                state: child.state,
+                probability: outcome.probability.multiply(child.probability)?,
+            });
+        }
+    }
+    merge_weighted_states(expanded)
+}
+
+fn apply_trigger_effects_outcomes(
+    state: &GameState,
+    actor_side: PlayerSide,
+    source: &Card,
+    trigger: &str,
+    target_id: &str,
+) -> Result<Vec<WeightedState>, SolverError> {
+    resolve_weighted_death_queues(apply_trigger_effects_raw_outcomes(
+        state, actor_side, source, trigger, target_id,
+    )?)
+}
+
+fn apply_effects_outcomes(
+    state: &GameState,
+    actor_side: PlayerSide,
+    source: &Card,
+    target_id: &str,
+) -> Result<Vec<WeightedState>, SolverError> {
+    apply_trigger_effects_outcomes(state, actor_side, source, "resolution", target_id)
+}
+
+fn effect_has_chance(effect: &Effect) -> bool {
+    effect.random || effect.pool.is_some()
+}
+
+fn card_has_chance_trigger(card: &Card, triggers: &[&str]) -> bool {
+    card.effects.iter().any(|effect| {
+        effect_has_chance(effect)
+            && triggers
+                .iter()
+                .any(|trigger| effect.trigger.as_ref() == *trigger)
+    })
+}
+
+fn state_has_chance_trigger(state: &GameState, triggers: &[&str]) -> bool {
+    [&state.friendly, &state.opponent].into_iter().any(|owner| {
+        owner
+            .board
+            .iter()
+            .chain(owner.weapon.iter())
+            .any(|card| card_has_chance_trigger(card, triggers))
+    })
 }
 
 pub(crate) fn action_has_random_resolution(state: &GameState, action: &Action) -> bool {
@@ -2896,34 +3331,44 @@ pub(crate) fn action_has_random_resolution(state: &GameState, action: &Action) -
     };
     let actor = player(state, actor_side);
     match action.kind {
-        ActionKind::PlayCard => actor.hand.iter().any(|card| {
-            card.entity_id == action.source_entity_id
-                && card.card_type != CardType::Location
-                && card
-                    .effects
-                    .iter()
-                    .any(|effect| effect.trigger.as_ref() == "resolution" && effect.random)
-        }),
-        ActionKind::HeroPower => actor.hero_power.as_ref().is_some_and(|card| {
-            card.entity_id == action.source_entity_id
-                && card
-                    .effects
-                    .iter()
-                    .any(|effect| effect.trigger.as_ref() == "resolution" && effect.random)
-        }),
-        ActionKind::LocationActivate => actor.board.iter().any(|card| {
-            card.entity_id == action.source_entity_id
-                && card.card_type == CardType::Location
-                && card
-                    .effects
-                    .iter()
-                    .any(|effect| effect.trigger.as_ref() == "resolution" && effect.random)
-        }),
-        ActionKind::Attack | ActionKind::EndTurn => false,
+        ActionKind::PlayCard => actor
+            .hand
+            .iter()
+            .find(|card| card.entity_id == action.source_entity_id)
+            .is_some_and(|card| {
+                card.card_type != CardType::Location
+                    && (card.effects.iter().any(|effect| {
+                        effect.trigger.as_ref() == "resolution" && effect_has_chance(effect)
+                    }) || state_has_chance_trigger(
+                        state,
+                        &["deathrattle", "frenzy", "after_spell_cast", "spellburst"],
+                    ))
+            }),
+        ActionKind::HeroPower => {
+            actor.hero_power.as_ref().is_some_and(|card| {
+                card.entity_id == action.source_entity_id
+                    && card.effects.iter().any(|effect| {
+                        effect.trigger.as_ref() == "resolution" && effect_has_chance(effect)
+                    })
+            }) || state_has_chance_trigger(state, &["deathrattle", "frenzy", "after_hero_power"])
+        }
+        ActionKind::LocationActivate => {
+            actor.board.iter().any(|card| {
+                card.entity_id == action.source_entity_id
+                    && card.card_type == CardType::Location
+                    && card.effects.iter().any(|effect| {
+                        effect.trigger.as_ref() == "resolution" && effect_has_chance(effect)
+                    })
+            }) || state_has_chance_trigger(state, &["deathrattle", "frenzy"])
+        }
+        ActionKind::Attack => {
+            state_has_chance_trigger(state, &["deathrattle", "frenzy", "after_hero_attack"])
+        }
+        ActionKind::EndTurn => state_has_chance_trigger(state, &["turn_end", "deathrattle"]),
     }
 }
 
-fn apply_random_card_play_outcomes(
+fn apply_chance_card_play_outcomes(
     state: &GameState,
     action: &Action,
 ) -> Result<Vec<ActionOutcome>, SolverError> {
@@ -2937,14 +3382,9 @@ fn apply_random_card_play_outcomes(
             SolverError::IllegalAction("card is not in the active player's hand".to_owned())
         })?;
     let card = player_mut(&mut next, actor_side).hand.remove(hand_index);
-    if card.card_type == CardType::Location
-        || !card
-            .effects
-            .iter()
-            .any(|effect| effect.trigger.as_ref() == "resolution" && effect.random)
-    {
+    if card.card_type == CardType::Location {
         return Err(SolverError::Unsupported(
-            "chance card-play transition requires a resolving random effect".to_owned(),
+            "Location placement does not resolve its activation effect".to_owned(),
         ));
     }
     let one_cost_triggers = if card.cost == 1 {
@@ -2962,11 +3402,16 @@ fn apply_random_card_play_outcomes(
     } else {
         None
     };
-    if let Some(previous) = replaced_weapon {
-        resolve_broken_weapon(&mut next, actor_side, previous)?;
-    }
-    {
-        let actor = player_mut(&mut next, actor_side);
+    let mut weighted = if let Some(previous) = replaced_weapon {
+        resolve_broken_weapon_outcomes(&next, actor_side, &previous)?
+    } else {
+        vec![WeightedState {
+            state: next,
+            probability: ExactProbability::CERTAIN,
+        }]
+    };
+    for outcome in &mut weighted {
+        let actor = player_mut(&mut outcome.state, actor_side);
         actor.mana = actor.mana.checked_sub(card.cost).ok_or_else(|| {
             SolverError::IllegalAction("card cost exceeds available mana".to_owned())
         })?;
@@ -3033,10 +3478,6 @@ fn apply_random_card_play_outcomes(
     } else {
         1
     };
-    let mut weighted = vec![WeightedState {
-        state: next,
-        probability: ExactProbability::CERTAIN,
-    }];
     for repetition in 0..repetitions {
         let mut expanded = Vec::new();
         for outcome in weighted {
@@ -3049,12 +3490,32 @@ fn apply_random_card_play_outcomes(
                 expanded.push(outcome);
                 continue;
             }
-            for mut child in
+            for child in
                 apply_effects_outcomes(&outcome.state, actor_side, &card, &action.target_entity_id)?
             {
                 if card.card_type == CardType::Spell {
-                    resolve_board_trigger(&mut child.state, actor_side, "after_spell_cast")?;
-                    resolve_board_trigger(&mut child.state, actor_side, "spellburst")?;
+                    let after_spell = resolve_board_trigger_outcomes(
+                        &child.state,
+                        actor_side,
+                        "after_spell_cast",
+                    )?;
+                    for after_spell_child in after_spell {
+                        for spellburst_child in resolve_board_trigger_outcomes(
+                            &after_spell_child.state,
+                            actor_side,
+                            "spellburst",
+                        )? {
+                            expanded.push(WeightedState {
+                                state: spellburst_child.state,
+                                probability: outcome
+                                    .probability
+                                    .multiply(child.probability)?
+                                    .multiply(after_spell_child.probability)?
+                                    .multiply(spellburst_child.probability)?,
+                            });
+                        }
+                    }
+                    continue;
                 }
                 expanded.push(WeightedState {
                     state: child.state,
@@ -3093,6 +3554,321 @@ fn apply_random_card_play_outcomes(
     }
     let weighted = merge_weighted_states(weighted)?;
     Ok(weighted
+        .into_iter()
+        .map(|outcome| ActionOutcome {
+            state: outcome.state,
+            ended_turn: false,
+            probability: outcome.probability,
+        })
+        .collect())
+}
+
+fn apply_chance_hero_power_outcomes(
+    state: &GameState,
+    action: &Action,
+) -> Result<Vec<ActionOutcome>, SolverError> {
+    let mut prepared = state.clone();
+    let actor_side = side_for_player(&prepared, &prepared.active_player_id)?;
+    let power = player(&prepared, actor_side)
+        .hero_power
+        .as_ref()
+        .filter(|power| power.entity_id == action.source_entity_id)
+        .cloned()
+        .ok_or_else(|| SolverError::IllegalAction("hero power disappeared".to_owned()))?;
+    {
+        let actor = player_mut(&mut prepared, actor_side);
+        actor.mana = actor.mana.checked_sub(power.cost).ok_or_else(|| {
+            SolverError::IllegalAction("hero power cost exceeds available mana".to_owned())
+        })?;
+        actor.hero_power_available = false;
+    }
+    let mut weighted = Vec::<WeightedState>::new();
+    for outcome in apply_effects_outcomes(&prepared, actor_side, &power, &action.target_entity_id)?
+    {
+        for triggered in
+            resolve_board_trigger_outcomes(&outcome.state, actor_side, "after_hero_power")?
+        {
+            weighted.push(WeightedState {
+                state: triggered.state,
+                probability: outcome.probability.multiply(triggered.probability)?,
+            });
+        }
+    }
+    let mut weighted = merge_weighted_states(weighted)?;
+    for outcome in &mut weighted {
+        reconcile_continuous_effects(state, &mut outcome.state)?;
+    }
+    Ok(weighted
+        .into_iter()
+        .map(|outcome| ActionOutcome {
+            state: outcome.state,
+            ended_turn: false,
+            probability: outcome.probability,
+        })
+        .collect())
+}
+
+fn apply_chance_location_outcomes(
+    state: &GameState,
+    action: &Action,
+) -> Result<Vec<ActionOutcome>, SolverError> {
+    let actor_side = side_for_player(state, &state.active_player_id)?;
+    let location = player(state, actor_side)
+        .board
+        .iter()
+        .find(|card| {
+            card.entity_id == action.source_entity_id && card.card_type == CardType::Location
+        })
+        .cloned()
+        .ok_or_else(|| {
+            SolverError::IllegalAction("location is not on the active player's board".to_owned())
+        })?;
+    if location.current_health == 0 {
+        return Err(SolverError::IllegalAction(
+            "location has no remaining charges".to_owned(),
+        ));
+    }
+    let mut weighted =
+        apply_effects_outcomes(state, actor_side, &location, &action.target_entity_id)?;
+    for outcome in &mut weighted {
+        let actor = player_mut(&mut outcome.state, actor_side);
+        let Some(location_index) = actor
+            .board
+            .iter()
+            .position(|card| card.entity_id == action.source_entity_id)
+        else {
+            continue;
+        };
+        let active_location = &mut actor.board[location_index];
+        active_location.current_health = active_location.current_health.saturating_sub(1);
+        if active_location.current_durability > 0 {
+            active_location.current_durability =
+                active_location.current_durability.saturating_sub(1);
+        }
+        if active_location.current_health == 0 {
+            let expired = actor.board.remove(location_index);
+            actor.graveyard.push(expired);
+        }
+        reconcile_continuous_effects(state, &mut outcome.state)?;
+    }
+    let weighted = merge_weighted_states(weighted)?;
+    Ok(weighted
+        .into_iter()
+        .map(|outcome| ActionOutcome {
+            state: outcome.state,
+            ended_turn: false,
+            probability: outcome.probability,
+        })
+        .collect())
+}
+
+fn apply_chance_end_turn_outcomes(state: &GameState) -> Result<Vec<ActionOutcome>, SolverError> {
+    let actor_side = side_for_player(state, &state.active_player_id)?;
+    let enemy_side = other_side(actor_side);
+    let mut weighted = resolve_board_trigger_outcomes(state, actor_side, "turn_end")?;
+    for outcome in &mut weighted {
+        player_mut(&mut outcome.state, actor_side).mana = 0;
+        outcome.state.active_player_id = Arc::clone(&player(&outcome.state, enemy_side).player_id);
+        outcome.state.turn = outcome.state.turn.saturating_add(1);
+    }
+    let weighted = merge_weighted_states(weighted)?;
+    Ok(weighted
+        .into_iter()
+        .map(|outcome| ActionOutcome {
+            state: outcome.state,
+            ended_turn: true,
+            probability: outcome.probability,
+        })
+        .collect())
+}
+
+fn apply_chance_attack_outcomes(
+    state: &GameState,
+    action: &Action,
+) -> Result<Vec<ActionOutcome>, SolverError> {
+    let mut prepared = state.clone();
+    let source = find_character(&prepared, &action.source_entity_id)
+        .ok_or_else(|| SolverError::IllegalAction("attack source disappeared".to_owned()))?;
+    let target = find_character(&prepared, &action.target_entity_id)
+        .ok_or_else(|| SolverError::IllegalAction("attack target disappeared".to_owned()))?;
+    let hero_attacked = matches!(source, CharacterLocation::Hero(_));
+    let attacker_damage = character(&prepared, source).attack;
+    let retaliation = if matches!(target, CharacterLocation::Hero(_)) {
+        0
+    } else {
+        character(&prepared, target).attack
+    };
+    let attacking_weapon = match source {
+        CharacterLocation::Hero(side) => player(&prepared, side).weapon.clone(),
+        CharacterLocation::Board(_, _) => None,
+    };
+    let attacker_poisonous = character(&prepared, source).poisonous
+        || attacking_weapon
+            .as_ref()
+            .is_some_and(|weapon| weapon.poisonous);
+    let attacker_lifesteal = character(&prepared, source).lifesteal
+        || attacking_weapon
+            .as_ref()
+            .is_some_and(|weapon| weapon.lifesteal);
+    let defender_poisonous = character(&prepared, target).poisonous;
+    let defender_lifesteal = character(&prepared, target).lifesteal;
+    let attacker_is_minion = matches!(source, CharacterLocation::Board(_, _));
+    let defender_is_minion = matches!(target, CharacterLocation::Board(_, _));
+    let attacker_side = match source {
+        CharacterLocation::Hero(side) | CharacterLocation::Board(side, _) => side,
+    };
+    let defender_side = match target {
+        CharacterLocation::Hero(side) | CharacterLocation::Board(side, _) => side,
+    };
+    let attacker_entity_id = character(&prepared, source).entity_id.to_string();
+    let defender_entity_id = character(&prepared, target).entity_id.to_string();
+    let dealt = damage(&mut prepared, target, attacker_damage);
+    let received = damage(&mut prepared, source, retaliation);
+    if attacker_poisonous && dealt.dealt > 0 && defender_is_minion {
+        character_mut(&mut prepared, target).current_health = 0;
+    }
+    if defender_poisonous && received.dealt > 0 && attacker_is_minion {
+        character_mut(&mut prepared, source).current_health = 0;
+    }
+    for side in [PlayerSide::Friendly, PlayerSide::Opponent] {
+        let healing = u16::from(attacker_lifesteal && attacker_side == side)
+            .saturating_mul(dealt.dealt)
+            .saturating_add(
+                u16::from(defender_lifesteal && defender_side == side)
+                    .saturating_mul(received.dealt),
+            );
+        let overkill = if matches!(target, CharacterLocation::Hero(target_side) if target_side == side)
+        {
+            dealt.hero_overkill
+        } else if matches!(source, CharacterLocation::Hero(source_side) if source_side == side) {
+            received.hero_overkill
+        } else {
+            0
+        };
+        heal_hero(&mut prepared, side, healing.saturating_sub(overkill));
+    }
+
+    let mut weighted = vec![WeightedState {
+        state: prepared,
+        probability: ExactProbability::CERTAIN,
+    }];
+    for (should_trigger, side, entity_id) in [
+        (
+            attacker_is_minion && received.dealt > 0,
+            attacker_side,
+            attacker_entity_id.as_str(),
+        ),
+        (
+            defender_is_minion && dealt.dealt > 0,
+            defender_side,
+            defender_entity_id.as_str(),
+        ),
+    ] {
+        if !should_trigger {
+            continue;
+        }
+        let mut expanded = Vec::<WeightedState>::new();
+        for outcome in weighted {
+            for child in
+                resolve_entity_once_trigger_outcomes(&outcome.state, side, entity_id, "frenzy")?
+            {
+                expanded.push(WeightedState {
+                    state: child.state,
+                    probability: outcome.probability.multiply(child.probability)?,
+                });
+            }
+        }
+        weighted = merge_weighted_states(expanded)?;
+    }
+
+    let mut after_weapon = Vec::<WeightedState>::new();
+    for mut outcome in weighted {
+        if hero_attacked {
+            let owner = player_mut(&mut outcome.state, attacker_side);
+            if let Some(attacks_used) =
+                public_tag_value(&owner.hero, &["NUM_ATTACKS_THIS_TURN"], 297)
+            {
+                set_public_tag_value(
+                    &mut owner.hero,
+                    "NUM_ATTACKS_THIS_TURN",
+                    297,
+                    attacks_used.saturating_add(1),
+                );
+            }
+        }
+        let broken_weapon = if let Some(attacking_weapon) = &attacking_weapon {
+            let owner = player_mut(&mut outcome.state, attacker_side);
+            if let Some(weapon) = owner.weapon.as_mut() {
+                weapon.current_durability = weapon.current_durability.saturating_sub(1);
+            }
+            if owner
+                .weapon
+                .as_ref()
+                .is_some_and(|weapon| weapon.current_durability == 0)
+            {
+                let broken = owner.weapon.take();
+                owner.hero.attack = owner.hero.attack.saturating_sub(attacking_weapon.attack);
+                broken
+            } else {
+                None
+            }
+        } else {
+            None
+        };
+        let weapon_broke = broken_weapon.is_some();
+        let branches = if let Some(broken_weapon) = broken_weapon {
+            resolve_broken_weapon_outcomes(&outcome.state, attacker_side, &broken_weapon)?
+        } else {
+            vec![WeightedState {
+                state: outcome.state,
+                probability: ExactProbability::CERTAIN,
+            }]
+        };
+        for mut child in branches {
+            if let Some(attacker_location) = find_character(&child.state, &attacker_entity_id) {
+                let attacker = character_mut(&mut child.state, attacker_location);
+                attacker.stealth = false;
+                attacker.attacks_remaining = attacker.attacks_remaining.saturating_sub(1);
+                attacker.attacks_remaining_known = true;
+                attacker.can_attack =
+                    !weapon_broke && attacker.attacks_remaining > 0 && !attacker.frozen;
+            }
+            after_weapon.push(WeightedState {
+                state: child.state,
+                probability: outcome.probability.multiply(child.probability)?,
+            });
+        }
+    }
+
+    let mut after_deaths = Vec::<WeightedState>::new();
+    for outcome in merge_weighted_states(after_weapon)? {
+        for child in resolve_death_queue_outcomes(&outcome.state)? {
+            after_deaths.push(WeightedState {
+                state: child.state,
+                probability: outcome.probability.multiply(child.probability)?,
+            });
+        }
+    }
+    let mut final_states = if hero_attacked {
+        let mut triggered = Vec::<WeightedState>::new();
+        for outcome in merge_weighted_states(after_deaths)? {
+            for child in
+                resolve_board_trigger_outcomes(&outcome.state, attacker_side, "after_hero_attack")?
+            {
+                triggered.push(WeightedState {
+                    state: child.state,
+                    probability: outcome.probability.multiply(child.probability)?,
+                });
+            }
+        }
+        merge_weighted_states(triggered)?
+    } else {
+        merge_weighted_states(after_deaths)?
+    };
+    for outcome in &mut final_states {
+        reconcile_continuous_effects(state, &mut outcome.state)?;
+    }
+    Ok(final_states
         .into_iter()
         .map(|outcome| ActionOutcome {
             state: outcome.state,
@@ -3372,20 +4148,21 @@ pub fn apply_action_outcomes(
     apply_caller_confirmed_action_outcomes(state, action)
 }
 
-/// Chance-aware counterpart of [`apply_caller_confirmed_action`]. Only random
-/// card plays are enabled in this first slice; random hero powers and Location
-/// activations remain fail-closed until their lifecycle is modeled explicitly.
+/// Chance-aware counterpart of [`apply_caller_confirmed_action`]. Direct random
+/// effects and random board/death events share the same exact-probability
+/// transition path, so no action kind has to collapse a triggered outcome.
 pub(crate) fn apply_caller_confirmed_action_outcomes(
     state: &GameState,
     action: &Action,
 ) -> Result<Vec<ActionOutcome>, SolverError> {
     if action_has_random_resolution(state, action) {
-        if action.kind != ActionKind::PlayCard {
-            return Err(SolverError::Unsupported(
-                "chance outcomes are currently supported only for card plays".to_owned(),
-            ));
-        }
-        return apply_random_card_play_outcomes(state, action);
+        return match action.kind {
+            ActionKind::PlayCard => apply_chance_card_play_outcomes(state, action),
+            ActionKind::Attack => apply_chance_attack_outcomes(state, action),
+            ActionKind::HeroPower => apply_chance_hero_power_outcomes(state, action),
+            ActionKind::LocationActivate => apply_chance_location_outcomes(state, action),
+            ActionKind::EndTurn => apply_chance_end_turn_outcomes(state),
+        };
     }
     let (state, ended_turn) = apply_caller_confirmed_action(state, action)?;
     Ok(vec![ActionOutcome {
@@ -4162,6 +4939,39 @@ mod tests {
             .into_iter()
             .find(|candidate| candidate.action_id() == action_id)
             .unwrap_or_else(|| panic!("missing action {action_id}"))
+    }
+
+    fn resolved_minion_candidate(
+        card_id: &'static str,
+        dbf_id: u64,
+        cost: u16,
+    ) -> ResolvedPoolCandidate {
+        ResolvedPoolCandidate {
+            card: crate::model::ResolvedPoolCard {
+                card_id: Arc::from(card_id),
+                dbf_id,
+                name: Arc::from(card_id),
+                card_type: CardType::Minion,
+                cost,
+                attack: cost.max(1),
+                health: cost.max(1),
+                durability: 0,
+                rarity_id: 1,
+                keywords: Vec::new().into(),
+                text: Arc::from(""),
+            },
+            weight: 1,
+        }
+    }
+
+    fn outcome_probability_sum(outcomes: &[ActionOutcome]) -> ExactProbability {
+        outcomes
+            .iter()
+            .try_fold(
+                ExactProbability::new(0, 1).expect("zero"),
+                |sum, outcome| sum.add(outcome.probability),
+            )
+            .expect("valid probability sum")
     }
 
     #[test]
@@ -4988,6 +5798,306 @@ mod tests {
                 .is_some_and(|card| card.current_health == 2)
         }));
         assert!(apply_action(&request.state, &spell).is_err());
+    }
+
+    #[test]
+    fn location_placement_stays_deterministic_beside_a_random_deathrattle() {
+        let request = request(
+            r#"{
+              "request_id":"location-random-board",
+              "state":{"state_id":"s","turn":2,"active_player_id":"f","perspective_player_id":"f",
+                "friendly":{"player_id":"f","hero":{"entity_id":"fh","card_type":"HERO","health":30},"mana":1,"max_mana":2,
+                  "hand":[{"entity_id":"place","card_id":"TEST_LOCATION","card_type":"LOCATION","cost":1,"health":2,"current_health":2,"effect_coverage":"exact","effects":[{"kind":"damage","amount":1,"target":"enemy_minion"}]}],
+                  "board":[{"entity_id":"rattle","card_type":"MINION","attack":1,"health":1,"effect_coverage":"exact","effects":[{"kind":"damage","trigger":"deathrattle","amount":1,"target":"enemy_character","random":true}]}]},
+                "opponent":{"player_id":"o","hero":{"entity_id":"oh","card_type":"HERO","health":30},"board":[{"entity_id":"target","card_type":"MINION","attack":1,"health":2}]}}
+            }"#,
+        );
+        let placement = action(&request.state, "play_card:place::position=2");
+        assert!(!action_has_random_resolution(&request.state, &placement));
+        let (after, _) = apply_action(&request.state, &placement).expect("place Location");
+        assert_eq!(after.friendly.board.len(), 2);
+        assert_eq!(after.friendly.board[1].entity_id.as_ref(), "place");
+        assert_eq!(after.opponent.board[0].current_health, 2);
+    }
+
+    #[test]
+    fn random_deathrattle_draw_preserves_exact_owner_deck_branches() {
+        let mut request = request(
+            r#"{
+              "request_id":"random-deathrattle-draw",
+              "state":{"state_id":"s","turn":4,"active_player_id":"o","perspective_player_id":"f",
+                "friendly":{"player_id":"f","hero":{"entity_id":"fh","card_type":"HERO","health":30},"deck_size":2,"deck_identity_complete":true,
+                  "known_deck":[
+                    {"card_id":"HIGH_A","count":1,"origin":"started_in_deck","card_type":"MINION","cost":7,"name":"A"},
+                    {"card_id":"HIGH_B","count":1,"origin":"started_in_deck","card_type":"MINION","cost":8,"name":"B"}
+                  ],
+                  "board":[{"entity_id":"drawbot","card_id":"EDR_485","card_type":"MINION","attack":1,"health":1,"effect_coverage":"generic","effects":[{"kind":"draw_from_pool","trigger":"deathrattle","target":"none","count":1,"random":true,"pool_selection":"uniform_random","pool_destination":"hand","offer_count":1,"with_replacement":false,"pool":{"source":"owner_deck","cost_min":7,"card_types":["MINION"]}}]}]},
+                "opponent":{"player_id":"o","hero":{"entity_id":"oh","card_type":"HERO","health":30},"board":[{"entity_id":"attacker","card_type":"MINION","attack":2,"health":3,"can_attack":true,"attacks_remaining":1,"attacks_remaining_known":true}]}}
+            }"#,
+        );
+        let effect = &mut Arc::make_mut(&mut request.state.friendly.board[0].effects)[0];
+        effect.resolved_pool = vec![
+            resolved_minion_candidate("HIGH_A", 101, 7),
+            resolved_minion_candidate("HIGH_B", 102, 8),
+        ]
+        .into();
+        effect.resolved_pool_population = 2;
+        effect.resolved_pool_exact = true;
+
+        let attack = action(&request.state, "attack:attacker:drawbot");
+        assert!(action_has_random_resolution(&request.state, &attack));
+        let outcomes = apply_action_outcomes(&request.state, &attack)
+            .expect("random Deathrattle draw outcomes");
+        assert_eq!(outcomes.len(), 2);
+        assert_eq!(
+            outcome_probability_sum(&outcomes),
+            ExactProbability::CERTAIN
+        );
+        assert!(outcomes.iter().all(|outcome| {
+            outcome.probability == ExactProbability::new(1, 2).expect("half")
+                && outcome.state.friendly.deck_size == 1
+                && outcome.state.friendly.hand.len() == 1
+                && outcome
+                    .state
+                    .friendly
+                    .graveyard
+                    .iter()
+                    .any(|card| card.entity_id.as_ref() == "drawbot")
+        }));
+        assert_eq!(
+            outcomes
+                .iter()
+                .map(|outcome| outcome.state.friendly.hand[0].card_id.as_ref())
+                .collect::<BTreeSet<_>>(),
+            BTreeSet::from(["HIGH_A", "HIGH_B"])
+        );
+    }
+
+    #[test]
+    fn deterministic_damage_can_branch_through_a_random_frenzy() {
+        let request = request(
+            r#"{
+              "request_id":"random-frenzy",
+              "state":{"state_id":"s","turn":4,"active_player_id":"f","perspective_player_id":"f",
+                "friendly":{"player_id":"f","hero":{"entity_id":"fh","card_type":"HERO","health":30},"mana":1,"max_mana":4,
+                  "hand":[{"entity_id":"ping","card_type":"SPELL","cost":1,"effect_coverage":"exact","effects":[{"kind":"damage","amount":1,"target":"enemy_minion"}]}],
+                  "board":[{"entity_id":"ally","card_type":"MINION","attack":2,"health":2}]},
+                "opponent":{"player_id":"o","hero":{"entity_id":"oh","card_type":"HERO","health":30},
+                  "board":[{"entity_id":"frenzy","card_type":"MINION","attack":1,"health":3,"effect_coverage":"exact","effects":[{"kind":"damage","trigger":"frenzy","amount":1,"target":"enemy_character","random":true}]}]}}
+            }"#,
+        );
+        let ping = action(&request.state, "play_card:ping:frenzy");
+        let outcomes = apply_action_outcomes(&request.state, &ping)
+            .expect("deterministic hit with random Frenzy outcomes");
+        assert_eq!(outcomes.len(), 2);
+        assert_eq!(
+            outcome_probability_sum(&outcomes),
+            ExactProbability::CERTAIN
+        );
+        assert!(outcomes.iter().all(|outcome| {
+            outcome.state.opponent.board[0].current_health == 2
+                && outcome.state.opponent.board[0].effects.is_empty()
+        }));
+        assert!(outcomes.iter().any(|outcome| {
+            outcome.state.friendly.hero.current_health == 29
+                && outcome.state.friendly.board[0].current_health == 2
+        }));
+        assert!(outcomes.iter().any(|outcome| {
+            outcome.state.friendly.hero.current_health == 30
+                && outcome.state.friendly.board[0].current_health == 1
+        }));
+    }
+
+    #[test]
+    fn hero_attack_after_trigger_branches_over_friendly_minions() {
+        let request = request(
+            r#"{
+              "request_id":"random-after-hero-attack",
+              "state":{"state_id":"s","turn":4,"active_player_id":"f","perspective_player_id":"f",
+                "friendly":{"player_id":"f","hero":{"entity_id":"fh","card_type":"HERO","attack":1,"health":30,"can_attack":true,"attacks_remaining":1,"attacks_remaining_known":true,"tags":{"NUM_ATTACKS_THIS_TURN":0}},
+                  "board":[
+                    {"entity_id":"ally","card_type":"MINION","attack":2,"health":2},
+                    {"entity_id":"engine","card_id":"CATA_467","card_type":"MINION","attack":1,"health":3,"effect_coverage":"generic","effects":[{"kind":"buff_attack","trigger":"after_hero_attack","amount":2,"target":"friendly_minion","random":true}]}
+                  ]},
+                "opponent":{"player_id":"o","hero":{"entity_id":"oh","card_type":"HERO","health":30}}}
+            }"#,
+        );
+        let outcomes =
+            apply_action_outcomes(&request.state, &action(&request.state, "attack:fh:oh"))
+                .expect("random after-Hero-attack outcomes");
+        assert_eq!(outcomes.len(), 2);
+        assert_eq!(
+            outcome_probability_sum(&outcomes),
+            ExactProbability::CERTAIN
+        );
+        assert!(
+            outcomes
+                .iter()
+                .all(|outcome| outcome.state.opponent.hero.current_health == 29)
+        );
+        assert_eq!(
+            outcomes
+                .iter()
+                .map(|outcome| {
+                    (
+                        outcome.state.friendly.board[0].attack,
+                        outcome.state.friendly.board[1].attack,
+                    )
+                })
+                .collect::<BTreeSet<_>>(),
+            BTreeSet::from([(2, 3), (4, 1)])
+        );
+    }
+
+    #[test]
+    fn hero_power_after_trigger_branches_after_payment_and_resolution() {
+        let request = request(
+            r#"{
+              "request_id":"random-after-power",
+              "state":{"state_id":"s","turn":4,"active_player_id":"f","perspective_player_id":"f",
+                "friendly":{"player_id":"f","hero":{"entity_id":"fh","card_type":"HERO","health":30},"mana":2,"max_mana":4,"hero_power_available":true,
+                  "hero_power":{"entity_id":"power","card_type":"HERO_POWER","cost":2,"effect_coverage":"exact","effects":[{"kind":"damage","amount":1,"target":"enemy_hero"}]},
+                  "board":[{"entity_id":"dragon","card_id":"CORE_DRG_256","card_type":"MINION","attack":8,"health":8,"effect_coverage":"generic","effects":[{"kind":"damage","trigger":"after_hero_power","amount":5,"target":"enemy_character","random":true}]}]},
+                "opponent":{"player_id":"o","hero":{"entity_id":"oh","card_type":"HERO","health":30},"board":[{"entity_id":"target","card_type":"MINION","attack":1,"health":6}]}}
+            }"#,
+        );
+        let outcomes = apply_action_outcomes(
+            &request.state,
+            &action(&request.state, "hero_power:power:oh"),
+        )
+        .expect("random after-Hero-Power outcomes");
+        assert_eq!(outcomes.len(), 2);
+        assert_eq!(
+            outcome_probability_sum(&outcomes),
+            ExactProbability::CERTAIN
+        );
+        assert!(outcomes.iter().all(|outcome| {
+            outcome.state.friendly.mana == 0 && !outcome.state.friendly.hero_power_available
+        }));
+        assert!(outcomes.iter().any(|outcome| {
+            outcome.state.opponent.hero.current_health == 24
+                && outcome.state.opponent.board[0].current_health == 6
+        }));
+        assert!(outcomes.iter().any(|outcome| {
+            outcome.state.opponent.hero.current_health == 29
+                && outcome.state.opponent.board[0].current_health == 1
+        }));
+    }
+
+    #[test]
+    fn direct_random_hero_power_and_location_emit_public_outcomes() {
+        let power_request = request(
+            r#"{
+              "request_id":"random-power",
+              "state":{"state_id":"p","turn":4,"active_player_id":"f","perspective_player_id":"f",
+                "friendly":{"player_id":"f","hero":{"entity_id":"fh","card_type":"HERO","health":30},"mana":2,"max_mana":4,"hero_power_available":true,
+                  "hero_power":{"entity_id":"power","card_type":"HERO_POWER","cost":2,"effect_coverage":"exact","effects":[{"kind":"damage","amount":2,"target":"enemy_character","random":true}]}},
+                "opponent":{"player_id":"o","hero":{"entity_id":"oh","card_type":"HERO","health":30},"board":[{"entity_id":"target","card_type":"MINION","attack":1,"health":3}]}}
+            }"#,
+        );
+        let power_outcomes = apply_action_outcomes(
+            &power_request.state,
+            &action(&power_request.state, "hero_power:power:"),
+        )
+        .expect("direct random Hero Power outcomes");
+        assert_eq!(power_outcomes.len(), 2);
+        assert_eq!(
+            outcome_probability_sum(&power_outcomes),
+            ExactProbability::CERTAIN
+        );
+
+        let location_request = request(
+            r#"{
+              "request_id":"random-location",
+              "state":{"state_id":"l","turn":4,"active_player_id":"f","perspective_player_id":"f",
+                "friendly":{"player_id":"f","hero":{"entity_id":"fh","card_type":"HERO","health":30},
+                  "board":[{"entity_id":"place","card_id":"RANDOM_LOCATION","card_type":"LOCATION","health":2,"current_health":2,"durability":2,"current_durability":2,"effect_coverage":"exact","effects":[{"kind":"damage","amount":2,"target":"enemy_character","random":true}]}]},
+                "opponent":{"player_id":"o","hero":{"entity_id":"oh","card_type":"HERO","health":30},"board":[{"entity_id":"target","card_type":"MINION","attack":1,"health":3}]}}
+            }"#,
+        );
+        let location_outcomes = apply_caller_confirmed_action_outcomes(
+            &location_request.state,
+            &Action::new(ActionKind::LocationActivate, "place", "", "RANDOM_LOCATION"),
+        )
+        .expect("direct random Location outcomes");
+        assert_eq!(location_outcomes.len(), 2);
+        assert_eq!(
+            outcome_probability_sum(&location_outcomes),
+            ExactProbability::CERTAIN
+        );
+        assert!(location_outcomes.iter().all(|outcome| {
+            outcome.state.friendly.board[0].current_health == 1
+                && outcome.state.friendly.board[0].current_durability == 1
+        }));
+    }
+
+    #[test]
+    fn random_turn_end_trigger_resolves_before_the_player_switch() {
+        let request = request(
+            r#"{
+              "request_id":"random-turn-end",
+              "state":{"state_id":"s","turn":4,"active_player_id":"f","perspective_player_id":"f",
+                "friendly":{"player_id":"f","hero":{"entity_id":"fh","card_type":"HERO","health":30},"mana":3,"max_mana":4,
+                  "board":[{"entity_id":"engine","card_id":"CORE_YOP_034","card_type":"MINION","attack":7,"health":7,"effect_coverage":"generic","effects":[{"kind":"damage","trigger":"turn_end","amount":5,"target":"enemy_character","random":true}]}]},
+                "opponent":{"player_id":"o","hero":{"entity_id":"oh","card_type":"HERO","health":30},"board":[{"entity_id":"target","card_type":"MINION","attack":1,"health":6}]}}
+            }"#,
+        );
+        let outcomes = apply_action_outcomes(&request.state, &Action::end_turn())
+            .expect("random turn-end outcomes");
+        assert_eq!(outcomes.len(), 2);
+        assert_eq!(
+            outcome_probability_sum(&outcomes),
+            ExactProbability::CERTAIN
+        );
+        assert!(outcomes.iter().all(|outcome| {
+            outcome.ended_turn
+                && outcome.state.active_player_id.as_ref() == "o"
+                && outcome.state.friendly.mana == 0
+        }));
+        assert!(outcomes.iter().any(|outcome| {
+            outcome.state.opponent.hero.current_health == 25
+                && outcome.state.opponent.board[0].current_health == 6
+        }));
+        assert!(outcomes.iter().any(|outcome| {
+            outcome.state.opponent.hero.current_health == 30
+                && outcome.state.opponent.board[0].current_health == 1
+        }));
+    }
+
+    #[test]
+    fn death_batch_uses_active_player_order_before_queueing_new_deaths() {
+        let mut request = request(
+            r#"{
+              "request_id":"death-batch-order",
+              "state":{"state_id":"s","turn":4,"active_player_id":"f","perspective_player_id":"f",
+                "friendly":{"player_id":"f","hero":{"entity_id":"fh","card_type":"HERO","health":30},
+                  "board":[{"entity_id":"first","card_type":"MINION","attack":1,"health":1,"effect_coverage":"exact","effects":[{"kind":"summon","trigger":"deathrattle","target":"none","count":1,"card_id":"TOKEN","name":"Token","attack":1,"health":1}]}]},
+                "opponent":{"player_id":"o","hero":{"entity_id":"oh","card_type":"HERO","health":30},
+                  "board":[{"entity_id":"second","card_type":"MINION","attack":1,"health":1,"effect_coverage":"exact","effects":[{"kind":"damage","trigger":"deathrattle","amount":1,"target":"enemy_minion","random":true}]}]}}
+            }"#,
+        );
+        request.state.friendly.board[0].current_health = 0;
+        request.state.opponent.board[0].current_health = 0;
+        let outcomes = resolve_death_queue_outcomes(&request.state).expect("ordered death batch");
+        assert_eq!(outcomes.len(), 1);
+        assert_eq!(outcomes[0].probability, ExactProbability::CERTAIN);
+        assert!(outcomes[0].state.friendly.board.is_empty());
+        assert!(
+            outcomes[0]
+                .state
+                .friendly
+                .graveyard
+                .iter()
+                .any(|card| card.card_id.as_ref() == "TOKEN")
+        );
+        assert!(
+            outcomes[0]
+                .state
+                .opponent
+                .graveyard
+                .iter()
+                .any(|card| card.entity_id.as_ref() == "second")
+        );
     }
 
     #[test]
